@@ -53,11 +53,15 @@ const config = {
       chainId: 12345,
       // loggingEnabled: false
     },
+    forma: {
+      url: "https://rpc.forma.art/",
+      accounts: { mnemonic: process.env.deploymentKey },
+      gasPrice: 10_000_000, // 0.01 GWEI
+    },
     formatest: {
-      // url: 'https://sepolia.infura.io/v3/' + process.env.INFURA_API_KEY,
       url: "https://rpc.sketchpad-1.forma.art/",
       accounts: { mnemonic: process.env.deploymentKey },
-      gasPrice: 1_000_000_000, // 1 GWEI
+      gasPrice: 10_000_000, // 0.01 GWEI
     },
     baseSepolia: {
       // network ID: 84532
@@ -117,15 +121,22 @@ const config = {
           browserURL: "https://explorer.garnetchain.com",
         },
       },
-      // {
-      //   network: 'baseSepolia',
-      //   chainId: 84532,
-
-      //   urls: {
-      //     apiURL: 'https://api-sepolia.basescan.org/api',
-      //     browserURL: 'https://sepolia.basescan.org'
-      //   }
-      // }
+      {
+        network: "formatest",
+        chainId: 984123,
+        urls: {
+          apiURL: "https://explorer.sketchpad-1.forma.art/api/",
+          browserURL: "https://explorer.sketchpad-1.forma.art",
+        },
+      },
+      {
+        network: "forma",
+        chainId: 984122,
+        urls: {
+          apiURL: "https://explorer.forma.art/api/",
+          browserURL: "https://explorer.forma.art",
+        },
+      },
     ],
   },
   contractSizer: {

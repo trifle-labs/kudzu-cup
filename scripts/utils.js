@@ -5,6 +5,10 @@ import { promises as fs } from "fs";
 
 const __dirname = path.resolve();
 
+BigInt.prototype.toJSON = function () {
+  return this.toString() + "n";
+};
+
 const testJson = (tJson) => {
   try {
     JSON.parse(tJson);
@@ -116,6 +120,9 @@ const deployContracts = async (options) => {
 
 const saveAndVerifyContracts = async (deployedContracts) => {
   for (const contractName in deployedContracts) {
+    if (contractName === "verificationData") {
+      continue;
+    }
     await copyABI(contractName);
     const contract = deployedContracts[contractName];
     await saveAddress(contract, contractName);
@@ -135,7 +142,7 @@ const deployContractsV0 = async (options) => {
 
   // const networkinfo = await hre.ethers.provider.getNetwork();
   global.chainId = chainId;
-  log("Deploying v0 contracts");
+  log("Deploying contracts");
 
   const returnObject = {};
 
@@ -171,8 +178,9 @@ const deployContractsV0 = async (options) => {
 };
 
 const verifyContracts = async (returnObject) => {
-  const chainId = await hre.ethers.provider.getNetwork();
-  const deployer = await hre.ethers.getSigner();
+  const networkInfo = await hre.ethers.provider.getNetwork();
+  const chainId = BigInt(networkInfo.chainId);
+  const [deployer] = await hre.ethers.getSigners();
   // verify contract if network ID is mainnet goerli or sepolia
   if (
     chainId == 5n || // Updated to use bigint
