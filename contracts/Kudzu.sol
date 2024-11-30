@@ -43,15 +43,15 @@ contract Kudzu is ERC1155, Ownable {
     bool public enableAttack = false;
 
     uint256 public createPrice = 1 ether; // TIA ~$8
-    uint256 public buyPrice = 0.5 ether; // TIA ~$4
-    uint256 public airdropPrice = 0.25 ether; // TIA ~$2
-    uint256 public claimPrice = 0.25 ether; // TIA ~$2
-    uint256 public attackPrice = 0.5 ether; // TIA ~$4
+    uint256 public buyPrice = 1 ether; // TIA ~$8
+    uint256 public airdropPrice = 0.5 ether; // TIA ~$2
+    uint256 public claimPrice = 0.5 ether; // TIA ~$2
+    uint256 public attackPrice = 1 ether; // TIA ~$8
 
     uint256 public percentOfCreate = 500; // 500 / 1000 = 50%
     uint256 public percentOfBuy = 500; // 500 / 1000 = 50%
-    uint256 public percentOfInvite = 500; // 500 / 1000 = 50%
-    uint256 public percentOfAccept = 500; // 500 / 1000 = 50%
+    uint256 public percentOfAirdrop = 500; // 500 / 1000 = 50%
+    uint256 public percentOfClaim = 500; // 500 / 1000 = 50%
     uint256 public percentOfAttack = 500; // 500 / 1000 = 50%
     uint256 public constant DENOMINATOR = 1000;
 
@@ -67,13 +67,13 @@ contract Kudzu is ERC1155, Ownable {
 
     // Events
     event Buy(uint256 tokenId, uint256 quantity, address buyer);
-    event Invite(
+    event Airdrop(
         uint256 tokenId,
         uint256 quantity,
-        address airdropr,
-        address airdrope
+        address airdropper,
+        address airdropee
     );
-    event Accept(uint256 tokenId, uint256 quantity, address claimer);
+    event Claim(uint256 tokenId, uint256 quantity, address claimer);
     event Attack(uint256 tokenId, uint256 quantity, address attacker);
 
     event EthMoved(
@@ -141,6 +141,7 @@ contract Kudzu is ERC1155, Ownable {
     //
     // Write Functions
 
+    // TODO: maybe combine create price and buy price
     function create(uint256 quantity) public payable {
         require(quantity > 0, "CANT CREATE 0");
         require(block.timestamp > startDate, "GAME HASN'T STARTED");
@@ -156,8 +157,6 @@ contract Kudzu is ERC1155, Ownable {
         _mint(msg.sender, tokenId, quantity, "");
         squadSupply[tokenId] += quantity;
 
-        // (uint256 id, uint256 eyes, uint256 mouth) = getPiecesOfTokenID(tokenId);
-
         emit Buy(tokenId, quantity, msg.sender);
 
         uint256 payoutToRecipient = (msg.value * percentOfCreate) / DENOMINATOR;
@@ -170,7 +169,7 @@ contract Kudzu is ERC1155, Ownable {
     }
 
     function buy(uint256 tokenId, uint256 quantity) public payable {
-        require(quantity > 0, "CANT MINT 0");
+        require(quantity > 0, "CANT BUY 0");
         require(block.timestamp > startDate, "GAME HASN'T STARTED");
         require(block.timestamp < endDate, "GAME ENDED");
         require(msg.value == buyPrice * quantity, "INSUFFICIENT FUNDS");
@@ -192,22 +191,24 @@ contract Kudzu is ERC1155, Ownable {
     }
 
     function airdrop(
-        address airdrope,
+        address airdropee,
         uint256 tokenId,
         uint256 quantity
     ) public payable {
-        require(quantity > 0, "CANT INVITE 0");
+        require(quantity > 0, "CANT AIRDROP 0");
         require(block.timestamp > startDate, "GAME HASN'T STARTED");
         require(block.timestamp < endDate, "GAME ENDED");
         require(msg.value == airdropPrice * quantity, "INSUFFICIENT FUNDS");
         require(msg.sender == tx.origin, "NO SMART CONTRACTS");
         require(exists[tokenId], "TOKEN DOES NOT EXIST");
+        require(balanceOf(msg.sender, tokenId) > 0, "NOT A HOLDER");
 
-        airdrops[tokenId][airdrope] += quantity;
+        airdrops[tokenId][airdropee] += quantity;
 
-        emit Invite(tokenId, quantity, msg.sender, airdrope);
+        emit Airdrop(tokenId, quantity, msg.sender, airdropee);
 
-        uint256 payoutToRecipient = (msg.value * percentOfInvite) / DENOMINATOR;
+        uint256 payoutToRecipient = (msg.value * percentOfAirdrop) /
+            DENOMINATOR;
         (bool success, bytes memory data) = recipient.call{
             value: payoutToRecipient
         }("");
@@ -217,7 +218,7 @@ contract Kudzu is ERC1155, Ownable {
     }
 
     function claimAirdrop(uint256 tokenId, uint256 quantity) public payable {
-        require(quantity > 0, "CANT ACCEPT 0");
+        require(quantity > 0, "CANT CLAIM 0");
         require(block.timestamp > startDate, "GAME HASN'T STARTED");
         require(block.timestamp < endDate, "GAME ENDED");
         require(msg.value == claimPrice * quantity, "INSUFFICIENT FUNDS");
@@ -225,7 +226,7 @@ contract Kudzu is ERC1155, Ownable {
         require(exists[tokenId], "TOKEN DOES NOT EXIST");
         require(
             airdrops[tokenId][msg.sender] >= quantity,
-            "INSUFFICIENT INVITES"
+            "INSUFFICIENT AIRDROPS"
         );
 
         airdrops[tokenId][msg.sender] -= quantity;
@@ -235,9 +236,9 @@ contract Kudzu is ERC1155, Ownable {
         _mint(msg.sender, tokenId, quantity, "");
         squadSupply[tokenId] += quantity;
 
-        emit Accept(tokenId, quantity, msg.sender);
+        emit Claim(tokenId, quantity, msg.sender);
 
-        uint256 payoutToRecipient = (msg.value * percentOfAccept) / DENOMINATOR;
+        uint256 payoutToRecipient = (msg.value * percentOfClaim) / DENOMINATOR;
         (bool success, bytes memory data) = recipient.call{
             value: payoutToRecipient
         }("");
@@ -358,22 +359,22 @@ contract Kudzu is ERC1155, Ownable {
     function updatePercentages(
         uint256 _percentOfCreate,
         uint256 _percentOfBuy,
-        uint256 _percentOfInvite,
-        uint256 _percentOfAccept,
+        uint256 _percentOfAirdrop,
+        uint256 _percentOfClaim,
         uint256 _percentOfAttack
     ) public onlyOwner {
         require(
             _percentOfCreate <= DENOMINATOR &&
                 _percentOfBuy <= DENOMINATOR &&
-                _percentOfInvite <= DENOMINATOR &&
-                _percentOfAccept <= DENOMINATOR &&
+                _percentOfAirdrop <= DENOMINATOR &&
+                _percentOfClaim <= DENOMINATOR &&
                 _percentOfAttack <= DENOMINATOR,
             "INVALID PERCENTAGE"
         );
         percentOfCreate = _percentOfCreate;
         percentOfBuy = _percentOfBuy;
-        percentOfInvite = _percentOfInvite;
-        percentOfAccept = _percentOfAccept;
+        percentOfAirdrop = _percentOfAirdrop;
+        percentOfClaim = _percentOfClaim;
         percentOfAttack = _percentOfAttack;
     }
 

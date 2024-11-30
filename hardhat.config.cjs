@@ -5,6 +5,7 @@ require("hardhat-contract-sizer");
 require("dotenv").config();
 require("@nomicfoundation/hardhat-verify");
 require("solidity-coverage");
+require("@nomicfoundation/hardhat-ethers");
 
 // const { subtask } = require('hardhat/config')
 // const {

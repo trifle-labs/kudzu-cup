@@ -15,12 +15,15 @@ const testJson = (tJson) => {
 };
 
 const getPathABI = async (name) => {
-  var networkinfo = await hre.ethers.provider.getNetwork();
+  // var networkinfo = await hre.ethers.provider.getNetwork();
+  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const chainId = BigInt(networkinfo);
+
   var savePath = path.join(
     __dirname,
     "server",
     "contractData",
-    "ABI-" + String(networkinfo["chainId"]) + "-" + String(name) + ".json"
+    "ABI-" + String(chainId) + "-" + String(name) + ".json"
   );
   return savePath;
 };
@@ -31,19 +34,20 @@ async function readData(path) {
 }
 
 const getPathAddress = async (name) => {
-  var networkinfo = await hre.ethers.provider.getNetwork();
+  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const chainId = BigInt(networkinfo);
   var savePath = path.join(
     __dirname,
     "server",
     "contractData",
-    String(networkinfo["chainId"]) + "-" + String(name) + ".json"
+    String(chainId) + "-" + String(name) + ".json"
   );
   return savePath;
 };
 
 const initContracts = async (
   contractNames = ["Kudzu", "ExternalMetadata"],
-  skipErrors = false // skipErrors
+  skipErrors = false
 ) => {
   let [deployer] = await hre.ethers.getSigners();
 
@@ -84,14 +88,15 @@ const decodeUri = (decodedJson) => {
 const deployMetadata = async () => {
   let externalMetadata;
   try {
-    const network = await hre.ethers.provider.getNetwork();
-    global.networkinfo = network;
+    const networkinfo = await hre.network.provider.send("eth_chainId");
+    const chainId = BigInt(networkinfo);
+    global.chainId = chainId;
 
     // deploy ExternalMetadata
     const ExternalMetadata =
       await hre.ethers.getContractFactory("ExternalMetadata");
     externalMetadata = await ExternalMetadata.deploy();
-    await externalMetadata.deployed();
+    await externalMetadata.deploymentTransaction().wait(); // Updated for v6
   } catch (e) {
     console.error(e);
   }
@@ -110,7 +115,6 @@ const deployContracts = async (options) => {
 };
 
 const saveAndVerifyContracts = async (deployedContracts) => {
-  // const networkInfo = await hre.ethers.provider.getNetwork();
   for (const contractName in deployedContracts) {
     await copyABI(contractName);
     const contract = deployedContracts[contractName];
@@ -126,25 +130,28 @@ const deployContractsV0 = async (options) => {
   const { ignoreTesting, verbose } = Object.assign(defaultOptions, options);
   global.ignoreTesting = ignoreTesting;
   global.verbose = verbose;
-  const networkinfo = await hre.ethers.provider.getNetwork();
-  global.networkinfo = networkinfo;
+  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const chainId = BigInt(networkinfo);
+
+  // const networkinfo = await hre.ethers.provider.getNetwork();
+  global.chainId = chainId;
   log("Deploying v0 contracts");
 
   const returnObject = {};
 
   // deploy Metadata
   const { externalMetadata } = await deployMetadata();
-  log("ExternalMetadata Deployed at " + String(externalMetadata.address));
+  log("ExternalMetadata Deployed at " + String(externalMetadata.target)); // Updated from .address to .target
 
   returnObject["ExternalMetadata"] = externalMetadata;
 
   // deploy Kudzu
   const Kudzu = await hre.ethers.getContractFactory("Kudzu");
-  const kudzu = await Kudzu.deploy(externalMetadata.address);
-  await kudzu.deployed();
+  const kudzu = await Kudzu.deploy(externalMetadata.target); // Updated from .address to .target
+  await kudzu.deploymentTransaction().wait(); // Updated for v6
   returnObject["Kudzu"] = kudzu;
   log(
-    `Kudzu Deployed at ${kudzu.address} with ExternalMetadata at ${externalMetadata.address}`
+    `Kudzu Deployed at ${kudzu.target} with ExternalMetadata at ${externalMetadata.target}` // Updated .address to .target
   );
 
   const verificationData = [
@@ -154,7 +161,7 @@ const deployContractsV0 = async (options) => {
     },
     {
       name: "Kudzu",
-      constructorArguments: [externalMetadata.address],
+      constructorArguments: [externalMetadata.target], // Updated from .address to .target
     },
   ];
 
@@ -164,16 +171,16 @@ const deployContractsV0 = async (options) => {
 };
 
 const verifyContracts = async (returnObject) => {
-  const networkinfo = await hre.ethers.provider.getNetwork();
+  const chainId = await hre.ethers.provider.getNetwork();
   const deployer = await hre.ethers.getSigner();
   // verify contract if network ID is mainnet goerli or sepolia
   if (
-    networkinfo["chainId"] == 5 ||
-    networkinfo["chainId"] == 1 ||
-    networkinfo["chainId"] == 11155111 ||
-    networkinfo["chainId"] == 17069 ||
-    networkinfo["chainId"] == 84532 ||
-    networkinfo["chainId"] == 8453
+    chainId == 5n || // Updated to use bigint
+    chainId == 1n ||
+    chainId == 11155111n ||
+    chainId == 17069n ||
+    chainId == 84532n ||
+    chainId == 8453n
   ) {
     const verificationData = returnObject.verificationData;
     for (let i = 0; i < verificationData.length; i++) {
@@ -181,7 +188,7 @@ const verifyContracts = async (returnObject) => {
       log(`Verifying ${verificationData[i].name} Contract`);
       try {
         await hre.run("verify:verify", {
-          address: returnObject[verificationData[i].name].address,
+          address: returnObject[verificationData[i].name].target, // Updated from .address to .target
           constructorArguments: verificationData[i].constructorArguments,
         });
       } catch (e) {
@@ -190,34 +197,35 @@ const verifyContracts = async (returnObject) => {
         i--;
       }
     }
-  } else if (networkinfo["chainId"] == 12345) {
+  } else if (chainId == 12345n) {
+    // Updated to use bigint
     // This is so dev accounts have spending money on local chain
     await deployer.sendTransaction({
       to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-      value: ethers.utils.parseEther("1.0"),
+      value: ethers.parseEther("1.0"), // Updated from utils.parseEther
     });
     await deployer.sendTransaction({
       to: "0xc795344b1b30E3CfEE1AFA1D5204B141940CF445",
-      value: ethers.utils.parseEther("1.0"),
+      value: ethers.parseEther("1.0"), // Updated from utils.parseEther
     });
   }
 };
 
 const log = (message) => {
   const ignoreTesting = global.ignoreTesting;
-  const networkinfo = global.networkinfo;
+  const chainId = global.chainId;
   const verbose = global.verbose;
   if (
     !verbose &&
-    (!networkinfo || (networkinfo["chainId"] == 12345 && !ignoreTesting))
+    (!chainId || (chainId == 12345n && !ignoreTesting)) // Updated to use bigint
   )
     return;
   console.log(message);
 };
 
 const getParsedEventLogs = (receipt, contract, eventName) => {
-  const events = receipt.events
-    .filter((x) => x.address === contract.address)
+  const events = receipt.logs
+    .filter((x) => x.address === contract.target) // Updated from .address to .target
     .map((log) => contract.interface.parseLog(log));
   return eventName ? events.filter((x) => x.name === eventName) : events;
 };
@@ -225,7 +233,8 @@ const getParsedEventLogs = (receipt, contract, eventName) => {
 async function copyABI(name, contractName) {
   contractName = contractName || name;
 
-  var networkinfo = await hre.ethers.provider.getNetwork();
+  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const chainId = BigInt(networkinfo);
   log(`--copy ${name} ABI`);
   var pathname = path.join(
     __dirname,
@@ -244,12 +253,9 @@ async function copyABI(name, contractName) {
     var copy = path.join(
       __dirname,
       "contractData",
-      "ABI-" + String(networkinfo["chainId"]) + `-${name}.json`
+      "ABI-" + String(chainId) + `-${name}.json`
     );
-    // write the new content to the new file
     await writedata(copy, JSON.stringify(newContent));
-
-    // await copyContractABI(pathname, copy)
     log("-- OK");
   } catch (e) {
     console.error("Failed to copy ABI" + name, { e });
@@ -257,25 +263,23 @@ async function copyABI(name, contractName) {
 }
 
 async function saveAddress(contract, name) {
-  var networkinfo = await hre.ethers.provider.getNetwork();
+  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const chainId = BigInt(networkinfo);
   log("-save json for " + name);
-  var newAddress = await contract.address;
+  var newAddress = await contract.target; // Updated from .address to .target
   var savePath = path.join(
     __dirname,
     "contractData",
-    String(networkinfo["chainId"]) + "-" + String(name) + ".json"
+    String(chainId) + "-" + String(name) + ".json"
   );
   var objToWrite = {
     address: newAddress,
-    chain: networkinfo,
+    chain: chainId,
   };
   await writedata(savePath, JSON.stringify(objToWrite));
 }
 
 async function writedata(path, data) {
-  // await fs.writeFile(path, data, function (err, result) {
-  //   if (err) console.log('error', err);
-  // })
   try {
     await fs.writeFile(path, data);
   } catch (e) {
