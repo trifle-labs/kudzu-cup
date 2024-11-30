@@ -2,12 +2,14 @@
   "name": "kudzu-cup",
   "version": "1.0.0",
   "license": "CC-BY-NC-4.0",
-  "source": "src/index.js",
+  "type": "module",
   "main": "src/index.js",
   "module": "src/index.js",
+  "source": "src/index.js",
   "scripts": {
     "chain": "hardhat node",
     "deploy": "hardhat run scripts/deploy.cjs",
+    "coverage": "hardhat coverage --solcoverjs .solcover.cjs  && node fix-coverage-links.cjs",
     "test": "hardhat test"
   },
   "lint-staged": {
@@ -20,6 +22,12 @@
     ],
     "**/*": "prettier --write --ignore-unknown"
   },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "not ie 11"
+  ],
   "eslintConfig": {
     "env": {
       "amd": true,
@@ -43,22 +51,22 @@
     "ignorePatterns": [],
     "root": true
   },
-  "dependencies": {
-    "@nomicfoundation/hardhat-ethers": "^3.0.0",
-    "chai": "^4.2.0",
-    "ethers": "^6.0.0"
-  },
+  "resolutions": {},
+  "dependencies": {},
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.9",
     "@nomicfoundation/hardhat-verify": "^2.0.8",
     "@nomiclabs/hardhat-ganache": "*",
     "@openzeppelin/contracts": "^4.6.0",
     "OrderStatisticsTree": "https://github.com/rob-Hitchens/OrderStatisticsTree.git",
     "base64-sol": "^1.1.0",
+    "chai": "^4.2.0",
     "dotenv": "^16.0.1",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
+    "ethers": "^6.0.0",
     "hardhat": "2.21.0",
     "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^2.2.0",
@@ -66,14 +74,6 @@
     "prettier": "3.2.5",
     "solidity-coverage": "^0.8.6"
   },
-  "resolutions": {},
-  "type": "module",
-  "browserslist": [
-    "> 1%",
-    "last 2 versions",
-    "not dead",
-    "not ie 11"
-  ],
   "readme": "ERROR: No README data found!",
   "_id": "kudzu-cup@1.0.0"
 }
