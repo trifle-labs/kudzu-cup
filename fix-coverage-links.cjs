@@ -15,10 +15,10 @@ function fixCoverageLinks() {
 
   let html = fs.readFileSync(overviewPath, "utf8");
 
-  // Fix contract links by adding /contracts/ prefix
+  // Fix contract links by adding ./ prefix
   html = html.replace(
     /<a href="([^"]+\.sol\.html)">/g,
-    '<a href="/contracts/$1">'
+    '<a href="/kudzu-cup/contracts/$1">'
   );
 
   // Write the fixed file back
