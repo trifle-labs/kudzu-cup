@@ -1,0 +1,80 @@
+{
+  "name": "kudzu-cup",
+  "version": "1.0.0",
+  "license": "CC-BY-NC-4.0",
+  "source": "src/index.js",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "scripts": {
+    "chain": "hardhat node",
+    "deploy": "hardhat run scripts/deploy.cjs",
+    "test": "hardhat test"
+  },
+  "lint-staged": {
+    "*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write --ignore-unknown"
+    ],
+    "*.{ts,tsx}": [
+      "prettier --write --ignore-unknown"
+    ],
+    "**/*": "prettier --write --ignore-unknown"
+  },
+  "eslintConfig": {
+    "env": {
+      "amd": true,
+      "browser": true,
+      "es2020": true,
+      "node": true
+    },
+    "parserOptions": {
+      "ecmaFeatures": {
+        "modules": true
+      },
+      "ecmaVersion": "latest",
+      "parser": "@babel/eslint-parser",
+      "sourceType": "module"
+    },
+    "extends": [
+      "eslint:recommended",
+      "prettier"
+    ],
+    "globals": {},
+    "ignorePatterns": [],
+    "root": true
+  },
+  "dependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "chai": "^4.2.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.9",
+    "@nomicfoundation/hardhat-verify": "^2.0.8",
+    "@nomiclabs/hardhat-ethers": "*",
+    "@nomiclabs/hardhat-ganache": "*",
+    "@openzeppelin/contracts": "^4.6.0",
+    "OrderStatisticsTree": "https://github.com/rob-Hitchens/OrderStatisticsTree.git",
+    "base64-sol": "^1.1.0",
+    "dotenv": "^16.0.1",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "ethers": "^5.7.0",
+    "hardhat": "2.21.0",
+    "hardhat-contract-sizer": "^2.10.0",
+    "hardhat-gas-reporter": "^2.2.0",
+    "lint-staged": "^15.2.2",
+    "prettier": "3.2.5",
+    "solidity-coverage": "^0.8.6"
+  },
+  "resolutions": {},
+  "type": "module",
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "not ie 11"
+  ],
+  "readme": "ERROR: No README data found!",
+  "_id": "kudzu-cup@1.0.0"
+}
