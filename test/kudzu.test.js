@@ -31,6 +31,108 @@ describe("Kudzu Tests", function () {
     }
   });
 
+  it("getPiecesOfTokenID works", async () => {
+    const tokenId = 9897988;
+    const expectedEyes = 0x8;
+    const expectedMouth = 0x4;
+    const realTokenId = 151;
+    const { Kudzu } = await deployContracts();
+    const pieces = await Kudzu.getPiecesOfTokenID(tokenId);
+    expect(pieces.id).to.equal(realTokenId);
+    expect(pieces.eyes).to.equal(expectedEyes);
+    expect(pieces.mouth).to.equal(expectedMouth);
+  });
+
+  it("checks URI works", async () => {
+    const { Kudzu, ExternalMetadata } = await deployContracts();
+    const tokenId = 1;
+    const uri = await Kudzu.uri(tokenId);
+    expect(uri).to.equal("https://virus.folia.app/celestia/1");
+    const externalUri = await ExternalMetadata.getMetadata(tokenId);
+    expect(externalUri).to.equal(uri);
+  });
+
+  it("checks emitBatchMetadataUpdate works", async () => {
+    const [, notdeployer] = await ethers.getSigners();
+    const { Kudzu } = await deployContracts();
+    const costToCreate = await Kudzu.createPrice();
+    const quantity = 10n;
+    const value = costToCreate * quantity;
+    const now = Math.floor(Date.now() / 1000);
+    await Kudzu.updateStartDate(now - 1000);
+    await Kudzu.create(quantity, { value });
+
+    await expect(
+      Kudzu.connect(notdeployer).emitBatchMetadataUpdate()
+    ).to.be.revertedWith("Ownable: caller is not the owner");
+
+    const tx = await Kudzu.emitBatchMetadataUpdate();
+    const receipt = await tx.wait();
+    expect(receipt).to.emit(Kudzu, "BatchMetadataUpdate").withArgs({
+      startTokenId: 1,
+      quantity,
+    });
+  });
+
+  it("ensures onlyOwner is applied correctly", async () => {
+    const [, notdeployer] = await ethers.getSigners();
+    const { Kudzu } = await deployContracts();
+    const functions = [
+      { name: "emitBatchMetadataUpdate", args: [] },
+      { name: "updateMetadata", args: [notdeployer.address] },
+      { name: "updateStartDate", args: [0] },
+      { name: "updateEndDate", args: [0] },
+      { name: "updateRecipient", args: [notdeployer.address] },
+      { name: "updateOKtoClaim", args: [true] },
+      { name: "updateAttack", args: [true] },
+      { name: "updatePrices", args: [0, 0, 0, 0, 0] },
+      { name: "updatePercentages", args: [0, 0, 0, 0, 0] },
+      { name: "recoverLockedETH", args: [notdeployer.address, 0] },
+    ];
+
+    for (let i = 0; i < functions.length; i++) {
+      const { name, args } = functions[i];
+      await expect(
+        Kudzu.connect(notdeployer)[name](...args)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+      await expect(Kudzu[name](...args)).to.not.be.reverted;
+    }
+
+    const updatePercentages = functions.find(
+      (f) => f.name === "updatePercentages"
+    );
+    const DENOMINATOR = await Kudzu.DENOMINATOR();
+    for (let i = 0; i < 5; i++) {
+      const { args } = updatePercentages;
+      args[i] = DENOMINATOR + 1n;
+      await expect(Kudzu[updatePercentages.name](...args)).to.be.revertedWith(
+        "INVALID PERCENTAGE"
+      );
+      args[i] = 0;
+    }
+
+    // sent 1 eth to Kudzu contract
+    const value = ethers.parseEther("1");
+    await ethers.provider.send("eth_sendTransaction", [
+      {
+        from: notdeployer.address,
+        to: Kudzu.target,
+        value: value.toString(),
+      },
+    ]);
+    const kudzuBalance = await ethers.provider.getBalance(Kudzu.target);
+    expect(kudzuBalance).to.equal(value);
+
+    const tx = await Kudzu.recoverLockedETH(ethers.ZeroAddress, value);
+    const receipt = await tx.wait();
+    expect(receipt).to.emit(Kudzu, "EthMoved").withArgs({
+      to: ethers.ZeroAddress,
+      success: true,
+      returnData: "0x",
+      amount: value,
+    });
+  });
+
   it("basic create works", async () => {
     const [signer] = await ethers.getSigners();
     const { Kudzu } = await deployContracts();
@@ -90,7 +192,7 @@ describe("Kudzu Tests", function () {
         amount: expectedPercent,
       })
       .withArgs({
-        to: Kudzu.address,
+        to: Kudzu.target,
         success: true,
         returnData: "0x",
         amount: createPrice - expectedPercent,
@@ -185,7 +287,7 @@ describe("Kudzu Tests", function () {
         amount: expectedPercent,
       })
       .withArgs({
-        to: Kudzu.address,
+        to: Kudzu.target,
         success: true,
         returnData: "0x",
         amount: buyPrice * quantity - expectedPercent,
@@ -257,7 +359,7 @@ describe("Kudzu Tests", function () {
         amount: expectedPercent,
       })
       .withArgs({
-        to: Kudzu.address,
+        to: Kudzu.target,
         success: true,
         returnData: "0x",
         amount: airdropPrice * quantity - expectedPercent,
@@ -347,7 +449,7 @@ describe("Kudzu Tests", function () {
         amount: expectedPercent,
       })
       .withArgs({
-        to: Kudzu.address,
+        to: Kudzu.target,
         success: true,
         returnData: "0x",
         amount: claimPrice * quantity - expectedPercent,
@@ -439,7 +541,7 @@ describe("Kudzu Tests", function () {
       })
       .to.emit(Kudzu, "EthMoved")
       .withArgs({
-        to: Kudzu.address,
+        to: Kudzu.target,
         success: true,
         returnData: "0x",
         amount: attackPrice * quantity - expectedPercent,
@@ -496,5 +598,294 @@ describe("Kudzu Tests", function () {
     await expect(Kudzu.getWinningToken()).to.be.revertedWith(
       "OrderStatisticsTree(404) - Value does not exist."
     );
+  });
+
+  it("runs the full game", async () => {
+    const signers = await ethers.getSigners();
+    const { Kudzu } = await deployContracts();
+    const now = Math.floor(Date.now() / 1000);
+    const end = now + 60 * 60 * 24 * 7;
+    const newStartDate = now - 1000;
+    await Kudzu.updateStartDate(newStartDate);
+    const startDate = await Kudzu.startDate();
+    expect(startDate).to.equal(newStartDate);
+    const blocktimestamp = await Kudzu.blocktimestamp();
+    expect(blocktimestamp).to.be.greaterThan(newStartDate);
+    await Kudzu.updateEndDate(end);
+    const maxFamilies = 10;
+    const maxBuyers = 10;
+    const maxAirdropees = maxFamilies * 10;
+
+    expect(signers.length).to.be.greaterThan(
+      maxFamilies + maxBuyers + maxAirdropees
+    );
+
+    const recipient = signers[signers.length - 1].address;
+    const recipientStartingBalance =
+      await ethers.provider.getBalance(recipient);
+    await Kudzu.updateRecipient(recipient);
+
+    const poolStartingBalance = await ethers.provider.getBalance(Kudzu.target);
+    expect(poolStartingBalance).to.equal(0);
+
+    const maxCreate = 10;
+    const maxBuy = 10;
+    const maxAirdrop = 10;
+
+    const createPrice = await Kudzu.createPrice();
+    const buyPrice = await Kudzu.buyPrice();
+    const airdropPrice = await Kudzu.airdropPrice();
+    const claimPrice = await Kudzu.claimPrice();
+
+    const createPercent = await Kudzu.percentOfCreate();
+    const buyPercent = await Kudzu.percentOfBuy();
+    const airdropPercent = await Kudzu.percentOfAirdrop();
+    const claimPercent = await Kudzu.percentOfClaim();
+
+    const DENOMINATOR = await Kudzu.DENOMINATOR();
+
+    const familyCount = Math.floor(Math.random() * maxFamilies) + 1;
+    const state = {
+      pool: 0n,
+      admin: 0n,
+      tokenIds: {},
+      points: {},
+      airdrops: {},
+      players: {},
+    };
+
+    // create
+    for (let i = 0; i < familyCount; i++) {
+      const founder = signers[i];
+      const quantity = BigInt(Math.floor(Math.random() * maxCreate) + 1);
+      const tx = await Kudzu.connect(founder).create(quantity, {
+        value: createPrice * quantity,
+      });
+      const receipt = await tx.wait();
+      const tokenId = getParsedEventLogs(receipt, Kudzu, "Buy")[0].args.tokenId;
+      state.tokenIds[tokenId] = quantity;
+      state.players[founder.address] = {};
+      state.players[founder.address][tokenId] = quantity;
+
+      const recipeintPercent =
+        (createPrice * quantity * createPercent) / DENOMINATOR;
+      state.pool += createPrice * quantity - recipeintPercent;
+      state.admin += recipeintPercent;
+      const poolBalance = await ethers.provider.getBalance(Kudzu.target);
+      expect(poolBalance).to.equal(state.pool);
+
+      const recipientBalance = await ethers.provider.getBalance(recipient);
+      expect(recipientBalance).to.equal(recipientStartingBalance + state.admin);
+    }
+
+    // buy
+    const buyerCount = Math.floor(Math.random() * maxBuyers) + 1;
+    for (let i = familyCount; i < familyCount + buyerCount; i++) {
+      const buyer = signers[i];
+      const quantity = BigInt(Math.floor(Math.random() * maxBuy) + 1);
+      const tokenId = Object.keys(state.tokenIds)[
+        Math.floor(Math.random() * Object.keys(state.tokenIds).length)
+      ];
+      const tx = await Kudzu.connect(buyer).buy(tokenId, quantity, {
+        value: buyPrice * quantity,
+      });
+      const receipt = await tx.wait();
+
+      state.tokenIds[tokenId] += quantity;
+
+      state.players[buyer.address] = state.players[buyer.address] || {};
+      state.players[buyer.address][tokenId] =
+        (state.players[buyer.address][tokenId] || 0n) + quantity;
+
+      const recipeintPercent = (buyPrice * quantity * buyPercent) / DENOMINATOR;
+      state.pool += buyPrice * quantity - recipeintPercent;
+      state.admin += recipeintPercent;
+
+      expect(receipt).to.emit(Kudzu, "Buy").withArgs({
+        tokenId,
+        quantity,
+        buyer: buyer.address,
+      });
+      expect(receipt)
+        .to.emit(Kudzu, "EthMoved")
+        .withArgs({
+          to: recipient,
+          success: true,
+          returnData: "0x",
+          amount: recipeintPercent,
+        })
+        .withArgs({
+          to: Kudzu.target,
+          success: true,
+          returnData: "0x",
+          amount: buyPrice * quantity - recipeintPercent,
+        });
+
+      const recipientBalance = await ethers.provider.getBalance(recipient);
+      expect(recipientBalance).to.equal(recipientStartingBalance + state.admin);
+
+      const poolBalance = await ethers.provider.getBalance(Kudzu.target);
+      expect(poolBalance).to.equal(state.pool);
+    }
+
+    // airdrop
+    const players = Object.keys(state.players);
+    const airdropeeCount = Math.floor(Math.random() * maxAirdropees) + 1;
+    for (let i = buyerCount; i < buyerCount + airdropeeCount; i++) {
+      const airdropee = signers[i];
+      const quantity = BigInt(Math.floor(Math.random() * maxAirdrop) + 1);
+      const player = players[Math.floor(Math.random() * players.length)];
+      const tokenId = Object.keys(state.players[player])[
+        Math.floor(Math.random() * Object.keys(state.players[player]).length)
+      ];
+
+      const signer = signers.find((s) => s.address === player);
+
+      await Kudzu.connect(signer).airdrop(
+        airdropee.address,
+        tokenId,
+        quantity,
+        {
+          value: airdropPrice * quantity,
+        }
+      );
+
+      state.airdrops[tokenId] = state.airdrops[tokenId] || {};
+      state.airdrops[tokenId][airdropee.address] =
+        (state.airdrops[tokenId][airdropee.address] || 0n) + quantity;
+
+      const recipeintPercent =
+        (airdropPrice * quantity * airdropPercent) / DENOMINATOR;
+      state.pool += airdropPrice * quantity - recipeintPercent;
+      state.admin += recipeintPercent;
+
+      const poolBalance = await ethers.provider.getBalance(Kudzu.target);
+      expect(poolBalance).to.equal(state.pool);
+    }
+
+    // claim
+    const airdroppedTokenIds = Object.keys(state.airdrops);
+    for (let i = 0; i < airdroppedTokenIds.length; i++) {
+      const airdrop = state.airdrops[airdroppedTokenIds[i]];
+      const airdropees = Object.keys(airdrop);
+      for (let j = 0; j < airdropees.length; j++) {
+        const airdropee = signers.find((s) => s.address === airdropees[j]);
+        const quantity = BigInt(
+          Math.floor(Math.random() * parseInt(airdrop[airdropee.address])) + 1
+        );
+
+        await Kudzu.connect(airdropee).claimAirdrop(
+          airdroppedTokenIds[i],
+          quantity,
+          {
+            value: claimPrice * quantity,
+          }
+        );
+
+        state.airdrops[airdroppedTokenIds[i]][airdropee.address] -= quantity;
+        state.points[airdroppedTokenIds[i]] =
+          state.points[airdroppedTokenIds[i]] || 0n;
+        state.points[airdroppedTokenIds[i]] += quantity;
+        state.tokenIds[airdroppedTokenIds[i]] += quantity;
+        state.players[airdropee.address] =
+          state.players[airdropee.address] || {};
+        state.players[airdropee.address][airdroppedTokenIds[i]] =
+          (state.players[airdropee.address][airdroppedTokenIds[i]] || 0n) +
+          quantity;
+
+        const recipeintPercent =
+          (claimPrice * quantity * claimPercent) / DENOMINATOR;
+        state.pool += claimPrice * quantity - recipeintPercent;
+        state.admin += recipeintPercent;
+
+        const poolBalance = await ethers.provider.getBalance(Kudzu.target);
+        expect(poolBalance).to.equal(state.pool);
+      }
+    }
+
+    // compare state to contract
+    const actualPool = await ethers.provider.getBalance(Kudzu.target);
+    expect(actualPool).to.equal(state.pool);
+
+    const actualAdmin = await ethers.provider.getBalance(recipient);
+    expect(actualAdmin).to.equal(recipientStartingBalance + state.admin);
+
+    const actualTokenCount = await Kudzu.totalSquads();
+    expect(actualTokenCount).to.equal(Object.keys(state.tokenIds).length);
+
+    const actualWinningToken = await Kudzu.getWinningToken();
+    const winningTokenId = Object.keys(state.points).sort((a, b) => {
+      return parseInt(state.points[b] - state.points[a]);
+    })[0];
+    expect(actualWinningToken).to.equal(winningTokenId);
+
+    // console.dir({ state }, { depth: null });
+    // console.log({ winningTokenId });
+
+    const expectedPayoutPerToken = state.pool / state.tokenIds[winningTokenId];
+    // const parsedAsEth = ethers.formatEther(expectedPayoutPerToken.toString());
+    // console.log({ perToken: parsedAsEth, USD: parsedAsEth * 8 });
+
+    // const admin = ethers.formatEther(state.admin.toString());
+    // console.log({ admin: admin, USD: admin * 8 });
+
+    // speed up chain until endDate
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [end]);
+    await hre.network.provider.send("evm_mine");
+    const currentTimestamp = await Kudzu.blocktimestamp();
+    expect(currentTimestamp).to.be.greaterThanOrEqual(end);
+
+    for (let i = 0; i < Object.keys(state.players).length; i++) {
+      const player = Object.keys(state.players)[i];
+      const playerWinningTokenBalance = state.players[player][winningTokenId];
+      if (playerWinningTokenBalance > 0n) {
+        const signer = signers.find((s) => s.address === player);
+
+        const okToClaim = await Kudzu.oKtoClaim();
+        if (!okToClaim) {
+          await expect(
+            Kudzu.connect(signer).claimPrize(winningTokenId, 1)
+          ).to.be.revertedWith("NOT OK TO CLAIM YET");
+          await Kudzu.updateOKtoClaim(true);
+        }
+
+        const tx = await Kudzu.connect(signer).claimPrize(
+          winningTokenId,
+          playerWinningTokenBalance
+        );
+        const receipt = await tx.wait();
+        // const winnerPayout = expectedPayoutPerToken * playerWinningTokenBalance;
+        const totalSupplyOfWinningToken = state.tokenIds[winningTokenId];
+        const winnerPayout =
+          (state.pool * playerWinningTokenBalance) / totalSupplyOfWinningToken;
+
+        const winnerPayoutPerToken = winnerPayout / playerWinningTokenBalance;
+        const diff = winnerPayoutPerToken - expectedPayoutPerToken;
+        const absDiff = diff > 0 ? diff : -diff;
+        expect(absDiff).to.be.lessThanOrEqual(1);
+        state.pool -= winnerPayout;
+        state.tokenIds[winningTokenId] -= playerWinningTokenBalance;
+
+        const poolBalance = await ethers.provider.getBalance(Kudzu.target);
+        expect(poolBalance).to.equal(state.pool);
+
+        expect(receipt).to.emit(Kudzu, "Claim").withArgs({
+          tokenId: winningTokenId,
+          quantity: playerWinningTokenBalance,
+          claimer: player,
+        });
+
+        expect(receipt).to.emit(Kudzu, "EthMoved").withArgs({
+          to: recipient,
+          success: true,
+          returnData: "0x",
+          amount: winnerPayout,
+        });
+      }
+    }
+    expect(state.tokenIds[winningTokenId]).to.equal(0n);
+    expect(state.pool).to.equal(0n);
+    const actualPoolEnd = await ethers.provider.getBalance(Kudzu.target);
+    expect(actualPoolEnd).to.equal(0);
   });
 });

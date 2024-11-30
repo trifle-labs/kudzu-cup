@@ -4,6 +4,10 @@
 # node
 node_modules/
 
+#coverage
+/coverage
+coverage.json
+
 #mac
 .DS_Store
 
@@ -11,59 +15,8 @@ node_modules/
 cache
 artifacts/*
 
-test.svg
-
 # parcel
 .parcel-cache
-
-# Ignore the output from circom because we want people to build these
-# Users can remove these lines and commit the artifacts
-/circuits/*.r1cs
-circuits/**.r1cs
-circuits/*.r1cs
-*.r1cs
-circuits/*.vkey.json
-circuits/*.wasm
-circuits/*.zkey
-# contracts/*Verifier.sol
-# contractData/12345-*
-# contractData/ABI-12345*
-
-/*_js/
-/*_cpp/
-
-# !game_4_250_cpp
-# !game_6_250_cpp
-
-*/tmp/*
-
-*_proof.json
-*_public.json
-
-ptau/*.ptau
-
-proof.json
-public.json
-verification_key.json
-*_verification_key.json
-# !public/*_verification_key.json
-# *Verifier.sol
-*.sym
-
-# Ignore all .zkey files except those inside the public folder
-*.zkey
-# !public/*.zkey
-*.wasm
-
-
-!game_4_250_js
-!game_6_250_js
-
-
-!public/game_4_250.wasm
-!public/game_6_250.wasm
-parameters.txt
-
 
 # local env files
 .env.local

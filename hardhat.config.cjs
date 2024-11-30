@@ -47,7 +47,7 @@ const config = {
   },
   networks: {
     hardhat: {
-      accounts: { mnemonic: process.env.deploymentKey },
+      accounts: { mnemonic: process.env.deploymentKey, count: 121 },
       gasPrice: 1_000_000_000,
       blockGasLimit: 20_000_000,
       chainId: 12345,

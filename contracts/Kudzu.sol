@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./HitchensOrderStatisticsTreeLib.sol";
 import "./ExternalMetadata.sol";
+import "hardhat/console.sol";
 
 /*
 
@@ -22,9 +23,9 @@ ENDS JAN 1 2025 00:00 UTC
 ---
 
 MINT - 1 TIA
-AIRDROP - 0.25 TIA
-CLAIM - 0.25 TIA
-SELF-INFECT - 0.5 TIA
+AIRDROP - 0.5 TIA
+CLAIM - 0.5 TIA
+SELF-INFECT - 1 TIA
 
 PRIZE: HALF THE FEES, ALL THE GAS
 
@@ -98,6 +99,10 @@ contract Kudzu is ERC1155, Ownable {
     //
     // Read Functions
 
+    function blocktimestamp() public view returns (uint256) {
+        return block.timestamp;
+    }
+
     function getWinningToken() public view returns (uint256 tokenId) {
         uint256 last = tree.last();
         bytes32 key = tree.valueKeyAtIndex(last, 0);
@@ -128,14 +133,6 @@ contract Kudzu is ERC1155, Ownable {
                     )
                 )
             ) % modulo;
-    }
-
-    function addressToKey(address addr) public pure returns (bytes32) {
-        return bytes32(uint256(uint160(addr)));
-    }
-
-    function keyToAddress(bytes32 key) public pure returns (address) {
-        return address(uint160(uint256(key)));
     }
 
     //
@@ -294,6 +291,7 @@ contract Kudzu is ERC1155, Ownable {
 
     //
     // Internal Functions
+
     function updateTree(uint256 tokenId, bool add, uint256 quantity) private {
         uint256 newValue = (
             add
