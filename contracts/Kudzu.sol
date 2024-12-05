@@ -94,7 +94,9 @@ contract Kudzu is ERC1155, Ownable {
         recipient = msg.sender;
     }
 
-    receive() external payable {}
+    receive() external payable {
+        emit EthMoved(address(this), true, "", msg.value);
+    }
 
     //
     // Read Functions
@@ -199,6 +201,7 @@ contract Kudzu is ERC1155, Ownable {
         require(msg.sender == tx.origin, "NO SMART CONTRACTS");
         require(exists[tokenId], "TOKEN DOES NOT EXIST");
         require(balanceOf(msg.sender, tokenId) > 0, "NOT A HOLDER");
+        require(msg.sender != airdropee, "CANT AIRDROP TO SELF");
 
         airdrops[tokenId][airdropee] += quantity;
 

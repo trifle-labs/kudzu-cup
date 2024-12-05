@@ -1,5 +1,6 @@
-import KudzuABI from "./contractData/ABI-84532-Kudzu.json";
-import KudzuBaseSepolia from "./contractData/84532-Kudzu.json";
+import KudzuABI from "./contractData/ABI-84532-Kudzu.json" assert { type: "json" };
+import KudzuBaseSepolia from "./contractData/84532-Kudzu.json" assert { type: "json" };
+
 // import KudzuBase from './contractData/8453-Kudzu.json'
 // import KudzuLocal from './contractData/12345-Kudzu.json'
 
