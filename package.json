@@ -52,7 +52,9 @@
     "root": true
   },
   "resolutions": {},
-  "dependencies": {},
+  "dependencies": {
+    "solidity-rlp": "^2.0.8"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@nomicfoundation/hardhat-ethers": "^3.0.0",

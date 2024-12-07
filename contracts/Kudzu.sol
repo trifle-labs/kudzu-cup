@@ -4,9 +4,12 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./HitchensOrderStatisticsTreeLib.sol";
 import "./ExternalMetadata.sol";
+import "./ITokenMetadata.sol";
+import "./IERC1155MintablePayable.sol";
 import "hardhat/console.sol";
+import {StateProofVerifier as Verifier} from "./StateProofVerifier.sol";
+import {RLPReader} from "solidity-rlp/contracts/RLPReader.sol";
 
 /*
 
@@ -31,51 +34,61 @@ PRIZE: HALF THE FEES, ALL THE GAS
 
 */
 
-contract Kudzu is ERC1155, Ownable {
-    using HitchensOrderStatisticsTreeLib for HitchensOrderStatisticsTreeLib.Tree;
+// TODO:
+/*
+
+ X- claim in a way that doesn't prevent infect / transfer from working
+ X- time delay after christmas
+ X- limit infection to one per account
+ - onchain metadata
+ - possibly open up external approval mechanism
+
+*/
+
+contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
+    using RLPReader for bytes;
+    using RLPReader for RLPReader.RLPItem;
+
+    //
+    // Constants
+    bytes32 public constant stateRoot =
+        0x376ed3ba55cc553c2bf651460471f44ecb604216d3eec20eda1a099b5a5f2d0f; // Homestead
+    uint256 public constant BLOCKNUMBER = 21303934; // Dec-01-2024 12:00:11 AM +UTC
+    uint256 public constant DENOMINATOR = 1000;
+
+    bytes32 public constant stateRootForma =
+        0x780dc28ebe79f860695b488b6618c167a3f7d8bcbd0a88b3f8f22cd7e7c7f444; // Forma
+    uint256 public constant BLOCKNUMBER_FORMA = 7065245; // Dec-01-2024 12:00:00 AM +UTC
 
     //
     // Variables
     ExternalMetadata public metadata;
     uint256 public startDate = 1733767200; // Mon Dec 09 2024 18:00:00 GMT+0000
     uint256 public endDate = 1735689600; // Wed Jan 01 2025 00:00:00 GMT+0000
+    uint256 public christmas = 1735084800; // Fri Dec 25 2024 00:00:00 GMT+0000
+    uint256 public claimDelay = 3 days; // Allow 3 days for additional prize contributions
+    uint256 public forfeitClaim = 90 days; // Forfeit ability to claim prize after 90 days
     address public recipient;
-    bool public oKtoClaim = false;
-    bool public enableAttack = false;
 
     uint256 public createPrice = 1 ether; // TIA ~$8
-    uint256 public buyPrice = 1 ether; // TIA ~$8
-    uint256 public airdropPrice = 0.5 ether; // TIA ~$2
-    uint256 public claimPrice = 0.5 ether; // TIA ~$2
-    uint256 public attackPrice = 1 ether; // TIA ~$8
+    uint256 public airdropPrice = 0.1 ether; // TIA ~$1
 
     uint256 public percentOfCreate = 500; // 500 / 1000 = 50%
-    uint256 public percentOfBuy = 500; // 500 / 1000 = 50%
     uint256 public percentOfAirdrop = 500; // 500 / 1000 = 50%
-    uint256 public percentOfClaim = 500; // 500 / 1000 = 50%
-    uint256 public percentOfAttack = 500; // 500 / 1000 = 50%
-    uint256 public constant DENOMINATOR = 1000;
 
     //
     // State
-    HitchensOrderStatisticsTreeLib.Tree tree;
     uint256 public totalSquads;
     mapping(uint256 => mapping(address => uint256)) public airdrops;
     mapping(uint256 => bool) public exists;
-    mapping(uint256 => uint256) public squadPoints;
     mapping(uint256 => uint256) public squadSupply;
+    mapping(address => bool) public accountExists;
     uint256 public winningSquad;
+    uint256[3] public topSquads;
 
     // Events
-    event Buy(uint256 tokenId, uint256 quantity, address buyer);
-    event Airdrop(
-        uint256 tokenId,
-        uint256 quantity,
-        address airdropper,
-        address airdropee
-    );
-    event Claim(uint256 tokenId, uint256 quantity, address claimer);
-    event Attack(uint256 tokenId, uint256 quantity, address attacker);
+    event Created(uint256 tokenId, address buyer);
+    event Airdrop(uint256 tokenId, address airdropper, address _to);
 
     event EthMoved(
         address indexed to,
@@ -101,14 +114,18 @@ contract Kudzu is ERC1155, Ownable {
     //
     // Read Functions
 
+    function attackEnabled() public view returns (bool) {
+        return block.timestamp > christmas;
+    }
+
     function blocktimestamp() public view returns (uint256) {
         return block.timestamp;
     }
 
-    function getWinningToken() public view returns (uint256 tokenId) {
-        uint256 last = tree.last();
-        bytes32 key = tree.valueKeyAtIndex(last, 0);
-        return uint256(key);
+    function getWinningToken(
+        uint256 place
+    ) public view returns (uint256 tokenId) {
+        return topSquads[place];
     }
 
     function getPiecesOfTokenID(
@@ -117,10 +134,28 @@ contract Kudzu is ERC1155, Ownable {
         return (tokenId >> 16, ((tokenId >> 8) & 0xFF), tokenId & 0xFF);
     }
 
+    function tokenURI(
+        uint256 tokenId
+    ) public view override returns (string memory) {
+        return uri(tokenId);
+    }
+
     function uri(
         uint256 tokenId
-    ) public view virtual override returns (string memory) {
+    )
+        public
+        view
+        virtual
+        override(ERC1155, ITokenMetadata)
+        returns (string memory)
+    {
         return metadata.getMetadata(tokenId);
+    }
+
+    function getTokenMetadata(
+        uint256 tokenId
+    ) public view override returns (string memory) {
+        return uri(tokenId);
     }
 
     function pseudoRNG(uint modulo, uint nonce) private view returns (uint256) {
@@ -137,26 +172,42 @@ contract Kudzu is ERC1155, Ownable {
             ) % modulo;
     }
 
+    function userExists(
+        address user,
+        bytes32 root,
+        bytes memory _proofRlpBytes
+    ) public pure returns (bool, uint256) {
+        RLPReader.RLPItem[] memory proofs = _proofRlpBytes.toRlpItem().toList();
+        bytes32 addressHash = keccak256(abi.encodePacked(user));
+        Verifier.Account memory accountPool = Verifier.extractAccountFromProof(
+            addressHash,
+            root,
+            proofs[0].toList()
+        );
+        return (accountPool.exists, accountPool.balance);
+    }
+
     //
     // Write Functions
 
-    // TODO: maybe combine create price and buy price
-    function create(uint256 quantity) public payable {
+    function create(address _to, uint256 quantity) public payable {
         require(quantity > 0, "CANT CREATE 0");
         require(block.timestamp > startDate, "GAME HASN'T STARTED");
         require(block.timestamp < endDate, "GAME ENDED");
-        require(msg.value == createPrice * quantity, "INSUFFICIENT FUNDS");
-        require(msg.sender == tx.origin, "NO SMART CONTRACTS");
-        uint256 tokenId = totalSquads + 1;
-        totalSquads++;
-        tokenId = tokenId << 8;
-        tokenId = tokenId | pseudoRNG(32, 1);
-        exists[tokenId] = true;
+        require(msg.value == (createPrice * quantity), "INSUFFICIENT FUNDS");
 
-        _mint(msg.sender, tokenId, quantity, "");
-        squadSupply[tokenId] += quantity;
-
-        emit Buy(tokenId, quantity, msg.sender);
+        uint256 creatorQuantity = 10;
+        for (uint256 i = 0; i < quantity; i++) {
+            uint256 tokenId = totalSquads + 1;
+            totalSquads++;
+            tokenId = tokenId << 8;
+            tokenId = tokenId | pseudoRNG(32, 1);
+            exists[tokenId] = true;
+            _mint(_to, tokenId, creatorQuantity, "");
+            squadSupply[tokenId] += creatorQuantity;
+            emit Created(tokenId, _to);
+            tallyLeaderboard(tokenId);
+        }
 
         uint256 payoutToRecipient = (msg.value * percentOfCreate) / DENOMINATOR;
         (bool success, bytes memory data) = recipient.call{
@@ -167,45 +218,44 @@ contract Kudzu is ERC1155, Ownable {
         emit EthMoved(address(this), true, "", msg.value - payoutToRecipient);
     }
 
-    function buy(uint256 tokenId, uint256 quantity) public payable {
-        require(quantity > 0, "CANT BUY 0");
-        require(block.timestamp > startDate, "GAME HASN'T STARTED");
-        require(block.timestamp < endDate, "GAME ENDED");
-        require(msg.value == buyPrice * quantity, "INSUFFICIENT FUNDS");
-        require(msg.sender == tx.origin, "NO SMART CONTRACTS");
-        require(exists[tokenId], "TOKEN DOES NOT EXIST");
-
-        _mint(msg.sender, tokenId, quantity, "");
-        squadSupply[tokenId] += quantity;
-
-        emit Buy(tokenId, quantity, msg.sender);
-
-        uint256 payoutToRecipient = (msg.value * percentOfBuy) / DENOMINATOR;
-        (bool success, bytes memory data) = recipient.call{
-            value: payoutToRecipient
-        }("");
-        emit EthMoved(recipient, success, data, payoutToRecipient);
-        require(success, "TRANSFER FAILED");
-        emit EthMoved(address(this), true, "", msg.value - payoutToRecipient);
-    }
+    uint256 public constant ONE_PER_NUM_BLOCKS = 26; // ~1 per minute per family
+    mapping(uint256 => uint256) public rateLimit; // tokenId => timestamp
 
     function airdrop(
-        address airdropee,
+        address _to,
         uint256 tokenId,
-        uint256 quantity
+        bytes memory _proofRlpBytes,
+        bool isForma
     ) public payable {
-        require(quantity > 0, "CANT AIRDROP 0");
         require(block.timestamp > startDate, "GAME HASN'T STARTED");
         require(block.timestamp < endDate, "GAME ENDED");
-        require(msg.value == airdropPrice * quantity, "INSUFFICIENT FUNDS");
+        require(msg.value == airdropPrice, "INSUFFICIENT FUNDS");
         require(msg.sender == tx.origin, "NO SMART CONTRACTS");
         require(exists[tokenId], "TOKEN DOES NOT EXIST");
         require(balanceOf(msg.sender, tokenId) > 0, "NOT A HOLDER");
-        require(msg.sender != airdropee, "CANT AIRDROP TO SELF");
+        require(balanceOf(_to, tokenId) == 0, "ALREADY A HOLDER");
+        if (!accountExists[_to]) {
+            (bool doesExist, ) = userExists(
+                _to,
+                isForma ? stateRootForma : stateRoot,
+                _proofRlpBytes
+            );
+            require(doesExist, "USER DOES NOT ALREADY EXIST ON HOMESTEAD");
+            accountExists[_to] = true;
+        }
 
-        airdrops[tokenId][airdropee] += quantity;
+        if (block.timestamp > christmas) {
+            require(
+                rateLimit[tokenId] < block.timestamp - ONE_PER_NUM_BLOCKS,
+                "CHRISTMAS RATE LIMIT EXCEEDED"
+            );
+            rateLimit[tokenId] = block.timestamp;
+        }
 
-        emit Airdrop(tokenId, quantity, msg.sender, airdropee);
+        squadSupply[tokenId] += 1;
+        tallyLeaderboard(tokenId);
+
+        emit Airdrop(tokenId, msg.sender, _to);
 
         uint256 payoutToRecipient = (msg.value * percentOfAirdrop) /
             DENOMINATOR;
@@ -217,74 +267,65 @@ contract Kudzu is ERC1155, Ownable {
         emit EthMoved(address(this), true, "", msg.value - payoutToRecipient);
     }
 
-    function claimAirdrop(uint256 tokenId, uint256 quantity) public payable {
-        require(quantity > 0, "CANT CLAIM 0");
-        require(block.timestamp > startDate, "GAME HASN'T STARTED");
-        require(block.timestamp < endDate, "GAME ENDED");
-        require(msg.value == claimPrice * quantity, "INSUFFICIENT FUNDS");
-        require(msg.sender == tx.origin, "NO SMART CONTRACTS");
-        require(exists[tokenId], "TOKEN DOES NOT EXIST");
-        require(
-            airdrops[tokenId][msg.sender] >= quantity,
-            "INSUFFICIENT AIRDROPS"
-        );
-
-        airdrops[tokenId][msg.sender] -= quantity;
-        updateTree(tokenId, true, quantity);
-        squadPoints[tokenId] += quantity;
-
-        _mint(msg.sender, tokenId, quantity, "");
-        squadSupply[tokenId] += quantity;
-
-        emit Claim(tokenId, quantity, msg.sender);
-
-        uint256 payoutToRecipient = (msg.value * percentOfClaim) / DENOMINATOR;
-        (bool success, bytes memory data) = recipient.call{
-            value: payoutToRecipient
-        }("");
-        emit EthMoved(recipient, success, data, payoutToRecipient);
-        require(success, "TRANSFER FAILED");
-        emit EthMoved(address(this), true, "", msg.value - payoutToRecipient);
+    function isWinningtoken(uint256 tokenId) public view returns (bool) {
+        return
+            tokenId == getWinningToken(0) ||
+            tokenId == getWinningToken(1) ||
+            tokenId == getWinningToken(2);
     }
 
-    function attack(uint256 tokenId, uint256 quantity) public payable {
-        require(enableAttack, "ATTACK DISABLED");
-        require(quantity > 0, "CANT ATTACK 0");
-        require(block.timestamp > startDate, "GAME HASN'T STARTED");
-        require(block.timestamp < endDate, "GAME ENDED");
-        require(msg.value == attackPrice * quantity, "INSUFFICIENT FUNDS");
-        require(msg.sender == tx.origin, "NO SMART CONTRACTS");
-        require(exists[tokenId], "TOKEN DOES NOT EXIST");
-        require(squadPoints[tokenId] >= quantity, "INSUFFICIENT SQUAD POINTS");
-
-        updateTree(tokenId, false, quantity);
-        squadPoints[tokenId] -= quantity;
-
-        emit Attack(tokenId, quantity, msg.sender);
-
-        uint256 payoutToRecipient = (msg.value * percentOfAttack) / DENOMINATOR;
-        (bool success, bytes memory data) = recipient.call{
-            value: payoutToRecipient
-        }("");
-        emit EthMoved(recipient, success, data, payoutToRecipient);
-        require(success, "TRANSFER FAILED");
-        emit EthMoved(address(this), true, "", msg.value - payoutToRecipient);
-    }
-
-    function claimPrize(uint256 tokenId, uint256 quantity) public {
-        require(quantity > 0, "CANT CLAIM 0");
+    function infect(uint256 tokenId, address _to) public {
         require(block.timestamp > endDate, "GAME NOT ENDED");
-        require(oKtoClaim, "NOT OK TO CLAIM YET");
-        uint256 winningTokenId = getWinningToken();
-        require(tokenId == winningTokenId, "NOT WINNING TOKEN");
+        if (isWinningtoken(tokenId)) {
+            require(
+                (block.timestamp > (endDate + forfeitClaim)) ||
+                    (claimed[tokenId][msg.sender] ==
+                        balanceOf(msg.sender, tokenId)),
+                "WINNERS CANT INFECT UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
+            );
+            // prevent new owner from claiming prize
+            claimed[tokenId][_to] = 1;
+        }
+        require(balanceOf(msg.sender, tokenId) > 0, "NOT A HOLDER");
+        require(balanceOf(_to, tokenId) == 0, "ALREADY INFECTED");
+        _mint(_to, tokenId, 1, "");
+    }
+
+    mapping(uint256 => mapping(address => uint256)) public claimed; // tokenId => address => quantity
+
+    uint256 public prizePoolFinal;
+    uint256 public claimedAmount;
+
+    function claimPrize(uint256 place, uint256 tokenId) public {
+        require(block.timestamp > endDate, "GAME NOT ENDED");
         require(
-            balanceOf(msg.sender, tokenId) >= quantity,
-            "INSUFFICIENT FUNDS"
+            block.timestamp > (endDate + claimDelay),
+            "CLAIM DELAY NOT ENDED"
         );
-        uint256 proportionalPrize = (address(this).balance * quantity) /
+        require(
+            block.timestamp < (endDate + forfeitClaim),
+            "CLAIM PERIOD ENDED"
+        );
+
+        // if contest is over calculate prize pool
+        if (claimedAmount == 0) {
+            prizePoolFinal = address(this).balance;
+        }
+
+        require(claimed[tokenId][msg.sender] == 0, "ALREADY CLAIMED");
+
+        uint256 winningTokenId = getWinningToken(place);
+        require(tokenId == winningTokenId, "NOT WINNING TOKEN");
+
+        uint256 tokenBalance = balanceOf(msg.sender, tokenId);
+        require(tokenBalance > 0, "INSUFFICIENT FUNDS");
+
+        uint256 proportionalPrize = (prizePoolFinal * tokenBalance) /
             squadSupply[tokenId];
-        squadSupply[tokenId] -= quantity;
-        _burn(msg.sender, tokenId, quantity);
+
+        claimedAmount += proportionalPrize;
+        claimed[tokenId][msg.sender] = tokenBalance;
+
         (bool success, bytes memory data) = msg.sender.call{
             value: proportionalPrize
         }("");
@@ -295,20 +336,17 @@ contract Kudzu is ERC1155, Ownable {
     //
     // Internal Functions
 
-    function updateTree(uint256 tokenId, bool add, uint256 quantity) private {
-        uint256 newValue = (
-            add
-                ? squadPoints[tokenId] + quantity
-                : squadPoints[tokenId] - quantity
-        );
-        // if key exists, remove it
-        bytes32 tokenIdAsKey = bytes32(tokenId);
-        if (squadPoints[tokenId] != 0) {
-            tree.remove(tokenIdAsKey, squadPoints[tokenId]);
-        }
-        if (newValue != 0) {
-            // add key with new value
-            tree.insert(tokenIdAsKey, newValue);
+    function tallyLeaderboard(uint256 tokenId) internal {
+        uint256 supply = squadSupply[tokenId];
+        if (supply > squadSupply[topSquads[0]]) {
+            topSquads[2] = topSquads[1];
+            topSquads[1] = topSquads[0];
+            topSquads[0] = tokenId;
+        } else if (supply > squadSupply[topSquads[1]]) {
+            topSquads[2] = topSquads[1];
+            topSquads[1] = tokenId;
+        } else if (supply > squadSupply[topSquads[2]]) {
+            topSquads[2] = tokenId;
         }
     }
 
@@ -335,62 +373,71 @@ contract Kudzu is ERC1155, Ownable {
         recipient = _recipient;
     }
 
-    function updateOKtoClaim(bool _oKtoClaim) public onlyOwner {
-        oKtoClaim = _oKtoClaim;
-    }
-
-    function updateAttack(bool _enableAttack) public onlyOwner {
-        enableAttack = _enableAttack;
-    }
-
     function updatePrices(
         uint256 _createPrice,
-        uint256 _buyPrice,
-        uint256 _airdropPrice,
-        uint256 _claimPrice,
-        uint256 _attackPrice
+        uint256 _airdropPrice
     ) public onlyOwner {
         createPrice = _createPrice;
-        buyPrice = _buyPrice;
         airdropPrice = _airdropPrice;
-        claimPrice = _claimPrice;
-        attackPrice = _attackPrice;
     }
 
     function updatePercentages(
         uint256 _percentOfCreate,
-        uint256 _percentOfBuy,
-        uint256 _percentOfAirdrop,
-        uint256 _percentOfClaim,
-        uint256 _percentOfAttack
+        uint256 _percentOfAirdrop
     ) public onlyOwner {
         require(
-            _percentOfCreate <= DENOMINATOR &&
-                _percentOfBuy <= DENOMINATOR &&
-                _percentOfAirdrop <= DENOMINATOR &&
-                _percentOfClaim <= DENOMINATOR &&
-                _percentOfAttack <= DENOMINATOR,
+            (_percentOfCreate <= DENOMINATOR) &&
+                (_percentOfAirdrop <= DENOMINATOR),
             "INVALID PERCENTAGE"
         );
         percentOfCreate = _percentOfCreate;
-        percentOfBuy = _percentOfBuy;
         percentOfAirdrop = _percentOfAirdrop;
-        percentOfClaim = _percentOfClaim;
-        percentOfAttack = _percentOfAttack;
     }
 
-    /// @dev if mint fails to send eth to splitter, admin can recover
-    // This should not be necessary but Berlin hardfork broke split before so this
-    // is extra precaution.
-    function recoverLockedETH(
+    function collectForfeitPrizeAfterDelay(
         address payable _to,
         uint256 amount
     ) public onlyOwner {
+        require(
+            block.timestamp > (endDate + forfeitClaim),
+            "REMAINING PRIZE IS FORFEIT ONLY AFTER DELAY PERIOD"
+        );
         (bool sent, bytes memory data) = _to.call{value: amount}("");
         emit EthMoved(_to, sent, data, amount);
     }
 
     // Overrides
+
+    function mint(
+        address _to,
+        uint256 _tokenId,
+        uint256 _amount
+    ) external payable override {
+        require(_tokenId == 0, "MINT ONLY FOR NEW TOKENS");
+        create(_to, _amount);
+    }
+
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 id,
+        uint256 amount,
+        bytes memory data
+    ) public virtual override {
+        infect(id, to);
+    }
+
+    function safeBatchTransferFrom(
+        address from,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    ) public virtual override {
+        for (uint256 i = 0; i < ids.length; i++) {
+            infect(ids[i], to);
+        }
+    }
 
     function supportsInterface(
         bytes4 interfaceId
