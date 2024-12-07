@@ -4,7 +4,11 @@ import { describe, it } from "mocha";
 import hre from "hardhat";
 const ethers = hre.ethers;
 
-import { deployContracts, getParsedEventLogs } from "../scripts/utils.js";
+import {
+  deployContracts,
+  getParsedEventLogs,
+  getParamsForProof,
+} from "../scripts/utils.js";
 
 // let tx
 describe("Kudzu Tests", function () {
@@ -887,5 +891,60 @@ describe("Kudzu Tests", function () {
     expect(state.pool).to.equal(0n);
     const actualPoolEnd = await ethers.provider.getBalance(Kudzu.target);
     expect(actualPoolEnd).to.equal(0);
+  });
+
+  it("eth_getProof works with userExists", async () => {
+    const { Kudzu } = await deployContracts();
+    const airdropee = "0xFa398d672936Dcf428116F687244034961545D91";
+    const noAccount = "0x30Ce3CEd12f1faCf02Fe0da8578f809f5e4937E4";
+
+    // forma
+    const formaRPC = "https://rpc.forma.art";
+    const formaBlocknumber = 7065245;
+    const { stateRoot: formaStateroot, proofsBlob: formaProofsBlob } =
+      await getParamsForProof(airdropee, formaBlocknumber, formaRPC);
+    const storedFormaStateRoot = await Kudzu.stateRootForma();
+    expect(formaStateroot).to.equal(storedFormaStateRoot);
+    const formaExists = await Kudzu.userExists(
+      airdropee,
+      formaStateroot,
+      formaProofsBlob
+    );
+    expect(formaExists[0]).to.equal(true);
+
+    const { proofsBlob: formaProofsBlob2 } = await getParamsForProof(
+      noAccount,
+      formaBlocknumber,
+      formaRPC
+    );
+    const notExistsForma = await Kudzu.userExists(
+      noAccount,
+      formaStateroot,
+      formaProofsBlob2
+    );
+    expect(notExistsForma[0]).to.equal(false);
+
+    // mainnet
+    const RPC = process.env.homesteadRPC;
+    const blocknumber = 21303934;
+    const { stateRoot, proofsBlob } = await getParamsForProof(
+      airdropee,
+      blocknumber,
+      RPC
+    );
+    const storedStateRoot = await Kudzu.stateRoot();
+    expect(stateRoot).to.equal(storedStateRoot);
+    const exists = await Kudzu.userExists(airdropee, stateRoot, proofsBlob);
+    const expectedBalance = 277344486899296690n;
+    expect(exists[0]).to.equal(true);
+    expect(exists[1]).to.equal(expectedBalance);
+
+    const { proofsBlob: proofsBlob2 } = await getParamsForProof(
+      noAccount,
+      blocknumber,
+      RPC
+    );
+    const notExists = await Kudzu.userExists(noAccount, stateRoot, proofsBlob2);
+    expect(notExists[0]).to.equal(false);
   });
 });
