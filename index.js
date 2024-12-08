@@ -13,4 +13,4 @@ export const Kudzu = {
   },
 };
 
-export * from "./scripts/utils.js";
+export { getParamsForProof } from "./scripts/utils.js";
