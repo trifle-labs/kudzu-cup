@@ -4,11 +4,8 @@ import { describe, it } from "mocha";
 import hre from "hardhat";
 const ethers = hre.ethers;
 
-import {
-  deployContracts,
-  getParsedEventLogs,
-  getParamsForProof,
-} from "../scripts/utils.js";
+import { deployContracts, getParsedEventLogs } from "../scripts/utils.js";
+import { getParamsForProof } from "../scripts/exportUtils.js";
 
 // let tx
 describe("Kudzu Tests", function () {

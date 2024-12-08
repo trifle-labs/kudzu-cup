@@ -51,7 +51,9 @@
     "ignorePatterns": [],
     "root": true
   },
-  "resolutions": {},
+  "resolutions": {
+    "ethers": "^6.0.0"
+  },
   "dependencies": {
     "solidity-rlp": "^2.0.8"
   },
