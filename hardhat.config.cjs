@@ -47,8 +47,8 @@ const config = {
   },
   networks: {
     hardhat: {
-      accounts: { mnemonic: process.env.deploymentKey, count: 121 },
-      gasPrice: 1_000_000_000,
+      accounts: { mnemonic: process.env.localKey, count: 121 },
+      gasPrice: 1_000_000_000, // 1 GWEI
       blockGasLimit: 20_000_000,
       chainId: 12345,
       // loggingEnabled: false

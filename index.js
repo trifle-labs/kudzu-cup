@@ -12,3 +12,5 @@ export const Kudzu = {
     // 8453: KudzuBase
   },
 };
+
+export { getParamsForProof } from "./scripts/exportUtils.js";

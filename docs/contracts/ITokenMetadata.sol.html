@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <title>Code coverage report for contracts/ExternalMetadata.sol</title>
+    <title>Code coverage report for contracts/ITokenMetadata.sol</title>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="../prettify.css" />
     <link rel="stylesheet" href="../base.css" />
@@ -16,28 +16,28 @@
 <div class='wrapper'>
   <div class='pad1'>
     <h1>
-      <a href="../index.html">all files</a> / <a href="index.html">contracts/</a> ExternalMetadata.sol
+      <a href="../index.html">all files</a> / <a href="index.html">contracts/</a> ITokenMetadata.sol
     </h1>
     <div class='clearfix'>
       <div class='fl pad1y space-right2'>
         <span class="strong">100% </span>
         <span class="quiet">Statements</span>
-        <span class='fraction'>1/1</span>
+        <span class='fraction'>0/0</span>
       </div>
       <div class='fl pad1y space-right2'>
-        <span class="strong">0% </span>
+        <span class="strong">100% </span>
         <span class="quiet">Branches</span>
-        <span class='fraction'>0/2</span>
+        <span class='fraction'>0/0</span>
       </div>
       <div class='fl pad1y space-right2'>
-        <span class="strong">66.67% </span>
+        <span class="strong">100% </span>
         <span class="quiet">Functions</span>
-        <span class='fraction'>2/3</span>
+        <span class='fraction'>0/0</span>
       </div>
       <div class='fl pad1y space-right2'>
-        <span class="strong">50% </span>
+        <span class="strong">100% </span>
         <span class="quiet">Lines</span>
-        <span class='fraction'>1/2</span>
+        <span class='fraction'>0/0</span>
       </div>
     </div>
   </div>
@@ -71,7 +71,10 @@
 26
 27
 28
-29</td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+29
+30
+31
+32</td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -89,43 +92,49 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">//SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.0;
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
 &nbsp;
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
+struct Attribute {
+    string traitType;
+    string value;
+    string displayType;
+}
 &nbsp;
-/// @title ExternalMetadata
-/// @author @okwme
-/// @dev The updateable and replaceable metadata contract for Kudzu
+struct StdTokenMetadata {
+    string name;
+    string description;
+    string image;
+    string externalURL;
+    string animationURL;
+    Attribute[] attributes;
+}
 &nbsp;
-contract ExternalMetadata is Ownable {
-    constructor() {}
+interface ITokenMetadata {
+    error TokenMetadataImmutable(uint256 _tokenId);
 &nbsp;
-    string public baseURI = "https://virus.folia.app/celestia/";
+    function uri(uint256 _tokenId) external view returns (string memory);
 &nbsp;
-    /// @dev sets the baseURI can only be called by the owner
-    /// @param baseURI_ the new baseURI
-<span class="fstat-no" title="function not covered" >    function setbaseURI(string memory baseURI_) public onlyOwner {</span>
-        baseURI = baseURI_;
-    }
+    function tokenURI(uint256 _tokenId) external view returns (string memory);
 &nbsp;
-    /// @dev generates the metadata
-    /// @param tokenId the tokenId
-    /// @return _ the metadata
-    function getMetadata(uint256 tokenId) public view returns (string memory) {
-        return string(abi.encodePacked(baseURI, Strings.toString(tokenId)));
-    }
+    function exists(uint256 _tokenId) external view returns (bool);
+&nbsp;
+    function getTokenMetadata(
+        uint256 _tokenId
+    ) external view returns (string memory);
 }
 &nbsp;</pre></td></tr>
 </table></pre>
@@ -133,7 +142,7 @@ contract ExternalMetadata is Ownable {
 </div><!-- /wrapper -->
 <div class='footer quiet pad2 space-top1 center small'>
   Code coverage
-  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Sun Dec 08 2024 15:24:27 GMT+0100 (Central European Standard Time)
+  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Sun Dec 08 2024 15:23:56 GMT+0100 (Central European Standard Time)
 </div>
 </div>
 <script src="../prettify.js"></script>

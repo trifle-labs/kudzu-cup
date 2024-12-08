@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Code coverage report for contracts/StateProofVerifier.sol</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../prettify.css" />
+    <link rel="stylesheet" href="../base.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+<body>
+<div class='wrapper'>
+  <div class='pad1'>
+    <h1>
+      <a href="../index.html">all files</a> / <a href="index.html">contracts/</a> StateProofVerifier.sol
+    </h1>
+    <div class='clearfix'>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">38.89% </span>
+        <span class="quiet">Statements</span>
+        <span class='fraction'>7/18</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">30% </span>
+        <span class="quiet">Branches</span>
+        <span class='fraction'>3/10</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">25% </span>
+        <span class="quiet">Functions</span>
+        <span class='fraction'>1/4</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">41.38% </span>
+        <span class="quiet">Lines</span>
+        <span class='fraction'>12/29</span>
+      </div>
+    </div>
+  </div>
+  <div class='status-line low'></div>
+<pre><table class="coverage">
+<tr><td class="line-count quiet">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143</td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">49×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">49×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">49×</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">// SPDX-License-Identifier: MIT
+&nbsp;
+pragma solidity ^0.8.0;
+&nbsp;
+import {MerklePatriciaProofVerifier} from "./MerklePatriciaProofVerifier.sol";
+&nbsp;
+import {RLPReader} from "solidity-rlp/contracts/RLPReader.sol";
+&nbsp;
+/**
+ * @title A helper library for verification of Merkle Patricia account and state proofs.
+ */
+library StateProofVerifier {
+    using RLPReader for RLPReader.RLPItem;
+    using RLPReader for bytes;
+&nbsp;
+    uint256 constant HEADER_STATE_ROOT_INDEX = 3;
+    uint256 constant HEADER_NUMBER_INDEX = 8;
+    uint256 constant HEADER_TIMESTAMP_INDEX = 11;
+&nbsp;
+    struct BlockHeader {
+        bytes32 hash;
+        bytes32 stateRootHash;
+        uint256 number;
+        uint256 timestamp;
+    }
+&nbsp;
+    struct Account {
+        bool exists;
+        uint256 nonce;
+        uint256 balance;
+        bytes32 storageRoot;
+        bytes32 codeHash;
+    }
+&nbsp;
+    struct SlotValue {
+        bool exists;
+        uint256 value;
+    }
+&nbsp;
+    /**
+     * @notice Parses block header and verifies its presence onchain within the latest 256 blocks.
+     * @param _headerRlpBytes RLP-encoded block header.
+     */
+<span class="fstat-no" title="function not covered" >    function verifyBlockHeader(</span>
+        bytes memory _headerRlpBytes
+    ) internal view returns (BlockHeader memory) {
+<span class="cstat-no" title="statement not covered" >        BlockHeader memory header = parseBlockHeader(_headerRlpBytes);</span>
+        // ensure that the block is actually in the blockchain
+<span class="cstat-no" title="statement not covered" >        require(header.hash == blockhash(header.number), "blockhash mismatch")</span>;
+<span class="cstat-no" title="statement not covered" >        return header;</span>
+    }
+&nbsp;
+    /**
+     * @notice Parses RLP-encoded block header.
+     * @param _headerRlpBytes RLP-encoded block header.
+     */
+<span class="fstat-no" title="function not covered" >    function parseBlockHeader(</span>
+        bytes memory _headerRlpBytes
+    ) internal pure returns (BlockHeader memory) {
+<span class="cstat-no" title="statement not covered" >        BlockHeader memory result;</span>
+<span class="cstat-no" title="statement not covered" >        RLPReader.RLPItem[] memory headerFields = _headerRlpBytes</span>
+            .toRlpItem()
+            .toList();
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        require(headerFields.length &gt; HEADER_TIMESTAMP_INDEX)</span>;
+&nbsp;
+        result.stateRootHash = bytes32(
+            headerFields[HEADER_STATE_ROOT_INDEX].toUint()
+        );
+        result.number = headerFields[HEADER_NUMBER_INDEX].toUint();
+        result.timestamp = headerFields[HEADER_TIMESTAMP_INDEX].toUint();
+        result.hash = keccak256(_headerRlpBytes);
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        return result;</span>
+    }
+&nbsp;
+    /**
+     * @notice Verifies Merkle Patricia proof of an account and extracts the account fields.
+     *
+     * @param _addressHash Keccak256 hash of the address corresponding to the account.
+     * @param _stateRootHash MPT root hash of the Ethereum state trie.
+     */
+    function extractAccountFromProof(
+        bytes32 _addressHash, // keccak256(abi.encodePacked(address))
+        bytes32 _stateRootHash,
+        RLPReader.RLPItem[] memory _proof
+    ) internal pure returns (Account memory) {
+        bytes memory acctRlpBytes = MerklePatriciaProofVerifier
+            .extractProofValue(
+                _stateRootHash,
+                abi.encodePacked(_addressHash),
+                _proof
+            );
+&nbsp;
+        Account memory account;
+&nbsp;
+        if (acctRlpBytes.length == 0) {
+            return account;
+        }
+&nbsp;
+        RLPReader.RLPItem[] memory acctFields = acctRlpBytes
+            .toRlpItem()
+            .toList();
+        <span class="missing-if-branch" title="else path not taken" >E</span>require(acctFields.length == 4);
+&nbsp;
+        account.exists = true;
+        account.nonce = acctFields[0].toUint();
+        account.balance = acctFields[1].toUint();
+        account.storageRoot = bytes32(acctFields[2].toUint());
+        account.codeHash = bytes32(acctFields[3].toUint());
+&nbsp;
+        return account;
+    }
+&nbsp;
+    /**
+     * @notice Verifies Merkle Patricia proof of a slot and extracts the slot's value.
+     *
+     * @param _slotHash Keccak256 hash of the slot position.
+     * @param _storageRootHash MPT root hash of the account's storage trie.
+     */
+<span class="fstat-no" title="function not covered" >    function extractSlotValueFromProof(</span>
+        bytes32 _slotHash,
+        bytes32 _storageRootHash,
+        RLPReader.RLPItem[] memory _proof
+    ) internal pure returns (SlotValue memory) {
+<span class="cstat-no" title="statement not covered" >        bytes memory valueRlpBytes = MerklePatriciaProofVerifier</span>
+            .extractProofValue(
+                _storageRootHash,
+                abi.encodePacked(_slotHash),
+                _proof
+            );
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        SlotValue memory value;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        if (valueRlpBytes.length != 0) {</span>
+            value.exists = true;
+            value.value = valueRlpBytes.toRlpItem().toUint();
+        }
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        return value;</span>
+    }
+}
+&nbsp;</pre></td></tr>
+</table></pre>
+<div class='push'></div><!-- for sticky footer -->
+</div><!-- /wrapper -->
+<div class='footer quiet pad2 space-top1 center small'>
+  Code coverage
+  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Sun Dec 08 2024 15:23:56 GMT+0100 (Central European Standard Time)
+</div>
+</div>
+<script src="../prettify.js"></script>
+<script>
+window.onload = function () {
+        if (typeof prettyPrint === 'function') {
+            prettyPrint();
+        }
+};
+</script>
+<script src="../sorter.js"></script>
+</body>
+</html>

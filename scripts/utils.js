@@ -134,7 +134,10 @@ const saveAndVerifyContracts = async (deployedContracts) => {
 
 const deployContractsV0 = async (options) => {
   const defaultOptions = { mock: false, ignoreTesting: false, verbose: false };
-  const { ignoreTesting, verbose } = Object.assign(defaultOptions, options);
+  const { mock, ignoreTesting, verbose } = Object.assign(
+    defaultOptions,
+    options
+  );
   global.ignoreTesting = ignoreTesting;
   global.verbose = verbose;
   const networkinfo = await hre.network.provider.send("eth_chainId");
@@ -153,9 +156,14 @@ const deployContractsV0 = async (options) => {
   returnObject["ExternalMetadata"] = externalMetadata;
 
   // deploy Kudzu
-  const Kudzu = await hre.ethers.getContractFactory("Kudzu");
+  const Kudzu = await hre.ethers.getContractFactory(
+    mock ? "KudzuMock" : "Kudzu"
+  );
+
   const kudzu = await Kudzu.deploy(externalMetadata.target); // Updated from .address to .target
+
   await kudzu.deploymentTransaction().wait(); // Updated for v6
+
   returnObject["Kudzu"] = kudzu;
   log(
     `Kudzu Deployed at ${kudzu.target} with ExternalMetadata at ${externalMetadata.target}` // Updated .address to .target
@@ -231,11 +239,36 @@ const log = (message) => {
   console.log(message);
 };
 
-const getParsedEventLogs = (receipt, contract, eventName) => {
-  const events = receipt.logs
-    .filter((x) => x.address === contract.target) // Updated from .address to .target
-    .map((log) => contract.interface.parseLog(log));
-  return eventName ? events.filter((x) => x.name === eventName) : events;
+const getParsedEventLogs = async (receipt, contract, eventName) => {
+  // const events = await contract.queryFilter(
+  //   contract.filters[eventName],
+  //   receipt?.blockNumber,
+  //   receipt?.blockNumber
+  // );
+
+  // NOTE: i miss this way of doing things
+  // const events = receipt.logs
+  //   .filter((x) => x.address === contract.target) // Updated from .address to .target
+  //   .map((log) => contract.interface.parseLog(log));
+  const filter = contract.filters[eventName];
+  if (!filter) {
+    throw new Error(`Event ${eventName} not found in contract`);
+  }
+  let events = await contract.queryFilter(filter, receipt.blockNumber);
+  // delete events[0].provider;
+  // delete events[0].interface;
+  const result = eventName
+    ? events.filter((x) => x.fragment.name === eventName)
+    : events;
+  events = events.map((e) => {
+    e.pretty = [...e.args];
+
+    for (let i = 0; i < e.fragment.inputs.length; i++) {
+      const input = e.fragment.inputs[i];
+      e.pretty[input.name] = e.args[i];
+    }
+  });
+  return result;
 };
 
 async function copyABI(name, contractName) {

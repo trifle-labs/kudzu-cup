@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Code coverage report for contracts/MerklePatriciaProofVerifier.sol</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../prettify.css" />
+    <link rel="stylesheet" href="../base.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+<body>
+<div class='wrapper'>
+  <div class='pad1'>
+    <h1>
+      <a href="../index.html">all files</a> / <a href="index.html">contracts/</a> MerklePatriciaProofVerifier.sol
+    </h1>
+    <div class='clearfix'>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">76.39% </span>
+        <span class="quiet">Statements</span>
+        <span class='fraction'>55/72</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">55% </span>
+        <span class="quiet">Branches</span>
+        <span class='fraction'>33/60</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">100% </span>
+        <span class="quiet">Functions</span>
+        <span class='fraction'>6/6</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">73.33% </span>
+        <span class="quiet">Lines</span>
+        <span class='fraction'>66/90</span>
+      </div>
+    </div>
+  </div>
+  <div class='status-line medium'></div>
+<pre><table class="coverage">
+<tr><td class="line-count quiet">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186
+187
+188
+189
+190
+191
+192
+193
+194
+195
+196
+197
+198
+199
+200
+201
+202
+203
+204
+205
+206
+207
+208
+209
+210
+211
+212
+213
+214
+215
+216
+217
+218
+219
+220
+221
+222
+223
+224
+225
+226
+227
+228
+229
+230
+231
+232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+249
+250
+251
+252
+253
+254
+255
+256
+257
+258
+259
+260
+261
+262
+263
+264
+265
+266
+267
+268
+269
+270
+271
+272
+273
+274
+275
+276
+277
+278
+279
+280
+281
+282
+283</td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">49×</span>
+<span class="cline-any cline-yes">49×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">49×</span>
+<span class="cline-any cline-yes">49×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">49×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">49×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">49×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">423×</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">423×</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">423×</span>
+<span class="cline-any cline-yes">423×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">375×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">375×</span>
+<span class="cline-any cline-yes">375×</span>
+<span class="cline-any cline-yes">375×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">375×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">374×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">374×</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">374×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">375×</span>
+<span class="cline-any cline-yes">374×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">37×</span>
+<span class="cline-any cline-yes">37×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">97×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">97×</span>
+<span class="cline-any cline-yes">97×</span>
+<span class="cline-any cline-yes">97×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">97×</span>
+<span class="cline-any cline-yes">97×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">97×</span>
+<span class="cline-any cline-yes">5841×</span>
+<span class="cline-any cline-yes">2915×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2926×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5841×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">97×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-yes">48×</span>
+<span class="cline-any cline-yes">2646×</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">// SPDX-License-Identifier: MIT
+&nbsp;
+/**
+ * Copied from https://github.com/lorenzb/proveth/blob/c74b20e/onchain/ProvethVerifier.sol
+ * with minor performance and code style-related modifications.
+ */
+pragma solidity ^0.8.0;
+&nbsp;
+import {RLPReader} from "solidity-rlp/contracts/RLPReader.sol";
+&nbsp;
+library MerklePatriciaProofVerifier {
+    using RLPReader for RLPReader.RLPItem;
+    using RLPReader for bytes;
+&nbsp;
+    /// @dev Validates a Merkle-Patricia-Trie proof.
+    ///      If the proof proves the inclusion of some key-value pair in the
+    ///      trie, the value is returned. Otherwise, i.e. if the proof proves
+    ///      the exclusion of a key from the trie, an empty byte array is
+    ///      returned.
+    /// @param rootHash is the Keccak-256 hash of the root node of the MPT.
+    /// @param path is the key of the node whose inclusion/exclusion we are
+    ///        proving.
+    /// @param stack is the stack of MPT nodes (starting with the root) that
+    ///        need to be traversed during verification.
+    /// @return value whose inclusion is proved or an empty byte array for
+    ///         a proof of exclusion
+    function extractProofValue(
+        bytes32 rootHash,
+        bytes memory path,
+        RLPReader.RLPItem[] memory stack
+    ) internal pure returns (bytes memory value) {
+        bytes memory mptKey = _decodeNibbles(path, 0);
+        uint256 mptKeyOffset = 0;
+&nbsp;
+        bytes32 nodeHashHash;
+        RLPReader.RLPItem[] memory node;
+&nbsp;
+        RLPReader.RLPItem memory rlpValue;
+&nbsp;
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (stack.length == 0) {
+            // Root hash of empty Merkle-Patricia-Trie
+<span class="cstat-no" title="statement not covered" >            require(</span>
+                rootHash ==
+                    0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421,
+                "root hash mismatch"
+            );
+<span class="cstat-no" title="statement not covered" >            return new bytes(0);</span>
+        }
+&nbsp;
+        // Traverse stack of nodes starting at root.
+        for (uint256 i = 0; i &lt; stack.length; i++) {
+            // We use the fact that an rlp encoded list consists of some
+            // encoding of its length plus the concatenation of its
+            // *rlp-encoded* items.
+&nbsp;
+            // The root node is hashed with Keccak-256 ...
+            <span class="missing-if-branch" title="if path not taken" >I</span>if (i == 0 &amp;&amp; rootHash != stack[i].rlpBytesKeccak256()) {
+<span class="cstat-no" title="statement not covered" >                revert("rootHash doesn't match")</span>;
+            }
+            // ... whereas all other nodes are hashed with the MPT
+            // hash function.
+            <span class="missing-if-branch" title="if path not taken" >I</span>if (i != 0 &amp;&amp; nodeHashHash != _mptHashHash(stack[i])) {
+<span class="cstat-no" title="statement not covered" >                revert("nodeHash doesn't match")</span>;
+            }
+            // We verified that stack[i] has the correct hash, so we
+            // may safely decode it.
+            node = stack[i].toList();
+            if (node.length == 2) {
+                // Extension or Leaf node
+&nbsp;
+                bool isLeaf;
+                bytes memory nodeKey;
+                (isLeaf, nodeKey) = _merklePatriciaCompactDecode(
+                    node[0].toBytes()
+                );
+&nbsp;
+                uint256 prefixLength = _sharedPrefixLength(
+                    mptKeyOffset,
+                    mptKey,
+                    nodeKey
+                );
+                mptKeyOffset += prefixLength;
+&nbsp;
+                if (prefixLength &lt; nodeKey.length) {
+                    // Proof claims divergent extension or leaf. (Only
+                    // relevant for proofs of exclusion.)
+                    // An Extension/Leaf node is divergent iff it "skips" over
+                    // the point at which a Branch node should have been had the
+                    // excluded key been included in the trie.
+                    // Example: Imagine a proof of exclusion for path [1, 4],
+                    // where the current node is a Leaf node with
+                    // path [1, 3, 3, 7]. For [1, 4] to be included, there
+                    // should have been a Branch node at [1] with a child
+                    // at 3 and a child at 4.
+&nbsp;
+                    // Sanity check
+                    <span class="missing-if-branch" title="if path not taken" >I</span>if (i &lt; stack.length - 1) {
+                        // divergent node must come last in proof
+<span class="cstat-no" title="statement not covered" >                        revert(</span>
+                            "prefixLength &lt; nodeKey.length &amp;&amp; i &lt; stack.length - 1"
+                        );
+                    }
+&nbsp;
+                    return new bytes(0);
+                }
+&nbsp;
+                <span class="missing-if-branch" title="else path not taken" >E</span>if (isLeaf) {
+                    // Sanity check
+                    <span class="missing-if-branch" title="if path not taken" >I</span>if (i &lt; stack.length - 1) {
+                        // leaf node must come last in proof
+<span class="cstat-no" title="statement not covered" >                        revert("isLeaf &amp;&amp; i &lt; stack.length - 1")</span>;
+                    }
+&nbsp;
+                    <span class="missing-if-branch" title="if path not taken" >I</span>if (mptKeyOffset &lt; mptKey.length) {
+<span class="cstat-no" title="statement not covered" >                        return new bytes(0);</span>
+                    }
+&nbsp;
+                    rlpValue = node[1];
+                    return rlpValue.toBytes();
+                } else {
+                    // extension
+                    // Sanity check
+<span class="cstat-no" title="statement not covered" >                    if (i == stack.length - 1) {</span>
+                        // shouldn't be at last level
+<span class="cstat-no" title="statement not covered" >                        revert("!isLeaf &amp;&amp; i == stack.length - 1")</span>;
+                    }
+&nbsp;
+<span class="cstat-no" title="statement not covered" >                    if (!node[1].isList()) {</span>
+                        // rlp(child) was at least 32 bytes. node[1] contains
+                        // Keccak256(rlp(child)).
+                        nodeHashHash = node[1].payloadKeccak256();
+                    } else {
+                        // rlp(child) was less than 32 bytes. node[1] contains
+                        // rlp(child).
+                        nodeHashHash = node[1].rlpBytesKeccak256();
+                    }
+                }
+            } else <span class="missing-if-branch" title="else path not taken" >E</span>if (node.length == 17) {
+                // Branch node
+&nbsp;
+                <span class="missing-if-branch" title="else path not taken" >E</span>if (mptKeyOffset != mptKey.length) {
+                    // we haven't consumed the entire path, so we need to look at a child
+                    uint8 nibble = uint8(mptKey[mptKeyOffset]);
+                    mptKeyOffset += 1;
+                    <span class="missing-if-branch" title="if path not taken" >I</span>if (nibble &gt;= 16) {
+                        // each element of the path has to be a nibble
+<span class="cstat-no" title="statement not covered" >                        revert("nibble &gt;= 16")</span>;
+                    }
+&nbsp;
+                    if (_isEmptyBytesequence(node[nibble])) {
+                        // Sanity
+                        <span class="missing-if-branch" title="if path not taken" >I</span>if (i != stack.length - 1) {
+                            // leaf node should be at last level
+<span class="cstat-no" title="statement not covered" >                            revert(</span>
+                                "_isEmptyBytesequence(node[nibble]) &amp;&amp; i != stack.length - 1"
+                            );
+                        }
+&nbsp;
+                        return new bytes(0);
+                    } else <span class="missing-if-branch" title="else path not taken" >E</span>if (!node[nibble].isList()) {
+                        nodeHashHash = node[nibble].payloadKeccak256();
+                    } else {
+                        nodeHashHash = node[nibble].rlpBytesKeccak256();
+                    }
+                } else {
+                    // we have consumed the entire mptKey, so we need to look at what's contained in this node.
+&nbsp;
+                    // Sanity
+<span class="cstat-no" title="statement not covered" >                    if (i != stack.length - 1) {</span>
+                        // should be at last level
+<span class="cstat-no" title="statement not covered" >                        revert(</span>
+                            "mptKeyOffset == mptKey.length &amp;&amp; i != stack.length - 1"
+                        );
+                    }
+&nbsp;
+<span class="cstat-no" title="statement not covered" >                    return node[16].toBytes();</span>
+                }
+            }
+        }
+    }
+&nbsp;
+    /// @dev Computes the hash of the Merkle-Patricia-Trie hash of the RLP item.
+    ///      Merkle-Patricia-Tries use a weird "hash function" that outputs
+    ///      *variable-length* hashes: If the item is shorter than 32 bytes,
+    ///      the MPT hash is the item. Otherwise, the MPT hash is the
+    ///      Keccak-256 hash of the item.
+    ///      The easiest way to compare variable-length byte sequences is
+    ///      to compare their Keccak-256 hashes.
+    /// @param item The RLP item to be hashed.
+    /// @return Keccak-256(MPT-hash(item))
+    function _mptHashHash(
+        RLPReader.RLPItem memory item
+    ) private pure returns (bytes32) {
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (item.len &lt; 32) {
+<span class="cstat-no" title="statement not covered" >            return item.rlpBytesKeccak256();</span>
+        } else {
+            return keccak256(abi.encodePacked(item.rlpBytesKeccak256()));
+        }
+    }
+&nbsp;
+    function _isEmptyBytesequence(
+        RLPReader.RLPItem memory item
+    ) private pure returns (bool) {
+        if (item.len != 1) {
+            return false;
+        }
+        uint8 b;
+        uint256 memPtr = item.memPtr;
+        assembly {
+            b := byte(0, mload(memPtr))
+        }
+        return b == 0x80 /* empty byte string */;
+    }
+&nbsp;
+    function _merklePatriciaCompactDecode(
+        bytes memory compact
+    ) private pure returns (bool isLeaf, bytes memory nibbles) {
+        <span class="missing-if-branch" title="else path not taken" >E</span>require(compact.length &gt; 0);
+        uint256 first_nibble = (uint8(compact[0]) &gt;&gt; 4) &amp; 0xF;
+        uint256 skipNibbles;
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (first_nibble == 0) {
+            skipNibbles = 2;
+            isLeaf = false;
+        } else <span class="missing-if-branch" title="if path not taken" >I</span>if (first_nibble == 1) {
+            skipNibbles = 1;
+            isLeaf = false;
+        } else if (first_nibble == 2) {
+            skipNibbles = 2;
+            isLeaf = true;
+        } else <span class="missing-if-branch" title="else path not taken" >E</span>if (first_nibble == 3) {
+            skipNibbles = 1;
+            isLeaf = true;
+        } else {
+            // Not supposed to happen!
+<span class="cstat-no" title="statement not covered" >            revert()</span>;
+        }
+        return (isLeaf, _decodeNibbles(compact, skipNibbles));
+    }
+&nbsp;
+    function _decodeNibbles(
+        bytes memory compact,
+        uint256 skipNibbles
+    ) private pure returns (bytes memory nibbles) {
+        <span class="missing-if-branch" title="else path not taken" >E</span>require(compact.length &gt; 0);
+&nbsp;
+        uint256 length = compact.length * 2;
+        <span class="missing-if-branch" title="else path not taken" >E</span>require(skipNibbles &lt;= length);
+        length -= skipNibbles;
+&nbsp;
+        nibbles = new bytes(length);
+        uint256 nibblesLength = 0;
+&nbsp;
+        for (uint256 i = skipNibbles; i &lt; skipNibbles + length; i += 1) {
+            if (i % 2 == 0) {
+                nibbles[nibblesLength] = bytes1(
+                    (uint8(compact[i / 2]) &gt;&gt; 4) &amp; 0xF
+                );
+            } else {
+                nibbles[nibblesLength] = bytes1(
+                    (uint8(compact[i / 2]) &gt;&gt; 0) &amp; 0xF
+                );
+            }
+            nibblesLength += 1;
+        }
+&nbsp;
+        assert(nibblesLength == nibbles.length);
+    }
+&nbsp;
+    function _sharedPrefixLength(
+        uint256 xsOffset,
+        bytes memory xs,
+        bytes memory ys
+    ) private pure returns (uint256) {
+        uint256 i;
+        for (i = 0; i + xsOffset &lt; xs.length &amp;&amp; i &lt; ys.length; i++) {
+            if (xs[i + xsOffset] != ys[i]) {
+                return i;
+            }
+        }
+        return i;
+    }
+}
+&nbsp;</pre></td></tr>
+</table></pre>
+<div class='push'></div><!-- for sticky footer -->
+</div><!-- /wrapper -->
+<div class='footer quiet pad2 space-top1 center small'>
+  Code coverage
+  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Sun Dec 08 2024 15:23:56 GMT+0100 (Central European Standard Time)
+</div>
+</div>
+<script src="../prettify.js"></script>
+<script>
+window.onload = function () {
+        if (typeof prettyPrint === 'function') {
+            prettyPrint();
+        }
+};
+</script>
+<script src="../sorter.js"></script>
+</body>
+</html>
