@@ -66,8 +66,8 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
 
     address public recipient;
 
-    uint256 public createPrice = 1 ether; // TIA ~$8
-    uint256 public airdropPrice = 0.1 ether; // TIA ~$1
+    uint256 public createPrice = 0.001 ether; // TODO: replace before mainnet // 1 ether; // TIA ~$8
+    uint256 public airdropPrice = 0.0001 ether; // TODO: replace before mainnet // 0.1 ether; // TIA ~$1
 
     uint256 public percentOfCreate = 200; // 200 / 1000 = 20%
     uint256 public percentOfAirdrop = 200; // 200 / 1000 = 20%
@@ -90,7 +90,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     // Events
     event Created(uint256 tokenId, address buyer);
     event Airdrop(uint256 tokenId, address from, address to);
-    event Claim(uint256 tokenId, address claimer, uint256 prizeAmount);
+    event ClaimedPrize(uint256 tokenId, address claimer, uint256 prizeAmount);
     event EthMoved(
         address indexed to,
         bool indexed success,
@@ -327,6 +327,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         }("");
         require(success, "TRANSFER FAILED");
         emit EthMoved(msg.sender, success, data, proportionalPrize);
+        emit ClaimedPrize(tokenId, msg.sender, proportionalPrize);
     }
 
     //
