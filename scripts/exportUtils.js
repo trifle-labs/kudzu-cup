@@ -15,7 +15,7 @@ export async function getParamsForProof(address, blocknumber, rpcURL) {
 
   const accountProof = formatProofNodes(eth_getProofResult.accountProof);
   const proofsBlob = ethers.encodeRlp([accountProof]);
-  return { stateRoot, proofsBlob };
+  return { eth_getProofResult, stateRoot, proofsBlob };
 }
 
 function formatProofNodes(proof) {

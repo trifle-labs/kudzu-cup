@@ -249,6 +249,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
 
         squadSupply[tokenId] += 1;
         tallyLeaderboard(tokenId);
+        _mint(_to, tokenId, 1, "");
 
         emit Airdrop(tokenId, msg.sender, _to);
 
