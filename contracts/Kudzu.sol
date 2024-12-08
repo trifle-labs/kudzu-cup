@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./ExternalMetadata.sol";
 import "./ITokenMetadata.sol";
 import "./IERC1155MintablePayable.sol";
-import "hardhat/console.sol";
+
 import {StateProofVerifier as Verifier} from "./StateProofVerifier.sol";
 import {RLPReader} from "solidity-rlp/contracts/RLPReader.sol";
 
@@ -31,11 +31,6 @@ PRIZE: 80% OF FEES + 100% OF GAS
 
 // TODO:
 /*
-
- X- claim in a way that doesn't prevent infect / transfer from working
- X- time delay after christmas
- X- limit infection to one per account
- X- split prize pool
  - onchain metadata
  - possibly open up external approval mechanism
 
@@ -63,7 +58,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     //
     // Variables
     ExternalMetadata public metadata;
-    uint256 public startDate = 1733767200; // Mon Dec 09 2024 18:00:00 GMT+0000
+    uint256 public startDate = 1733669972; // TODO: replace before mainnet //1733767200; // Mon Dec 09 2024 18:00:00 GMT+0000
     uint256 public endDate = 1735689600; // Wed Jan 01 2025 00:00:00 GMT+0000
     uint256 public christmas = 1735171200; // Fri Dec 26 2024 00:00:00 GMT+0000
     uint256 public claimDelay = 3 days; // Allow 3 days for additional prize contributions
@@ -86,11 +81,16 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     mapping(uint256 => bool) public exists;
     mapping(uint256 => uint256) public squadSupply;
     mapping(address => bool) public accountExists;
-    uint256[3] public topSquads;
+    struct Record {
+        uint256 tokenId;
+        uint256 supply;
+    }
+    Record[3] public topSquads;
 
     // Events
     event Created(uint256 tokenId, address buyer);
     event Airdrop(uint256 tokenId, address from, address to);
+    event Claim(uint256 tokenId, address claimer, uint256 prizeAmount);
     event EthMoved(
         address indexed to,
         bool indexed success,
@@ -114,10 +114,6 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     //
     // Read Functions
 
-    function attackEnabled() public view returns (bool) {
-        return block.timestamp > christmas;
-    }
-
     function blocktimestamp() public view returns (uint256) {
         return block.timestamp;
     }
@@ -125,7 +121,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     function getWinningToken(
         uint256 place
     ) public view returns (uint256 tokenId) {
-        return topSquads[place];
+        return topSquads[place].tokenId;
     }
 
     function getPiecesOfTokenID(
@@ -205,8 +201,8 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
             exists[tokenId] = true;
             _mint(_to, tokenId, creatorQuantity, "");
             squadSupply[tokenId] += creatorQuantity;
-            emit Created(tokenId, _to);
             tallyLeaderboard(tokenId);
+            emit Created(tokenId, _to);
         }
 
         uint256 payoutToRecipient = (msg.value * percentOfCreate) / DENOMINATOR;
@@ -290,7 +286,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         _mint(_to, tokenId, 1, "");
     }
 
-    function claimPrize(uint256 place, uint256 tokenId) public {
+    function claimPrize(uint256 place) public {
         require(block.timestamp > endDate, "GAME NOT ENDED");
         require(
             block.timestamp > (endDate + claimDelay),
@@ -306,10 +302,9 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
             prizePoolFinal = address(this).balance;
         }
 
-        require(claimed[tokenId][msg.sender] == 0, "ALREADY CLAIMED");
+        uint256 tokenId = getWinningToken(place);
 
-        uint256 winningTokenId = getWinningToken(place);
-        require(tokenId == winningTokenId, "NOT WINNING TOKEN");
+        require(claimed[tokenId][msg.sender] == 0, "ALREADY CLAIMED");
 
         uint256 tokenBalance = balanceOf(msg.sender, tokenId);
         require(tokenBalance > 0, "INSUFFICIENT FUNDS");
@@ -339,15 +334,44 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
 
     function tallyLeaderboard(uint256 tokenId) internal {
         uint256 supply = squadSupply[tokenId];
-        if (supply > squadSupply[topSquads[0]]) {
-            topSquads[2] = topSquads[1];
-            topSquads[1] = topSquads[0];
-            topSquads[0] = tokenId;
-        } else if (supply > squadSupply[topSquads[1]]) {
-            topSquads[2] = topSquads[1];
-            topSquads[1] = tokenId;
-        } else if (supply > squadSupply[topSquads[2]]) {
-            topSquads[2] = tokenId;
+        bool leader;
+        uint256 leaderIndex;
+        for (uint256 i = 0; i < 3; i++) {
+            if (topSquads[i].tokenId == tokenId) {
+                leader = true;
+                leaderIndex = i;
+                break;
+            }
+        }
+        if (!leader) {
+            if (supply > topSquads[0].supply) {
+                topSquads[2] = topSquads[1];
+                topSquads[1] = topSquads[0];
+                topSquads[0] = Record({tokenId: tokenId, supply: supply});
+            } else if (
+                supply > topSquads[1].supply && topSquads[0].tokenId != tokenId
+            ) {
+                topSquads[2] = topSquads[1];
+                topSquads[1] = Record({tokenId: tokenId, supply: supply});
+            } else if (
+                supply > topSquads[2].supply &&
+                topSquads[0].tokenId != tokenId &&
+                topSquads[1].tokenId != tokenId
+            ) {
+                topSquads[2].tokenId = tokenId;
+            }
+        } else {
+            topSquads[leaderIndex].supply = supply;
+            // sort the array
+            for (uint256 i = 0; i < 3; i++) {
+                for (uint256 j = i + 1; j < 3; j++) {
+                    if (topSquads[i].supply < topSquads[j].supply) {
+                        Record memory temp = topSquads[i];
+                        topSquads[i] = topSquads[j];
+                        topSquads[j] = temp;
+                    }
+                }
+            }
         }
     }
 
