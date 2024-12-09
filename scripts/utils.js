@@ -160,6 +160,19 @@ const deployContractsV0 = async (options) => {
     mock ? "KudzuMock" : "Kudzu"
   );
 
+  // const now = Math.floor(Date.now() / 1000);
+  // const inOneMonth = now + 60 * 60 * 24 * 30;
+  // let startDate, endDate;
+  // switch (chainId) {
+  //   case 984122n:
+  //     startDate = 0;
+  //     endDate = 0;
+  //     break;
+  //   default:
+  //     startDate = now + 5 * 60;
+  //     endDate = now + 5 * 60 + inOneMonth;
+  // }
+
   const kudzu = await Kudzu.deploy(externalMetadata.target); // Updated from .address to .target
 
   await kudzu.deploymentTransaction().wait(); // Updated for v6

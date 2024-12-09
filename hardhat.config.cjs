@@ -72,7 +72,7 @@ const config = {
       gasPrice: 100_000_000, // 0.1 GWEI
     },
     base: {
-      // network ID: 84532
+      // network ID: 8453
       // url: 'https://sepolia.base.org',
       url: process.env.baseRPC,
       accounts: { mnemonic: process.env.deploymentKey, initialIndex: 0 },

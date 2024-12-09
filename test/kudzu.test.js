@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { describe, it } from "mocha";
+import { describe, it, before, afterEach } from "mocha";
 
 import hre from "hardhat";
 const ethers = hre.ethers;
@@ -7,9 +7,31 @@ const ethers = hre.ethers;
 import { deployContracts, getParsedEventLogs } from "../scripts/utils.js";
 import { getParamsForProof } from "../scripts/exportUtils.js";
 
-// let tx
+let existingAddress;
+async function getExistingAddresses() {
+  if (existingAddress) return existingAddress;
+
+  const RPC = process.env.homesteadRPC;
+  const blockNumber = 21303934;
+  const provider = new ethers.JsonRpcProvider(RPC);
+  const block = await provider.getBlock(blockNumber, true);
+  const blockPayload = await Promise.all(
+    block.transactions.map((hash) => block.getPrefetchedTransaction(hash))
+  );
+  existingAddress = [...new Set(blockPayload.map((t) => t.from))];
+  return existingAddress;
+}
+
+let snapshot;
 describe("Kudzu Tests", function () {
   this.timeout(50000000);
+  before(async function () {
+    snapshot = await hre.network.provider.send("evm_snapshot", []);
+  });
+  afterEach(async function () {
+    await hre.network.provider.send("evm_revert", [snapshot]);
+    snapshot = await hre.network.provider.send("evm_snapshot", []);
+  });
 
   it("has all the correct interfaces", async () => {
     const interfaces = [
@@ -22,6 +44,10 @@ describe("Kudzu Tests", function () {
       { name: "ERC721Enumerable", id: "0x780e9d63", supported: false },
       { name: "ERC2981", id: "0x2a55205a", supported: false },
       { name: "ERC20", id: "0x36372b07", supported: false },
+      { name: "RANDOM", id: "0x36372b08", supported: false },
+      { name: "ITokenMetadata", id: "0xe99684b9", supported: true },
+      { name: "IERC1155MintablePayable", id: "0x156e29f6", supported: true },
+      { name: "Ownable", id: "0x0e083076", supported: true },
     ];
     const { Kudzu } = await deployContracts();
 
@@ -47,20 +73,31 @@ describe("Kudzu Tests", function () {
   it("checks URI works", async () => {
     const { Kudzu, ExternalMetadata } = await deployContracts();
     const tokenId = 1;
+    const expectedURL = "https://virus.folia.app/celestia/1";
     const uri = await Kudzu.uri(tokenId);
-    expect(uri).to.equal("https://virus.folia.app/celestia/1");
+    expect(uri).to.equal(expectedURL);
     const externalUri = await ExternalMetadata.getMetadata(tokenId);
-    expect(externalUri).to.equal(uri);
+    expect(externalUri).to.equal(expectedURL);
+
+    const altURI = await Kudzu.tokenURI(tokenId);
+    expect(altURI).to.equal(expectedURL);
+
+    const altURI2 = await Kudzu.getTokenMetadata(tokenId);
+    expect(altURI2).to.equal(expectedURL);
   });
 
   it("checks emitBatchMetadataUpdate works", async () => {
     const [signer, notdeployer] = await ethers.getSigners();
-    const { Kudzu } = await deployContracts({ mock: true });
+    const { Kudzu } = await deployContracts();
     const costToCreate = await Kudzu.createPrice();
     const quantity = 10n;
     const value = costToCreate * quantity;
-    const now = Math.floor(Date.now() / 1000);
-    await Kudzu.updateStartDate(now - 1000);
+    const startDate = await Kudzu.startDate();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(startDate),
+    ]);
+    await hre.network.provider.send("evm_mine");
+
     await Kudzu.create(signer.address, quantity, { value });
 
     await expect(
@@ -77,18 +114,16 @@ describe("Kudzu Tests", function () {
 
   it("ensures onlyOwner is applied correctly", async () => {
     const [, notdeployer] = await ethers.getSigners();
-    const { Kudzu } = await deployContracts({ mock: true });
+    const { Kudzu } = await deployContracts();
     const functions = [
       { name: "emitBatchMetadataUpdate", params: [] },
       { name: "updateMetadata", params: [notdeployer.address] },
-      { name: "updateStartDate", params: [0] },
-      { name: "updateEndDate", params: [0] },
       { name: "updateRecipient", params: [notdeployer.address] },
-      { name: "updatePrices", params: [0, 0] },
-      { name: "updatePercentages", params: [0, 0] },
+      { name: "addChain", params: [2, 2, "0x" + "0".repeat(64)] },
       {
         name: "collectForfeitPrizeAfterDelay",
         params: [notdeployer.address, 0],
+        skipOwnerCheck: true,
       },
     ];
 
@@ -97,20 +132,9 @@ describe("Kudzu Tests", function () {
       await expect(
         Kudzu.connect(notdeployer)[name](...params)
       ).to.be.revertedWith("Ownable: caller is not the owner");
-      await expect(Kudzu[name](...params)).to.not.be.reverted;
-    }
-
-    const updatePercentages = functions.find(
-      (f) => f.name === "updatePercentages"
-    );
-    const DENOMINATOR = await Kudzu.DENOMINATOR();
-    const { params } = updatePercentages;
-    for (let i = 0; i < params.length; i++) {
-      params[i] = DENOMINATOR + 1n;
-      await expect(Kudzu[updatePercentages.name](...params)).to.be.revertedWith(
-        "INVALID PERCENTAGE"
-      );
-      params[i] = 0;
+      if (!functions[i].skipOwnerCheck) {
+        await expect(Kudzu[name](...params)).to.not.be.reverted;
+      }
     }
 
     // sent 1 eth to Kudzu contract
@@ -125,7 +149,12 @@ describe("Kudzu Tests", function () {
     const kudzuBalance = await ethers.provider.getBalance(Kudzu.target);
     expect(kudzuBalance).to.equal(value);
 
-    await Kudzu.updateEndDate(0);
+    const endDate = await Kudzu.endDate();
+    const delayPeriod = await Kudzu.forfeitClaim();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(endDate + delayPeriod),
+    ]);
+    await hre.network.provider.send("evm_mine");
 
     const tx = await Kudzu.collectForfeitPrizeAfterDelay(
       ethers.ZeroAddress,
@@ -142,7 +171,7 @@ describe("Kudzu Tests", function () {
 
   it("basic create works", async () => {
     const [signer] = await ethers.getSigners();
-    const { Kudzu } = await deployContracts({ mock: true });
+    const { Kudzu } = await deployContracts();
 
     const createPrice = await Kudzu.createPrice();
 
@@ -156,8 +185,11 @@ describe("Kudzu Tests", function () {
       Kudzu.create(signer.address, quantity, { value: 0 })
     ).to.be.revertedWith("GAME HASN'T STARTED");
 
-    const now = Math.floor(Date.now() / 1000);
-    await Kudzu.updateStartDate(now - 1);
+    const startDate = await Kudzu.startDate();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(startDate),
+    ]);
+    await hre.network.provider.send("evm_mine");
 
     await expect(
       Kudzu.create(signer.address, quantity, { value: 0 })
@@ -185,6 +217,12 @@ describe("Kudzu Tests", function () {
 
     let squadSupply = await Kudzu.squadSupply(tokenId);
     expect(squadSupply).to.equal(10);
+
+    const exists = await Kudzu.exists(tokenId);
+    expect(exists).to.equal(true);
+
+    const doesntExist = await Kudzu.exists(0);
+    expect(doesntExist).to.equal(false);
 
     const percentOfCreate = await Kudzu.percentOfCreate();
     const denominator = await Kudzu.DENOMINATOR();
@@ -254,38 +292,129 @@ describe("Kudzu Tests", function () {
         id: tokenId2,
         amount: 10,
       });
+
+    const endDate = await Kudzu.endDate();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(endDate),
+    ]);
+    await hre.network.provider.send("evm_mine");
+
+    await expect(
+      Kudzu.create(signer.address, quantity, { value })
+    ).to.be.revertedWith("GAME ENDED");
+  });
+
+  it("rate limits after christmas", async () => {
+    const [airdropper] = await ethers.getSigners();
+    const { Kudzu } = await deployContracts();
+
+    const existingAddress = await getExistingAddresses();
+
+    const startDate = await Kudzu.startDate();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(startDate),
+    ]);
+    await hre.network.provider.send("evm_mine");
+
+    const createPrice = await Kudzu.createPrice();
+    const tx = await Kudzu.create(airdropper.address, 1, {
+      value: createPrice,
+    });
+    const receipt = await tx.wait();
+    const tokenId = (await getParsedEventLogs(receipt, Kudzu, "Created"))[0]
+      .pretty.tokenId;
+
+    const airdropPrice = await Kudzu.airdropPrice();
+    const mainnetBlocknumber = await Kudzu.blockNumbers(1);
+    const homesteadRPC = process.env.homesteadRPC;
+    for (let i = 0; i < 5; i++) {
+      const { proofsBlob } = await getParamsForProof(
+        existingAddress[i],
+        mainnetBlocknumber,
+        homesteadRPC
+      );
+      await Kudzu.airdrop(existingAddress[i], tokenId, proofsBlob, 1, {
+        value: airdropPrice,
+      });
+    }
+
+    const christmas = await Kudzu.christmas();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(christmas),
+    ]);
+    await hre.network.provider.send("evm_mine");
+
+    const increaseBy = await Kudzu.ONE_PER_NUM_BLOCKS();
+
+    for (let i = 5; i < 5 + 3; i++) {
+      const { proofsBlob } = await getParamsForProof(
+        existingAddress[i],
+        mainnetBlocknumber,
+        homesteadRPC
+      );
+      if (i == 5) {
+        await expect(
+          Kudzu.airdrop(existingAddress[i], tokenId, proofsBlob, 1, {
+            value: airdropPrice,
+          })
+        ).to.not.be.reverted;
+      } else if (i == 6) {
+        await expect(
+          Kudzu.airdrop(existingAddress[i], tokenId, proofsBlob, 1, {
+            value: airdropPrice,
+          })
+        ).to.be.revertedWith("CHRISTMAS RATE LIMIT EXCEEDED");
+      } else {
+        for (let j = 0; j < increaseBy; j++) {
+          await hre.network.provider.send("evm_mine");
+        }
+        await expect(
+          Kudzu.airdrop(existingAddress[i], tokenId, proofsBlob, 1, {
+            value: airdropPrice,
+          })
+        ).to.not.be.reverted;
+      }
+    }
   });
 
   it("basic airdrop works", async () => {
     const [airdropper, airdropee] = await ethers.getSigners();
-    const { Kudzu } = await deployContracts({ mock: true });
+    const { Kudzu } = await deployContracts();
 
     const fakeProofsBlob = "0x";
 
+    const formaChainId = await Kudzu.FORMA();
+
     await expect(
-      Kudzu.airdrop(airdropee.address, 0, fakeProofsBlob, true)
+      Kudzu.airdrop(airdropee.address, 0, fakeProofsBlob, formaChainId)
     ).to.be.revertedWith("GAME HASN'T STARTED");
 
-    const now = Math.floor(Date.now() / 1000);
-    await Kudzu.updateStartDate(now - 1);
+    const startDate = await Kudzu.startDate();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(startDate),
+    ]);
+    await hre.network.provider.send("evm_mine");
 
     await expect(
-      Kudzu.airdrop(airdropee.address, 0, fakeProofsBlob, true)
+      Kudzu.airdrop(airdropee.address, 0, fakeProofsBlob, formaChainId)
     ).to.be.revertedWith("INSUFFICIENT FUNDS");
 
     const airdropPrice = await Kudzu.airdropPrice();
     await expect(
-      Kudzu.airdrop(airdropee.address, 0, fakeProofsBlob, true, {
+      Kudzu.airdrop(airdropee.address, 0, fakeProofsBlob, formaChainId, {
         value: airdropPrice,
       })
     ).to.be.revertedWith("NOT A HOLDER");
 
     const createPrice = await Kudzu.createPrice();
-    let tx = await Kudzu.create(airdropper.address, 1, {
-      value: createPrice,
+    let tx = await Kudzu.create(airdropper.address, 2, {
+      value: createPrice * 2n,
     });
     let receipt = await tx.wait();
     const tokenId = (await getParsedEventLogs(receipt, Kudzu, "Created"))[0]
+      .pretty.tokenId;
+
+    const tokenId2 = (await getParsedEventLogs(receipt, Kudzu, "Created"))[1]
       .pretty.tokenId;
 
     await expect(
@@ -293,7 +422,7 @@ describe("Kudzu Tests", function () {
         airdropee.address,
         tokenId,
         fakeProofsBlob,
-        true,
+        formaChainId,
         {
           value: airdropPrice,
         }
@@ -301,7 +430,7 @@ describe("Kudzu Tests", function () {
     ).to.be.revertedWith("NOT A HOLDER");
 
     await expect(
-      Kudzu.airdrop(airdropper.address, tokenId, fakeProofsBlob, true, {
+      Kudzu.airdrop(airdropper.address, tokenId, fakeProofsBlob, formaChainId, {
         value: airdropPrice,
       })
     ).to.be.revertedWith("ALREADY INFECTED");
@@ -310,15 +439,37 @@ describe("Kudzu Tests", function () {
     expect(squadSupply).to.equal(10);
 
     const existsOnMainnet = "0xFa398d672936Dcf428116F687244034961545D91";
-    const mainnetBlocknumber = await Kudzu.BLOCK_NUMBER();
+    const doesNotExistOnMainnet = "0x4CeCAbE4756dBF7E8f1E30d4F54B8811a524c7d9";
+    let userExists = await Kudzu.accountExists(existsOnMainnet);
+    expect(userExists).to.equal(false);
+
+    const mainnetBlocknumber = await Kudzu.blockNumbers(1);
     const homesteadRPC = process.env.homesteadRPC;
+
+    const { proofsBlob: missinAddressProofsBlob } = await getParamsForProof(
+      doesNotExistOnMainnet,
+      mainnetBlocknumber,
+      homesteadRPC
+    );
+    await expect(
+      Kudzu.airdrop(
+        doesNotExistOnMainnet,
+        tokenId,
+        missinAddressProofsBlob,
+        1,
+        {
+          value: airdropPrice,
+        }
+      )
+    ).to.be.revertedWith("USER DOES NOT EXIST ON SPECIFIED CHAIN");
+
     const { proofsBlob } = await getParamsForProof(
       existsOnMainnet,
       mainnetBlocknumber,
       homesteadRPC
     );
 
-    tx = await Kudzu.airdrop(existsOnMainnet, tokenId, proofsBlob, false, {
+    tx = await Kudzu.airdrop(existsOnMainnet, tokenId, proofsBlob, 1, {
       value: airdropPrice,
     });
     receipt = await tx.wait();
@@ -328,6 +479,9 @@ describe("Kudzu Tests", function () {
       airdropper: airdropper.address,
       airdropee: existsOnMainnet,
     });
+
+    userExists = await Kudzu.accountExists(existsOnMainnet);
+    expect(userExists).to.equal(true);
 
     const airdropPercent = await Kudzu.percentOfAirdrop();
     const denominator = await Kudzu.DENOMINATOR();
@@ -355,33 +509,255 @@ describe("Kudzu Tests", function () {
 
     const winningTeam = await Kudzu.getWinningToken(0);
     expect(winningTeam).to.equal(tokenId);
+
+    await expect(
+      Kudzu.airdrop(existsOnMainnet, tokenId2, fakeProofsBlob, 1, {
+        value: airdropPrice,
+      })
+    ).to.not.be.reverted;
+
+    const endDate = await Kudzu.endDate();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(endDate),
+    ]);
+    await hre.network.provider.send("evm_mine");
+
+    await expect(
+      Kudzu.airdrop(airdropee.address, tokenId, fakeProofsBlob, formaChainId, {
+        value: airdropPrice,
+      })
+    ).to.be.revertedWith("GAME ENDED");
+  });
+
+  it("sorts correctly", async () => {
+    const [signer, addr1] = await ethers.getSigners();
+    const { Kudzu } = await deployContracts({ mock: true });
+    const startDay = await Kudzu.startDate();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(startDay),
+    ]);
+    await hre.network.provider.send("evm_mine");
+
+    const createPrice = await Kudzu.createPrice();
+    const value = 3n * createPrice;
+    const tx = await Kudzu.create(signer.address, 3, { value });
+    const receipt = await tx.wait();
+    const tokenId1 = (await getParsedEventLogs(receipt, Kudzu, "Created"))[0]
+      .pretty.tokenId;
+    const tokenId2 = (await getParsedEventLogs(receipt, Kudzu, "Created"))[1]
+      .pretty.tokenId;
+    const tokenId3 = (await getParsedEventLogs(receipt, Kudzu, "Created"))[2]
+      .pretty.tokenId;
+
+    let firstPlace = await Kudzu.getWinningToken(0);
+    let secondPlace = await Kudzu.getWinningToken(1);
+    let thirdPlace = await Kudzu.getWinningToken(2);
+    expect(firstPlace).to.equal(tokenId1);
+    expect(secondPlace).to.equal(tokenId2);
+    expect(thirdPlace).to.equal(tokenId3);
+
+    const airdropPrice = await Kudzu.airdropPrice();
+    await Kudzu.airdrop(addr1.address, tokenId3, "0x", 1, {
+      value: airdropPrice,
+    });
+
+    firstPlace = await Kudzu.getWinningToken(0);
+    secondPlace = await Kudzu.getWinningToken(1);
+    thirdPlace = await Kudzu.getWinningToken(2);
+
+    expect(firstPlace).to.equal(tokenId3);
+    expect(secondPlace).to.equal(tokenId1);
+    expect(thirdPlace).to.equal(tokenId2);
+  });
+
+  it("tests infect", async () => {
+    const { Kudzu } = await deployContracts();
+    const signers = await ethers.getSigners();
+    const startDay = await Kudzu.startDate();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(startDay),
+    ]);
+    await hre.network.provider.send("evm_mine");
+    const createPrice = await Kudzu.createPrice();
+
+    await expect(
+      Kudzu.mint(signers[0].address, 1, 1, {
+        value: createPrice,
+      })
+    ).to.be.revertedWith("MINT ONLY FOR NEW TOKENS");
+
+    let tx = await Kudzu.mint(signers[0].address, 0, 1, {
+      value: createPrice,
+    });
+    let receipt = await tx.wait();
+    const tokenId = (await getParsedEventLogs(receipt, Kudzu, "Created"))[0]
+      .pretty.tokenId;
+
+    const mainnetBlocknumber = await Kudzu.blockNumbers(1);
+    const homesteadRPC = process.env.homesteadRPC;
+    const { proofsBlob } = await getParamsForProof(
+      signers[1].address,
+      mainnetBlocknumber,
+      homesteadRPC
+    );
+    const airdropPrice = await Kudzu.airdropPrice();
+    await Kudzu.airdrop(signers[1].address, tokenId, proofsBlob, 1, {
+      value: airdropPrice,
+    });
+
+    const { proofsBlob: proofsBlob2 } = await getParamsForProof(
+      signers[2].address,
+      mainnetBlocknumber,
+      homesteadRPC
+    );
+    await Kudzu.airdrop(signers[2].address, tokenId, proofsBlob2, 1, {
+      value: airdropPrice,
+    });
+
+    await expect(Kudzu.infect(tokenId, signers[1].address)).to.be.revertedWith(
+      "GAME NOT ENDED"
+    );
+    await expect(
+      Kudzu.safeTransferFrom(
+        signers[0].address,
+        signers[1].address,
+        tokenId,
+        1,
+        "0x"
+      )
+    ).to.be.revertedWith("GAME NOT ENDED");
+
+    await expect(
+      Kudzu.safeBatchTransferFrom(
+        signers[0].address,
+        signers[1].address,
+        [tokenId],
+        [1],
+        "0x"
+      )
+    ).to.be.revertedWith("GAME NOT ENDED");
+
+    const endDate = await Kudzu.endDate();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(endDate),
+    ]);
+    await hre.network.provider.send("evm_mine");
+    await expect(Kudzu.infect(tokenId, signers[3].address)).to.be.revertedWith(
+      "WINNERS CANT INFECT UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
+    );
+    const claimDelay = await Kudzu.claimDelay();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(endDate + claimDelay),
+    ]);
+    await hre.network.provider.send("evm_mine");
+    await Kudzu.claimPrize(0);
+    await expect(Kudzu.infect(0, signers[3].address)).to.be.revertedWith(
+      "NOT A HOLDER"
+    );
+    await expect(Kudzu.infect(tokenId, signers[0].address)).to.be.revertedWith(
+      "ALREADY INFECTED"
+    );
+    tx = await Kudzu.infect(tokenId, signers[3].address);
+    receipt = await tx.wait();
+    expect(receipt).to.emit(Kudzu, "Airdrop").withArgs({
+      tokenId,
+      from: signers[3].address,
+      to: signers[0].address,
+    });
+
+    await expect(
+      Kudzu.connect(signers[1]).infect(tokenId, signers[4].address)
+    ).to.be.revertedWith(
+      "WINNERS CANT INFECT UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
+    );
+
+    const forfeitClaim = await Kudzu.forfeitClaim();
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(endDate + claimDelay + forfeitClaim),
+    ]);
+    await hre.network.provider.send("evm_mine");
+    await expect(Kudzu.connect(signers[1]).claimPrize(0)).to.be.revertedWith(
+      "CLAIM PERIOD ENDED"
+    );
+
+    await expect(Kudzu.connect(signers[1]).infect(tokenId, signers[4].address))
+      .to.not.be.reverted;
   });
 
   it("runs the full game", async () => {
+    let seed = 263294; //Math.floor(Math.random() * 1000000);
+
+    function random() {
+      var x = Math.sin(seed++) * 10000;
+      const result = x - Math.floor(x);
+      return result;
+    }
+
+    var stableSort = (arr, compare) =>
+      arr
+        .map((item, index) => ({ item, index }))
+        .sort((a, b) => compare(a.item, b.item) || a.index - b.index)
+        .map(({ item }) => item);
+
+    function updateWinningTokens(winningTokens, state, tokenId) {
+      // if the token is already a record holder, update it's value and then reorder the group
+      // if not, check whether it's able to enter the group
+      tokenId = parseInt(tokenId);
+      const supply = JSON.parse(JSON.stringify(state.tokenIds[tokenId]));
+      // console.log("before", { tokenId, supply, winningTokens });
+      const found = winningTokens.findIndex(
+        (t) => parseInt(t.tokenId) === parseInt(tokenId)
+      );
+      if (found == -1) {
+        // console.log("not found");
+        if (supply > winningTokens[0].supply) {
+          winningTokens[2] = winningTokens[1];
+          winningTokens[1] = winningTokens[0];
+          winningTokens[0] = { tokenId: tokenId, supply: supply };
+        } else if (
+          supply > winningTokens[1].supply &&
+          winningTokens[0].tokenId != tokenId
+        ) {
+          winningTokens[2] = winningTokens[1];
+          winningTokens[1] = { tokenId: tokenId, supply: supply };
+        } else if (
+          supply > winningTokens[2].supply &&
+          winningTokens[0].tokenId != tokenId &&
+          winningTokens[1].tokenId != tokenId
+        ) {
+          winningTokens[2] = { tokenId: tokenId, supply: supply };
+        }
+      } else {
+        // update supply
+        // console.log("found");
+        winningTokens[found].supply = supply;
+        winningTokens = stableSort(
+          winningTokens,
+          (a, b) => parseInt(b.supply) - parseInt(a.supply)
+        );
+      }
+      // console.log("after", { tokenId, supply, winningTokens });
+      return winningTokens;
+    }
+
     const signers = await ethers.getSigners();
-    const { Kudzu } = await deployContracts({ mock: true });
-    const now = Math.floor(Date.now() / 1000);
-    const end = now + 60 * 60 * 24 * 7;
-    const newStartDate = now - 1000;
-    await Kudzu.updateStartDate(newStartDate);
+    const { Kudzu } = await deployContracts();
+
     const startDate = await Kudzu.startDate();
-    expect(startDate).to.equal(newStartDate);
+    const end = await Kudzu.endDate();
+
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(startDate),
+    ]);
+    await hre.network.provider.send("evm_mine");
+
     const blocktimestamp = await Kudzu.blocktimestamp();
-    expect(blocktimestamp).to.be.greaterThan(newStartDate);
-    await Kudzu.updateEndDate(end);
+    expect(blocktimestamp).to.be.greaterThanOrEqual(startDate);
+
     const maxFamilies = 10;
     const maxAirdropees = maxFamilies * 10;
 
-    const RPC = process.env.homesteadRPC;
-    const blockNumber = await Kudzu.BLOCK_NUMBER();
-    const provider = new ethers.JsonRpcProvider(RPC);
-    const block = await provider.getBlock(blockNumber, true);
-    const blockPayload = await Promise.all(
-      block.transactions.map((hash) => block.getPrefetchedTransaction(hash))
-    );
-
-    // NOTE: these are not unique addresses
-    const existingAddress = blockPayload.map((t) => t.from);
+    const existingAddress = await getExistingAddresses();
 
     expect(signers.length).to.be.greaterThan(maxFamilies + maxAirdropees);
 
@@ -401,7 +777,7 @@ describe("Kudzu Tests", function () {
 
     const DENOMINATOR = await Kudzu.DENOMINATOR();
 
-    const familyCount = Math.floor(Math.random() * (maxFamilies - 3 + 1)) + 3;
+    const familyCount = maxFamilies; //Math.floor(Math.random() * (maxFamilies - 3 + 1)) + 3;
     const state = {
       pool: 0n,
       admin: 0n,
@@ -411,39 +787,8 @@ describe("Kudzu Tests", function () {
       players: {},
     };
 
-    const winningTokens = new Array(3).fill({ tokenId: 0, supply: 0 });
+    let winningTokens = new Array(3).fill({ tokenId: 0, supply: 0 });
 
-    function updateWinningTokens(tokenId) {
-      // if the token is already a record holder, update it's value and then reorder the group
-      // if not, check whether it's able to enter the group
-      tokenId = parseInt(tokenId);
-      const supply = parseInt(state.tokenIds[tokenId]);
-      const found = winningTokens.findIndex((t) => t.tokenId === tokenId);
-      if (found > -1) {
-        // update supply
-        winningTokens[found].supply = supply;
-        // sort the array
-        for (let i = 0; i < 3; i++) {
-          for (let j = i + 1; j < 3; j++) {
-            if (winningTokens[i].supply < winningTokens[j].supply) {
-              const temp = winningTokens[i];
-              winningTokens[i] = winningTokens[j];
-              winningTokens[j] = temp;
-            }
-          }
-        }
-      } else {
-        for (let i = 0; i < winningTokens.length; i++) {
-          if (supply > winningTokens[i].supply) {
-            for (let j = i; j < winningTokens.length - 1; j++) {
-              winningTokens[j + 1] = winningTokens[j];
-            }
-            winningTokens[i] = { tokenId, supply };
-            break;
-          }
-        }
-      }
-    }
     // create
     for (let i = 0; i < familyCount; i++) {
       const founder = signers[i];
@@ -456,7 +801,7 @@ describe("Kudzu Tests", function () {
       state.tokenIds[tokenId] = 10;
       state.players[founder.address] = {};
       state.players[founder.address][tokenId] = 10;
-      updateWinningTokens(tokenId);
+      winningTokens = updateWinningTokens(winningTokens, state, tokenId);
 
       const recipeintPercent = (createPrice * createPercent) / DENOMINATOR;
       state.pool += createPrice - recipeintPercent;
@@ -469,17 +814,20 @@ describe("Kudzu Tests", function () {
     }
 
     // airdrop
-    const airdropeeCount = Math.floor(Math.random() * maxAirdropees) + 1;
+    const airdropeeCount = maxAirdropees; //Math.floor(Math.random() * maxAirdropees) + 1;
 
     const homesteadRPC = process.env.homesteadRPC;
-    const mainnetBlocknumber = await Kudzu.BLOCK_NUMBER();
+    const mainnetBlocknumber = await Kudzu.blockNumbers(1);
+
+    const notExistingAccount = await Kudzu.accountExists(signers[0].address);
+    expect(notExistingAccount).to.equal(false);
 
     for (let i = 0; i < airdropeeCount; i++) {
       const airdropee = existingAddress[i];
-      const signer = signers[Math.floor(Math.random() * familyCount)];
+      const signer = signers[Math.floor(random() * familyCount)];
       const player = signer.address;
       const tokenId = Object.keys(state.players[player])[
-        Math.floor(Math.random() * Object.keys(state.players[player]).length)
+        Math.floor(random() * Object.keys(state.players[player]).length)
       ];
 
       // const existsOnMainnet = "0xFa398d672936Dcf428116F687244034961545D91";
@@ -489,21 +837,18 @@ describe("Kudzu Tests", function () {
         homesteadRPC
       );
 
-      await Kudzu.connect(signer).airdrop(
-        airdropee,
-        tokenId,
-        proofsBlob,
-        false,
-        {
-          value: airdropPrice,
-        }
-      );
+      await Kudzu.connect(signer).airdrop(airdropee, tokenId, proofsBlob, 1, {
+        value: airdropPrice,
+      });
+
+      const accountExists = await Kudzu.accountExists(airdropee);
+      expect(accountExists).to.equal(true);
 
       state.players[airdropee] ||= {};
       state.players[airdropee][tokenId] ||= 0;
       state.players[airdropee][tokenId] += 1;
       state.tokenIds[tokenId] += 1;
-      updateWinningTokens(tokenId);
+      winningTokens = updateWinningTokens(winningTokens, state, tokenId);
 
       const recipeintPercent = (airdropPrice * airdropPercent) / DENOMINATOR;
       state.pool += airdropPrice - recipeintPercent;
@@ -523,6 +868,26 @@ describe("Kudzu Tests", function () {
     const actualTokenCount = await Kudzu.totalSquads();
     expect(actualTokenCount).to.equal(Object.keys(state.tokenIds).length);
 
+    for (const player in state.players) {
+      for (const tokenId in state.players[player]) {
+        const playerBalance = await Kudzu.balanceOf(player, tokenId);
+        expect(playerBalance).to.equal(state.players[player][tokenId]);
+        expect(playerBalance).to.be.greaterThan(0);
+      }
+    }
+    for (const tokenId in state.tokenIds) {
+      const squadSupply = await Kudzu.squadSupply(tokenId);
+      expect(squadSupply).to.equal(state.tokenIds[tokenId]);
+    }
+
+    const totalSquads = await Kudzu.totalSquads();
+    expect(totalSquads).to.equal(Object.keys(state.tokenIds).length);
+
+    const prizePoolFinaBeforeClaim = await Kudzu.prizePoolFinal();
+    expect(prizePoolFinaBeforeClaim).to.equal(0);
+
+    const prizePool = state.pool;
+
     // console.log({ winningTokens });
 
     // for (let i = 0; i < 3; i++) {
@@ -533,7 +898,10 @@ describe("Kudzu Tests", function () {
 
     for (let i = 0; i < 3; i++) {
       const actualWinningToken = await Kudzu.getWinningToken(i);
-      expect(actualWinningToken).to.equal(winningTokens[i].tokenId);
+      expect(actualWinningToken).to.equal(
+        winningTokens[i].tokenId,
+        `random seed used during run: ${seed} (remember ids will be different on subsequent runs but the values should be the same)`
+      );
     }
 
     // console.log({ winningTokenId });
@@ -555,12 +923,14 @@ describe("Kudzu Tests", function () {
     }
 
     // claims
-
+    for (let i = 0; i < 3; i++) {
+      const winningToken = winningTokens[i].tokenId;
+      const isItTho = await Kudzu.isWinningtoken(winningToken);
+      expect(isItTho).to.equal(true);
+    }
     const winningToken = winningTokens[0].tokenId;
-    const isItTho = await Kudzu.winningToken(winningToken);
-    expect(isItTho).to.equal(true);
 
-    const itIsNot = await Kudzu.winningToken(0);
+    const itIsNot = await Kudzu.isWinningtoken(0);
     expect(itIsNot).to.equal(false);
 
     const exampleWinner = Object.keys(state.players).find(
@@ -572,14 +942,25 @@ describe("Kudzu Tests", function () {
     );
 
     // speed up chain until endDate
+
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+      parseInt(end),
+    ]);
+    await hre.network.provider.send("evm_mine");
+
+    await expect(Kudzu.claimPrize(0)).to.be.revertedWith(
+      "CLAIM DELAY NOT ENDED"
+    );
+
     const delayToClaim = await Kudzu.claimDelay();
-    const realEnd = end + parseInt(delayToClaim);
+    const realEnd = parseInt(end + delayToClaim);
 
     await hre.network.provider.send("evm_setNextBlockTimestamp", [realEnd]);
     await hre.network.provider.send("evm_mine");
     const currentTimestamp = await Kudzu.blocktimestamp();
     expect(currentTimestamp).to.be.greaterThanOrEqual(end);
     let unclaimedAmount = 0n;
+    let totalClaimedAmount = 0n;
 
     let claims = 0;
 
@@ -608,9 +989,18 @@ describe("Kudzu Tests", function () {
 
           if (signer) {
             state.pool -= winnerPayout;
+            totalClaimedAmount += winnerPayout;
 
             const tx = await Kudzu.connect(signer).claimPrize(j);
             const receipt = await tx.wait();
+
+            await expect(
+              Kudzu.connect(signer).claimPrize(j)
+            ).to.be.revertedWith("ALREADY CLAIMED");
+
+            await expect(
+              Kudzu.connect(signers[0]).claimPrize(j)
+            ).to.be.revertedWith("INSUFFICIENT FUNDS");
 
             expect(receipt).to.emit(Kudzu, "Claim").withArgs({
               tokenId: winningTokenId,
@@ -624,6 +1014,20 @@ describe("Kudzu Tests", function () {
               returnData: "0x",
               amount: winnerPayout,
             });
+
+            const claimed = await Kudzu.claimed(
+              winningTokens[j].tokenId,
+              player
+            );
+            const balance = await Kudzu.balanceOf(
+              player,
+              winningTokens[j].tokenId
+            );
+            expect(claimed).to.equal(balance);
+            expect(claimed).to.equal(state.players[player][winningTokenId]);
+
+            const claimedAmount = await Kudzu.claimedAmount();
+            expect(claimedAmount).to.equal(totalClaimedAmount);
           } else {
             unclaimedAmount += winnerPayout;
           }
@@ -633,6 +1037,13 @@ describe("Kudzu Tests", function () {
         }
       }
     }
+
+    const prizePoolFinal = await Kudzu.prizePoolFinal();
+    expect(prizePool).to.equal(prizePoolFinal);
+
+    const claimedAmount = await Kudzu.claimedAmount();
+    const diff = claimedAmount - (prizePool - unclaimedAmount);
+    expect(diff).to.be.lessThanOrEqual(claims);
 
     const poolDiff = unclaimedAmount - state.pool;
     expect(poolDiff).to.be.lessThanOrEqual(claims);
@@ -645,12 +1056,14 @@ describe("Kudzu Tests", function () {
     ).to.be.revertedWith("REMAINING PRIZE IS FORFEIT ONLY AFTER DELAY PERIOD");
 
     const forfeitClaim = await Kudzu.forfeitClaim();
-    const afterForfeit = end + parseInt(forfeitClaim);
+    const afterForfeit = parseInt(end + forfeitClaim);
 
     await hre.network.provider.send("evm_setNextBlockTimestamp", [
       afterForfeit,
     ]);
     await hre.network.provider.send("evm_mine");
+
+    await expect(Kudzu.claimPrize(0)).to.be.revertedWith("CLAIM PERIOD ENDED");
 
     const tx = await Kudzu.collectForfeitPrizeAfterDelay(
       recipient,
@@ -672,53 +1085,60 @@ describe("Kudzu Tests", function () {
     const airdropee = "0xFa398d672936Dcf428116F687244034961545D91";
     const noAccount = "0x30Ce3CEd12f1faCf02Fe0da8578f809f5e4937E4";
 
-    // forma
-    const formaRPC = "https://rpc.forma.art";
-    const formaBlocknumber = 7065245;
-    const { stateRoot: formaStateroot, proofsBlob: formaProofsBlob } =
-      await getParamsForProof(airdropee, formaBlocknumber, formaRPC);
-    const storedFormaStateRoot = await Kudzu.STATE_ROOT_FORMA();
-    expect(formaStateroot).to.equal(storedFormaStateRoot);
-    const formaExists = await Kudzu.userExists(
-      airdropee,
-      formaStateroot,
-      formaProofsBlob
-    );
-    expect(formaExists[0]).to.equal(true);
+    const chains = [
+      {
+        id: 1,
+        rpc: process.env.homesteadRPC,
+        blocknumber: 21303934,
+      },
+      {
+        id: 984122,
+        rpc: "https://rpc.forma.art",
+        blocknumber: 7065245,
+      },
+      {
+        id: 8453,
+        rpc: process.env.baseRPC,
+        blocknumber: 23110927,
+      },
+      {
+        id: 42161,
+        rpc: process.env.arbitrumRPC,
+        blocknumber: 280041525,
+      },
+      {
+        id: 10,
+        rpc: process.env.optimismRPC,
+        blocknumber: 128706212,
+      },
+    ];
+    for (let i = 0; i < chains.length; i++) {
+      const c = chains[i];
+      const { stateRoot, proofsBlob } = await getParamsForProof(
+        airdropee,
+        c.blocknumber,
+        c.rpc
+      );
+      const storedStateRoot = await Kudzu.stateRoots(c.id);
+      expect(storedStateRoot).to.equal(stateRoot, `chain id: ${c.id}`);
 
-    const { proofsBlob: formaProofsBlob2 } = await getParamsForProof(
-      noAccount,
-      formaBlocknumber,
-      formaRPC
-    );
-    const notExistsForma = await Kudzu.userExists(
-      noAccount,
-      formaStateroot,
-      formaProofsBlob2
-    );
-    expect(notExistsForma[0]).to.equal(false);
+      const storedBlocknumber = await Kudzu.blockNumbers(c.id);
+      expect(c.blocknumber).to.equal(storedBlocknumber, `chain id: ${c.id}`);
 
-    // mainnet
-    const blocknumber = 21303934;
-    const RPC = process.env.homesteadRPC;
-    const { stateRoot, proofsBlob } = await getParamsForProof(
-      airdropee,
-      blocknumber,
-      RPC
-    );
-    const storedStateRoot = await Kudzu.STATE_ROOT();
-    expect(stateRoot).to.equal(storedStateRoot);
-    const exists = await Kudzu.userExists(airdropee, stateRoot, proofsBlob);
-    const expectedBalance = 277344486899296690n;
-    expect(exists[0]).to.equal(true);
-    expect(exists[1]).to.equal(expectedBalance);
+      const exists = await Kudzu.userExists(airdropee, stateRoot, proofsBlob);
+      expect(exists[0]).to.equal(true);
 
-    const { proofsBlob: proofsBlob2 } = await getParamsForProof(
-      noAccount,
-      blocknumber,
-      RPC
-    );
-    const notExists = await Kudzu.userExists(noAccount, stateRoot, proofsBlob2);
-    expect(notExists[0]).to.equal(false);
+      const { proofsBlob: proofsBlob2 } = await getParamsForProof(
+        noAccount,
+        c.blocknumber,
+        c.rpc
+      );
+      const doesNotExist = await Kudzu.userExists(
+        noAccount,
+        stateRoot,
+        proofsBlob2
+      );
+      expect(doesNotExist[0]).to.equal(false);
+    }
   });
 });

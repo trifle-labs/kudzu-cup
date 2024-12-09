@@ -7,18 +7,17 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./ExternalMetadata.sol";
 import "./ITokenMetadata.sol";
 import "./IERC1155MintablePayable.sol";
-
 import {StateProofVerifier as Verifier} from "./StateProofVerifier.sol";
 import {RLPReader} from "solidity-rlp/contracts/RLPReader.sol";
 
 /*
 
-KUDZU CUP: AIRDROP TOURNAMENT
+KUDZU CHRISTMAS CUP: AIRDROP TOURNAMENT
 
 MINT A TEAM
 AIRDROP TOKENS
 TEAM WITH MOST TOKENS WINS
-ENDS JAN 1 2025 00:00 UTC
+ENDS DEC 30 2024 00:00 UTC
 
 ---
 
@@ -42,13 +41,12 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
 
     //
     // Constants
-    bytes32 public constant STATE_ROOT =
-        0x376ed3ba55cc553c2bf651460471f44ecb604216d3eec20eda1a099b5a5f2d0f; // Homestead
-    uint256 public constant BLOCK_NUMBER = 21303934; // Dec-01-2024 12:00:11 AM +UTC
 
-    bytes32 public constant STATE_ROOT_FORMA =
-        0x780dc28ebe79f860695b488b6618c167a3f7d8bcbd0a88b3f8f22cd7e7c7f444; // Forma
-    uint256 public constant BLOCK_NUMBER_FORMA = 7065245; // Dec-01-2024 12:00:00 AM +UTC
+    uint256 public ETH = 1;
+    uint256 public FORMA = 984122;
+    uint256 public BASE = 8453;
+    uint256 public ARB = 42161;
+    uint256 public OP = 10;
 
     uint256 public constant DENOMINATOR = 1000;
     uint256 public constant FIRST_PLACE_PERCENT = 600; // 60%
@@ -58,11 +56,11 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     //
     // Variables
     ExternalMetadata public metadata;
-    uint256 public startDate = 1733669972; // TODO: replace before mainnet //1733767200; // Mon Dec 09 2024 18:00:00 GMT+0000
-    uint256 public endDate = 1735689600; // Wed Jan 01 2025 00:00:00 GMT+0000
-    uint256 public christmas = 1735171200; // Fri Dec 26 2024 00:00:00 GMT+0000
-    uint256 public claimDelay = 3 days; // Allow 3 days for additional prize contributions
-    uint256 public forfeitClaim = 90 days; // Forfeit ability to claim prize after 90 days
+    uint256 public startDate = 1733756400; // TODO: 4pm Berlin (replace) // 1733853600; // Tue Dec 10 2024 18:00:00 GMT+0000
+    uint256 public endDate = 1733770800; // TODO: 8pm Berlin (replace) // 1735689600; // Tue Dec 31 2024 00:00:00 GMT+0000
+    uint256 public christmas = 1733767200; // TODO: 7pm Berlin (replace) // 1735603200; // Fri Dec 26 2024 00:00:00 GMT+0000
+    uint256 public claimDelay = 30 minutes; // TODO: 8:30pm Berlin (replace) // 3 days; // Allow 3 days for additional prize contributions
+    uint256 public forfeitClaim = 1 hours; // TODO: 9pm Berlin (replace) // 90 days; // Forfeit ability to claim prize after 90 days
 
     address public recipient;
 
@@ -81,6 +79,8 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     mapping(uint256 => bool) public exists;
     mapping(uint256 => uint256) public squadSupply;
     mapping(address => bool) public accountExists;
+    mapping(uint256 => bytes32) public stateRoots; // chainId => stateRoot
+    mapping(uint256 => uint256) public blockNumbers; // chainId => blockNumber
     struct Record {
         uint256 tokenId;
         uint256 supply;
@@ -105,6 +105,31 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     constructor(ExternalMetadata _metadata) ERC1155("") {
         metadata = _metadata;
         recipient = msg.sender;
+
+        stateRoots[
+            ETH
+        ] = 0x376ed3ba55cc553c2bf651460471f44ecb604216d3eec20eda1a099b5a5f2d0f; // Homestead
+        blockNumbers[ETH] = 21303934; // Dec-01-2024 12:00:11 AM +UTC
+
+        stateRoots[
+            FORMA
+        ] = 0x780dc28ebe79f860695b488b6618c167a3f7d8bcbd0a88b3f8f22cd7e7c7f444; // Forma
+        blockNumbers[FORMA] = 7065245; // Dec-01-2024 12:00:00 AM +UTC
+
+        stateRoots[
+            BASE
+        ] = 0xb35b67b8a3efce22a121107605afb766db098ccf2e0a89fdb537df6dd45d2505; // Base
+        blockNumbers[BASE] = 23110927; // Dec-01-2024 12:00:01 AM +UTC
+
+        stateRoots[
+            ARB
+        ] = 0xf23873ef08d1ea3ca478ffbcb22949abcadc91e302c297039fd81b84995ea429;
+        blockNumbers[ARB] = 280041525;
+
+        stateRoots[
+            OP
+        ] = 0x533c820b0daeb5e8534f17987405ce6c984b862fc48d08565f554c49d13a300e;
+        blockNumbers[OP] = 128706212;
     }
 
     receive() external payable {
@@ -172,7 +197,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         address user,
         bytes32 root,
         bytes memory _proofRlpBytes
-    ) public pure returns (bool, uint256) {
+    ) public pure virtual returns (bool, uint256) {
         RLPReader.RLPItem[] memory proofs = _proofRlpBytes.toRlpItem().toList();
         bytes32 addressHash = keccak256(abi.encodePacked(user));
         Verifier.Account memory accountPool = Verifier.extractAccountFromProof(
@@ -221,7 +246,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         address _to,
         uint256 tokenId,
         bytes memory _proofRlpBytes,
-        bool isForma
+        uint256 chainId
     ) public payable {
         require(block.timestamp > startDate, "GAME HASN'T STARTED");
         require(block.timestamp < endDate, "GAME ENDED");
@@ -232,7 +257,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         if (!accountExists[_to]) {
             (bool doesExist, ) = userExists(
                 _to,
-                isForma ? STATE_ROOT_FORMA : STATE_ROOT,
+                stateRoots[chainId],
                 _proofRlpBytes
             );
             require(doesExist, "USER DOES NOT EXIST ON SPECIFIED CHAIN");
@@ -273,18 +298,28 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     function infect(uint256 tokenId, address _to) public {
         require(block.timestamp > endDate, "GAME NOT ENDED");
         if (isWinningtoken(tokenId)) {
+            // can infect if game is over
+            // and either:
+            // 1. not a winning token
+            // 2. winning token and either:
+            //    2a. claimed prize
+            //    2b. forfeit period is over
+            bool alreadyClaimed = claimed[tokenId][msg.sender] ==
+                balanceOf(msg.sender, tokenId);
+            bool claimIsOver = block.timestamp > (endDate + forfeitClaim);
             require(
-                (block.timestamp > (endDate + forfeitClaim)) ||
-                    (claimed[tokenId][msg.sender] ==
-                        balanceOf(msg.sender, tokenId)),
+                alreadyClaimed || claimIsOver,
                 "WINNERS CANT INFECT UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
             );
-            // prevent new owner from claiming prize
-            claimed[tokenId][_to] = 1;
+            // if claim is live, prevent new owner from claiming prize
+            if (!claimIsOver) {
+                claimed[tokenId][_to] = 1;
+            }
         }
         require(balanceOf(msg.sender, tokenId) > 0, "NOT A HOLDER");
         require(balanceOf(_to, tokenId) == 0, "ALREADY INFECTED");
         _mint(_to, tokenId, 1, "");
+        emit Airdrop(tokenId, msg.sender, _to);
     }
 
     function claimPrize(uint256 place) public {
@@ -336,6 +371,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
 
     function tallyLeaderboard(uint256 tokenId) internal {
         uint256 supply = squadSupply[tokenId];
+
         bool leader;
         uint256 leaderIndex;
         for (uint256 i = 0; i < 3; i++) {
@@ -360,25 +396,39 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
                 topSquads[0].tokenId != tokenId &&
                 topSquads[1].tokenId != tokenId
             ) {
-                topSquads[2].tokenId = tokenId;
+                topSquads[2] = Record({tokenId: tokenId, supply: supply});
             }
         } else {
             topSquads[leaderIndex].supply = supply;
-            // sort the array
-            for (uint256 i = 0; i < 3; i++) {
-                for (uint256 j = i + 1; j < 3; j++) {
-                    if (topSquads[i].supply < topSquads[j].supply) {
-                        Record memory temp = topSquads[i];
-                        topSquads[i] = topSquads[j];
-                        topSquads[j] = temp;
-                    }
+
+            // stable sort algorithm to preserve order of equal elements
+            for (uint256 i = 1; i < 3; i++) {
+                Record memory key = topSquads[i];
+                uint256 j = i;
+
+                // Keep moving elements forward while:
+                // 1. We haven't reached the start (j > 0)
+                // 2. The element before has a lower supply
+                while (j > 0 && topSquads[j - 1].supply < key.supply) {
+                    topSquads[j] = topSquads[j - 1];
+                    j--;
                 }
+                topSquads[j] = key;
             }
         }
     }
 
     //
     // Admin Functions
+
+    function addChain(
+        uint256 chainId,
+        uint256 blocknumber,
+        bytes32 roothash
+    ) public onlyOwner {
+        stateRoots[chainId] = roothash;
+        blockNumbers[chainId] = blocknumber;
+    }
 
     function emitBatchMetadataUpdate() public onlyOwner {
         emit BatchMetadataUpdate(1, totalSquads);
@@ -441,9 +491,9 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         bytes4 interfaceId
     ) public view override returns (bool) {
         return
-            interfaceId == type(IERC165).interfaceId ||
-            interfaceId == type(IERC1155).interfaceId ||
-            interfaceId == type(IERC1155MetadataURI).interfaceId ||
+            interfaceId == type(ITokenMetadata).interfaceId ||
+            interfaceId == type(IERC1155MintablePayable).interfaceId ||
+            interfaceId == type(Ownable).interfaceId ||
             interfaceId == bytes4(0x49064906) || // IERC4906 MetadataUpdate
             super.supportsInterface(interfaceId);
     }

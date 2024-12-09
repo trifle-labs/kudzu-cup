@@ -35,11 +35,11 @@ contract KudzuMock is Kudzu {
         percentOfAirdrop = _percentOfAirdrop;
     }
 
-    // function userExists(
-    //     address user,
-    //     bytes32 root,
-    //     bytes memory _proofRlpBytes
-    // ) public pure override returns (bool, uint256) {
-    //     return (true, 0);
-    // }
+    function userExists(
+        address user,
+        bytes32 root,
+        bytes memory _proofRlpBytes
+    ) public pure override returns (bool, uint256) {
+        return (true, 0);
+    }
 }
