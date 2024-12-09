@@ -56,12 +56,12 @@ const config = {
     forma: {
       url: "https://rpc.forma.art/",
       accounts: { mnemonic: process.env.deploymentKey },
-      gasPrice: 10_000_000, // 0.01 GWEI
+      gasPrice: 18_000_000_000, // 18 GWEI
     },
     formatest: {
       url: "https://rpc.sketchpad-1.forma.art/",
       accounts: { mnemonic: process.env.deploymentKey },
-      gasPrice: 10_000_000, // 0.01 GWEI
+      gasPrice: 18_000_000_000, // 18 GWEI
     },
     baseSepolia: {
       // network ID: 84532
@@ -110,6 +110,8 @@ const config = {
       sepolia: process.env.etherscanApiNew,
       base: process.env.etherscanApiBase,
       baseSepolia: process.env.etherscanApiBase,
+      formatest: "asdf",
+      forma: "asdf",
     },
 
     customChains: [

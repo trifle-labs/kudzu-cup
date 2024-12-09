@@ -206,6 +206,8 @@ const verifyContracts = async (returnObject) => {
   if (
     chainId == 5n || // Updated to use bigint
     chainId == 1n ||
+    chainId == 984123n ||
+    chainId == 984122n ||
     chainId == 11155111n ||
     chainId == 17069n ||
     chainId == 84532n ||
