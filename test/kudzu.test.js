@@ -33,6 +33,12 @@ describe("Kudzu Tests", function () {
     snapshot = await hre.network.provider.send("evm_snapshot", []);
   });
 
+  it.only("token has a name", async () => {
+    const { Kudzu } = await deployContracts();
+    const name = await Kudzu.name();
+    expect(name).to.equal("Kudzu");
+  });
+
   it("has all the correct interfaces", async () => {
     const interfaces = [
       { name: "ERC165", id: "0x01ffc9a7", supported: true },
@@ -842,7 +848,10 @@ describe("Kudzu Tests", function () {
 
     for (const player in state.players) {
       for (const tokenId in state.players[player]) {
-        const playerBalance = await Kudzu.balanceOf(player, tokenId);
+        const playerBalance = await Kudzu["balanceOf(address,uint256)"](
+          player,
+          tokenId
+        );
         expect(playerBalance).to.equal(state.players[player][tokenId]);
         expect(playerBalance).to.be.greaterThan(0);
       }
@@ -991,7 +1000,7 @@ describe("Kudzu Tests", function () {
               winningTokens[j].tokenId,
               player
             );
-            const balance = await Kudzu.balanceOf(
+            const balance = await Kudzu["balanceOf(address,uint256)"](
               player,
               winningTokens[j].tokenId
             );

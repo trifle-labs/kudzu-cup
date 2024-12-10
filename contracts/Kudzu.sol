@@ -41,6 +41,9 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     //
     // Constants
 
+    string public constant name = "Kudzu";
+    string public constant symbol = "KUDZU";
+
     uint256 public ETH = 1;
     uint256 public FORMA = 984122;
     uint256 public BASE = 8453;
@@ -55,7 +58,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     //
     // Variables
     ExternalMetadata public metadata;
-    uint256 public startDate = 1733853600; // Tue Dec 10 2024 18:00:00 GMT+0000
+    uint256 public startDate = 1733818531; // TODO: change for mainnet // 1733853600; // Tue Dec 10 2024 18:00:00 GMT+0000
     uint256 public endDate = 1735603200; // Tue Dec 31 2024 00:00:00 GMT+0000
     uint256 public christmas = 1735171200; // Fri Dec 26 2024 00:00:00 GMT+0000
     uint256 public claimDelay = 3 days; // Allow 3 days for additional prize contributions

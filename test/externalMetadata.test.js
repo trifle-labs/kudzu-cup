@@ -1,7 +1,12 @@
 import { expect } from "chai";
 import { describe, it, before, afterEach } from "mocha";
 import { deployContracts, getParsedEventLogs } from "../scripts/utils.js";
-import { getEmoji, kudzuName, eyes, mouths } from "../scripts/exportUtils.js";
+import {
+  getEmoji,
+  kudzuName,
+  eyes,
+  mouths,
+} from "../scripts/metadataUtils.mjs";
 
 import hre from "hardhat";
 const ethers = hre.ethers;
@@ -35,11 +40,11 @@ describe("ExternalMetadata Tests", function () {
     const expectedMouth = 0x4;
     const realTokenId = 151;
     const { ExternalMetadata } = await deployContracts();
-    const pieces = await ExternalMetadata.getPiecesOfTokenID(tokenId);
-    console.log({ pieces });
-    expect(pieces.id).to.equal(realTokenId);
-    expect(pieces.eyes).to.equal(expectedEyes);
-    expect(pieces.mouth).to.equal(expectedMouth);
+    const [id, eyes, mouth] =
+      await ExternalMetadata.getPiecesOfTokenID(tokenId);
+    expect(id).to.equal(realTokenId);
+    expect(eyes).to.equal(expectedEyes);
+    expect(mouth).to.equal(expectedMouth);
   });
 
   it("calculates id, eyes and mouth correctly", async () => {

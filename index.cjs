@@ -1,10 +1,8 @@
-const KudzuABI = require("./contractData/ABI-984122-Kudzu.json");
-const KudzuBaseSepolia = require("./contractData/84532-Kudzu.json");
-
-// const KudzuBase = require('./contractData/8453-Kudzu.json');
-// const KudzuLocal = require('./contractData/12345-Kudzu.json');
+const KudzuABI = require("./contractData/ABI-984123-Kudzu.json"); // TODO: change to mainnet ABI
 
 const KudzuForma = require("./contractData/984122-Kudzu.json");
+const KudzuFromaTest = require("./contractData/984123-Kudzu.json");
+const KudzuBaseSepolia = require("./contractData/84532-Kudzu.json");
 
 const { eyes, mouths, getEmoji } = require("./scripts/metadataUtils.cjs");
 
@@ -13,8 +11,7 @@ const Kudzu = {
   networks: {
     84532: KudzuBaseSepolia,
     984122: KudzuForma,
-    // 12345: KudzuLocal,
-    // 8453: KudzuBase
+    984123: KudzuFromaTest,
   },
 };
 
