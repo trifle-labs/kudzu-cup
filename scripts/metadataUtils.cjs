@@ -1,4 +1,4 @@
-export const eyes = {
+const eyes = {
   0: "worry-sweat",
   1: "whyyy",
   2: "upside-down",
@@ -32,7 +32,7 @@ export const eyes = {
   30: "bbblank",
   31: "pleased",
 };
-export const mouths = {
+const mouths = {
   0: "smile",
   1: "barf",
   2: "upside-down",
@@ -67,11 +67,11 @@ export const mouths = {
   31: "grimmace",
 };
 
-export const kudzuName = (id) => {
+const kudzuName = (id) => {
   return "$" + getEmoji(id).eye + "-" + getEmoji(id).mouth;
 };
 
-export const getEmoji = (tokenId) => {
+const getEmoji = (tokenId) => {
   const bigTokenId = BigInt(tokenId);
   const id = bigTokenId >> 16n;
   const mouth = bigTokenId & 31n;
@@ -84,4 +84,11 @@ export const getEmoji = (tokenId) => {
     eye: eyes[Number(eye)],
     mouth: mouths[Number(mouth)],
   };
+};
+
+module.exports = {
+  eyes,
+  mouths,
+  getEmoji,
+  kudzuName,
 };
