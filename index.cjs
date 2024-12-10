@@ -4,8 +4,6 @@ const KudzuForma = require("./contractData/984122-Kudzu.json");
 const KudzuFromaTest = require("./contractData/984123-Kudzu.json");
 const KudzuBaseSepolia = require("./contractData/84532-Kudzu.json");
 
-const { eyes, mouths, getEmoji } = require("./scripts/metadataUtils.cjs");
-
 const Kudzu = {
   abi: KudzuABI,
   networks: {
@@ -15,6 +13,7 @@ const Kudzu = {
   },
 };
 
+const { eyes, mouths, getEmoji } = require("./scripts/metadataUtils.cjs");
 module.exports = {
   Kudzu,
   eyes,
