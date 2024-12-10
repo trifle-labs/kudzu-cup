@@ -6,7 +6,7 @@ const KudzuBaseSepolia = require("./contractData/84532-Kudzu.json");
 
 const KudzuForma = require("./contractData/984122-Kudzu.json");
 
-const { eyes, mouths, getEmoji } = require("./scripts/metadataUtils.js");
+const { eyes, mouths, getEmoji } = require("./scripts/metadataUtils.cjs");
 
 const Kudzu = {
   abi: KudzuABI,
