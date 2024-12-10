@@ -16,9 +16,6 @@ export const Kudzu = {
   },
 };
 
-export {
-  getParamsForProof,
-  eyes,
-  mouths,
-  getEmoji,
-} from "./scripts/exportUtils.js";
+export { getParamsForProof } from "./scripts/exportUtils.js";
+
+export { eyes, mouths, getEmoji } from "./scripts/metadataUtils.js";

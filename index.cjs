@@ -1,10 +1,3 @@
-const {
-  getParamsForProof,
-  eyes,
-  mouths,
-  getEmoji,
-} = await import("./scripts/exportUtils.js");
-
 const KudzuABI = require("./contractData/ABI-984122-Kudzu.json");
 const KudzuBaseSepolia = require("./contractData/84532-Kudzu.json");
 
@@ -12,6 +5,8 @@ const KudzuBaseSepolia = require("./contractData/84532-Kudzu.json");
 // const KudzuLocal = require('./contractData/12345-Kudzu.json');
 
 const KudzuForma = require("./contractData/984122-Kudzu.json");
+
+const { eyes, mouths, getEmoji } = require("./scripts/metadataUtils.js");
 
 const Kudzu = {
   abi: KudzuABI,
@@ -25,7 +20,6 @@ const Kudzu = {
 
 module.exports = {
   Kudzu,
-  getParamsForProof,
   eyes,
   mouths,
   getEmoji,
