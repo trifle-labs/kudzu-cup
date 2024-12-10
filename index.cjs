@@ -11,7 +11,7 @@ const {
   eyes,
   mouths,
   getEmoji,
-} = require("./scripts/exportUtils.js");
+} = await import("./scripts/exportUtils.js");
 
 const Kudzu = {
   abi: KudzuABI,
