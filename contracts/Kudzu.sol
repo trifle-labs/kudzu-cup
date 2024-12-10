@@ -24,13 +24,17 @@ PRIZE: 80% OF FEES + 100% OF GAS
 SPLIT: 60/30/10
 ENDS: DEC 31 2024 00:00 UTC
 
-CAN ONLY AIRDROP TO PLAYERS EXISTING BEFORE DEC 1, 2024
-AIRDROP IS RATE LIMITED 1 AIRDROP PER 26 BLOCKS AFTER DEC 25, 2024 (~every minute)
 NO CONTRACT BASED ACCOUNTS
-WAIT 3 DAYS AFTER CONTEST ENDS TO CLAIM PRIZE (ALLOWS FOR GAS FEE TO BE MANUALLY ADDED)
-PRIZE IS FORFEIT IF NOT COLLECTED AFTER 90 DAYS
+CAN ONLY AIRDROP TO ADDRESSES EXISTING BEFORE DEC 1, 2024
+AFTER DEC 25, 2024 AIRDROP IS RATE LIMITED 1 AIRDROP PER 26 BLOCKS (~every minute)
+INDIVIDUALS ARE RESPONSIBLE FOR CLAIMING THEIR PORTION OF THE PRIZE
+PRIZE IS CLAIMABLE 3 DAYS AFTER CONTEST ENDS (after gas fees are added to prize)
+PRIZE IS FORFEITED IF NOT COLLECTED WITHIN 90 DAYS
 
 https://kudzu.christmas
+https://trifle.life
+https://folia.app
+https://forma.art
 
 */
 
@@ -58,7 +62,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     //
     // Variables
     ExternalMetadata public metadata;
-    uint256 public startDate = 1733818531; // TODO: change for mainnet // 1733853600; // Tue Dec 10 2024 18:00:00 GMT+0000
+    uint256 public startDate = 1733853600; // Tue Dec 10 2024 18:00:00 GMT+0000
     uint256 public endDate = 1735603200; // Tue Dec 31 2024 00:00:00 GMT+0000
     uint256 public christmas = 1735171200; // Fri Dec 26 2024 00:00:00 GMT+0000
     uint256 public claimDelay = 3 days; // Allow 3 days for additional prize contributions
@@ -76,7 +80,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     // State
     uint256 public totalSquads;
     uint256 public prizePoolFinal;
-    uint256 public claimedAmount;
+    uint256 public totalClaimed;
     mapping(uint256 => mapping(address => uint256)) public claimed; // tokenId => address => quantity
     mapping(uint256 => bool) public exists;
     mapping(uint256 => uint256) public squadSupply;
@@ -303,34 +307,6 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
             tokenId == getWinningToken(2);
     }
 
-    function infect(uint256 tokenId, address _to) public {
-        require(block.timestamp > endDate, "GAME NOT ENDED");
-        if (isWinningtoken(tokenId)) {
-            // can infect if game is over
-            // and either:
-            // 1. not a winning token
-            // 2. winning token and either:
-            //    2a. claimed prize
-            //    2b. forfeit period is over
-            bool alreadyClaimed = claimed[tokenId][msg.sender] ==
-                balanceOf(msg.sender, tokenId);
-            bool claimIsOver = block.timestamp > (endDate + forfeitClaim);
-            require(
-                alreadyClaimed || claimIsOver,
-                "WINNERS CANT INFECT UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
-            );
-            // if claim is live, prevent new owner from claiming prize
-            if (!claimIsOver) {
-                claimed[tokenId][_to] = 1;
-            }
-        }
-        require(balanceOf(msg.sender, tokenId) > 0, "NOT A HOLDER");
-        require(balanceOf(_to, tokenId) == 0, "ALREADY INFECTED");
-        _mint(_to, tokenId, 1, "");
-        balances[_to] += 1;
-        emit Airdrop(tokenId, msg.sender, _to);
-    }
-
     function claimPrize(uint256 place) public {
         require(block.timestamp > endDate, "GAME NOT ENDED");
         require(
@@ -342,17 +318,17 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
             "CLAIM PERIOD ENDED"
         );
 
-        // if contest is over calculate prize pool
-        if (claimedAmount == 0) {
+        // if contest is over lock in the prize pool
+        if (totalClaimed == 0) {
             prizePoolFinal = address(this).balance;
         }
 
         uint256 tokenId = getWinningToken(place);
-
-        require(claimed[tokenId][msg.sender] == 0, "ALREADY CLAIMED");
-
         uint256 tokenBalance = balanceOf(msg.sender, tokenId);
-        require(tokenBalance > 0, "INSUFFICIENT FUNDS");
+
+        require(claimed[tokenId][msg.sender] < tokenBalance, "ALREADY CLAIMED");
+
+        uint256 claimableAmount = tokenBalance - claimed[tokenId][msg.sender];
 
         uint256 placePercentage = (prizePoolFinal *
             (
@@ -361,11 +337,11 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
                     : THIRD_PLACE_PERCENT
             )) / DENOMINATOR;
 
-        uint256 proportionalPrize = (placePercentage * tokenBalance) /
+        uint256 proportionalPrize = (placePercentage * claimableAmount) /
             squadSupply[tokenId];
 
-        claimedAmount += proportionalPrize;
-        claimed[tokenId][msg.sender] = tokenBalance;
+        totalClaimed += proportionalPrize;
+        claimed[tokenId][msg.sender] += claimableAmount;
 
         (bool success, bytes memory data) = msg.sender.call{
             value: proportionalPrize
@@ -377,6 +353,36 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
 
     //
     // Internal Functions
+
+    function transfersEnabled(
+        address _from,
+        address _to,
+        uint256 tokenId,
+        uint256 amount
+    ) internal {
+        require(block.timestamp > endDate, "GAME NOT ENDED");
+        if (isWinningtoken(tokenId)) {
+            // can infect if game is over
+            // and either:
+            // 1. not a winning token
+            // 2. winning token and either:
+            //    2a. claimed prize
+            //    2b. forfeit period is over
+            bool alreadyClaimed = claimed[tokenId][msg.sender] >= amount;
+            bool claimIsOver = block.timestamp > (endDate + forfeitClaim);
+            require(
+                alreadyClaimed || claimIsOver,
+                "WINNERS CANT TRANSFER UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
+            );
+            // if claim is live, prevent new owner from claiming prize
+            if (!claimIsOver) {
+                claimed[tokenId][_to] += amount;
+                claimed[tokenId][_from] -= amount;
+            }
+        }
+        balances[_to] += amount;
+        balances[_from] -= amount;
+    }
 
     function tallyLeaderboard(uint256 tokenId) internal {
         uint256 supply = squadSupply[tokenId];
@@ -481,7 +487,8 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         uint256 amount,
         bytes memory data
     ) public virtual override {
-        infect(id, to);
+        transfersEnabled(from, to, id, amount);
+        super.safeTransferFrom(from, to, id, amount, data);
     }
 
     function safeBatchTransferFrom(
@@ -492,8 +499,11 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         bytes memory data
     ) public virtual override {
         for (uint256 i = 0; i < ids.length; i++) {
-            infect(ids[i], to);
+            uint256 id = ids[i];
+            uint256 amount = amounts[i];
+            transfersEnabled(from, to, id, amount);
         }
+        super.safeBatchTransferFrom(from, to, ids, amounts, data);
     }
 
     function supportsInterface(

@@ -33,7 +33,7 @@ describe("Kudzu Tests", function () {
     snapshot = await hre.network.provider.send("evm_snapshot", []);
   });
 
-  it.only("token has a name", async () => {
+  it("token has a name", async () => {
     const { Kudzu } = await deployContracts();
     const name = await Kudzu.name();
     expect(name).to.equal("Kudzu");
@@ -548,118 +548,404 @@ describe("Kudzu Tests", function () {
     expect(thirdPlace).to.equal(tokenId2);
   });
 
-  it("tests infect", async () => {
-    const { Kudzu } = await deployContracts();
+  it("allows transfer after game ends", async () => {
+    const { Kudzu } = await deployContracts({ mock: true });
     const signers = await ethers.getSigners();
     const startDay = await Kudzu.startDate();
     await hre.network.provider.send("evm_setNextBlockTimestamp", [
       parseInt(startDay),
     ]);
     await hre.network.provider.send("evm_mine");
+
+    // signer 0 creates 3 tokens
+
     const createPrice = await Kudzu.createPrice();
-
-    await expect(
-      Kudzu.mint(signers[0].address, 1, 1, {
-        value: createPrice,
-      })
-    ).to.be.revertedWith("MINT ONLY FOR NEW TOKENS");
-
-    let tx = await Kudzu.mint(signers[0].address, 0, 1, {
-      value: createPrice,
+    const tx = await Kudzu.create(signers[0].address, 4, {
+      value: createPrice * 4n,
     });
-    let receipt = await tx.wait();
-    const tokenId = (await getParsedEventLogs(receipt, Kudzu, "Created"))[0]
-      .pretty.tokenId;
+    const receipt = await tx.wait();
+    const [tokenId1, tokenId2, tokenId3, tokenId4] = (
+      await getParsedEventLogs(receipt, Kudzu, "Created")
+    ).map((t) => t.pretty.tokenId);
 
-    const mainnetBlocknumber = await Kudzu.blockNumbers(1);
-    const homesteadRPC = process.env.homesteadRPC;
-    const { proofsBlob } = await getParamsForProof(
-      signers[1].address,
-      mainnetBlocknumber,
-      homesteadRPC
+    const totalBalancePlayer0 = await Kudzu["balanceOf(address)"](
+      signers[0].address
     );
+    expect(totalBalancePlayer0).to.equal(40);
+
+    // signer 0 airdrops token 1 to signers 1, 2
     const airdropPrice = await Kudzu.airdropPrice();
-    await Kudzu.airdrop(signers[1].address, tokenId, proofsBlob, 1, {
+    await Kudzu.airdrop(signers[1].address, tokenId1, "0x", 1, {
+      value: airdropPrice,
+    });
+    await Kudzu.airdrop(signers[2].address, tokenId1, "0x", 1, {
       value: airdropPrice,
     });
 
-    const { proofsBlob: proofsBlob2 } = await getParamsForProof(
-      signers[2].address,
-      mainnetBlocknumber,
-      homesteadRPC
+    const totalBalancePlayer1 = await Kudzu["balanceOf(address)"](
+      signers[1].address
     );
-    await Kudzu.airdrop(signers[2].address, tokenId, proofsBlob2, 1, {
+    expect(totalBalancePlayer1).to.equal(1);
+
+    // signer 0 airdrops token 2 to signer 3
+    await Kudzu.airdrop(signers[3].address, tokenId2, "0x", 1, {
       value: airdropPrice,
     });
 
-    await expect(Kudzu.infect(tokenId, signers[1].address)).to.be.revertedWith(
-      "GAME NOT ENDED"
-    );
+    // token 3 is not airdropped but still wins 3rd place
+    const expectedPlaces = [tokenId1, tokenId2, tokenId3];
+
     await expect(
       Kudzu.safeTransferFrom(
         signers[0].address,
-        signers[1].address,
-        tokenId,
+        signers[4].address,
+        tokenId1,
         1,
         "0x"
       )
     ).to.be.revertedWith("GAME NOT ENDED");
 
-    await expect(
-      Kudzu.safeBatchTransferFrom(
-        signers[0].address,
-        signers[1].address,
-        [tokenId],
-        [1],
-        "0x"
-      )
-    ).to.be.revertedWith("GAME NOT ENDED");
-
     const endDate = await Kudzu.endDate();
-    await hre.network.provider.send("evm_setNextBlockTimestamp", [
-      parseInt(endDate),
-    ]);
-    await hre.network.provider.send("evm_mine");
-    await expect(Kudzu.infect(tokenId, signers[3].address)).to.be.revertedWith(
-      "WINNERS CANT INFECT UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
-    );
     const claimDelay = await Kudzu.claimDelay();
+
     await hre.network.provider.send("evm_setNextBlockTimestamp", [
       parseInt(endDate + claimDelay),
     ]);
     await hre.network.provider.send("evm_mine");
-    await Kudzu.claimPrize(0);
-    await expect(Kudzu.infect(0, signers[3].address)).to.be.revertedWith(
-      "NOT A HOLDER"
-    );
-    await expect(Kudzu.infect(tokenId, signers[0].address)).to.be.revertedWith(
-      "ALREADY INFECTED"
-    );
-    tx = await Kudzu.infect(tokenId, signers[3].address);
-    receipt = await tx.wait();
-    expect(receipt).to.emit(Kudzu, "Airdrop").withArgs({
-      tokenId,
-      from: signers[3].address,
-      to: signers[0].address,
-    });
 
+    const winningTokenA = await Kudzu.getWinningToken(0);
+    const winningTokenB = await Kudzu.getWinningToken(1);
+    const winningTokenC = await Kudzu.getWinningToken(2);
+    expect(winningTokenA).to.equal(expectedPlaces[0]);
+    expect(winningTokenB).to.equal(expectedPlaces[1]);
+    expect(winningTokenC).to.equal(expectedPlaces[2]);
+
+    // can't transfer an unclaimed token
     await expect(
-      Kudzu.connect(signers[1]).infect(tokenId, signers[4].address)
+      Kudzu.safeTransferFrom(
+        signers[0].address,
+        signers[4].address,
+        tokenId1,
+        1,
+        "0x"
+      )
     ).to.be.revertedWith(
-      "WINNERS CANT INFECT UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
+      "WINNERS CANT TRANSFER UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
     );
 
+    // non winning token can be transferred already
+    await expect(
+      Kudzu.safeTransferFrom(
+        signers[0].address,
+        signers[7].address,
+        tokenId4,
+        1,
+        "0x"
+      )
+    ).to.not.be.reverted;
+    const player8Balance = await Kudzu["balanceOf(address,uint256)"](
+      signers[7].address,
+      tokenId4
+    );
+    expect(player8Balance).to.equal(1);
+
+    // signer 0 has 10 of the winning tokens
+    const player0Balance = await Kudzu["balanceOf(address,uint256)"](
+      signers[0].address,
+      tokenId1
+    );
+    expect(player0Balance).to.equal(10);
+
+    // signer 0 claims prize for token 1
+    const tx2 = await Kudzu.claimPrize(0);
+    const receipt2 = await tx2.wait();
+    const amountReceived = (
+      await getParsedEventLogs(receipt2, Kudzu, "EthMoved")
+    )[0].pretty.amount;
+
+    // the prize per token is calculated here by prize received / balance of tokens
+    const place0ClaimPerToken = amountReceived / player0Balance;
+
+    // signer 0 transfers 1 token to signer 4, this is fine because it has been claimed
+    await Kudzu.safeTransferFrom(
+      signers[0].address,
+      signers[4].address,
+      tokenId1,
+      1,
+      "0x"
+    );
+
+    const player0BalanceAfter = await Kudzu["balanceOf(address,uint256)"](
+      signers[0].address,
+      tokenId1
+    );
+    expect(player0BalanceAfter).to.equal(9);
+
+    // tokenId1 and tokenId4 have both been transferred
+    const totalBalancePlayer0After = await Kudzu["balanceOf(address)"](
+      signers[0].address
+    );
+    expect(totalBalancePlayer0After).to.equal(38);
+
+    const player4Balance = await Kudzu["balanceOf(address,uint256)"](
+      signers[4].address,
+      tokenId1
+    );
+    expect(player4Balance).to.equal(1);
+
+    // player 4 claimed is 1 because the transfer keeps this updated
+    const player4Claimed = await Kudzu.claimed(tokenId1, signers[4].address);
+    expect(player4Claimed).to.equal(1);
+
+    // player 0 claimed is 9 because they transferred 1 claimed token to player 4
+    const player0Claimed = await Kudzu.claimed(tokenId1, signers[0].address);
+    expect(player0Claimed).to.equal(9);
+
+    // player 4 transfers to player 5
+    await Kudzu.connect(signers[4]).safeTransferFrom(
+      signers[4].address,
+      signers[5].address,
+      tokenId1,
+      1,
+      "0x"
+    );
+    const player4BalanceAfter = await Kudzu["balanceOf(address,uint256)"](
+      signers[4].address,
+      tokenId1
+    );
+    expect(player4BalanceAfter).to.equal(0);
+
+    const player4TotalBalance = await Kudzu["balanceOf(address)"](
+      signers[4].address
+    );
+    expect(player4TotalBalance).to.equal(0);
+
+    // the claimed value is reduced for player 4 to match reduced balance
+    const player4ClaimedAfter = await Kudzu.claimed(
+      tokenId1,
+      signers[4].address
+    );
+    expect(player4ClaimedAfter).to.equal(0);
+
+    const player5Balance = await Kudzu["balanceOf(address,uint256)"](
+      signers[5].address,
+      tokenId1
+    );
+    expect(player5Balance).to.equal(1);
+
+    // the claimed value is increased for player 5 to match increased balance
+    const player5Claimed = await Kudzu.claimed(tokenId1, signers[5].address);
+    expect(player5Claimed).to.equal(1);
+
+    // player 5 transfers it back to original signer 0
+    await Kudzu.connect(signers[5]).safeTransferFrom(
+      signers[5].address,
+      signers[0].address,
+      tokenId1,
+      1,
+      "0x"
+    );
+    const player5BalanceAfter = await Kudzu["balanceOf(address,uint256)"](
+      signers[5].address,
+      tokenId1
+    );
+    expect(player5BalanceAfter).to.equal(0);
+
+    // player 0 has original balance of 10
+    const player0BalanceAfter2 = await Kudzu["balanceOf(address,uint256)"](
+      signers[0].address,
+      tokenId1
+    );
+    expect(player0BalanceAfter2).to.equal(10);
+
+    // now send from a player 0 who has already claimed to player 1 who has not but could
+    // player 1 has 1 token from original airdrop from player 0
+    // player 1 has no claimed yet
+    const player1Balance = await Kudzu["balanceOf(address,uint256)"](
+      signers[1].address,
+      tokenId1
+    );
+    expect(player1Balance).to.equal(1);
+
+    const player1Claimed = await Kudzu.claimed(tokenId1, signers[1].address);
+    expect(player1Claimed).to.equal(0);
+
+    // player 0 transfers 2 to player 1
+    await Kudzu.safeTransferFrom(
+      signers[0].address,
+      signers[1].address,
+      tokenId1,
+      2,
+      "0x"
+    );
+    const player1BalanceAfter = await Kudzu["balanceOf(address,uint256)"](
+      signers[1].address,
+      tokenId1
+    );
+    expect(player1BalanceAfter).to.equal(3);
+
+    // player 1 has claimed 2 of the 3 tokens via player 0's claim
+    const player1ClaimedAfter = await Kudzu.claimed(
+      tokenId1,
+      signers[1].address
+    );
+    expect(player1ClaimedAfter).to.equal(2);
+
+    const player0BalanceAfter3 = await Kudzu["balanceOf(address,uint256)"](
+      signers[0].address,
+      tokenId1
+    );
+    expect(player0BalanceAfter3).to.equal(8);
+
+    const player0TotalBalanceAfter = await Kudzu["balanceOf(address)"](
+      signers[0].address
+    );
+    expect(player0TotalBalanceAfter).to.equal(37);
+
+    const player0Claimed2 = await Kudzu.claimed(tokenId1, signers[0].address);
+    expect(player0Claimed2).to.equal(8);
+
+    // player 1 can't transfer all 3 of their tokens because only 2 have been claimed
+    await expect(
+      Kudzu.connect(signers[1]).safeTransferFrom(
+        signers[1].address,
+        signers[6].address,
+        tokenId1,
+        3,
+        "0x"
+      )
+    ).to.be.revertedWith(
+      "WINNERS CANT TRANSFER UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
+    );
+
+    // player 1 only gets prize for 1 out of the 3 tokens they hold since 2 are claimed
+    const claimedBy1 = await Kudzu.claimed(tokenId1, signers[1].address);
+    expect(claimedBy1).to.equal(2);
+
+    const balanceOf1 = await Kudzu["balanceOf(address,uint256)"](
+      signers[1].address,
+      tokenId1
+    );
+    expect(balanceOf1).to.equal(3);
+
+    const tx3 = await Kudzu.connect(signers[1]).claimPrize(0);
+    const receipt3 = await tx3.wait();
+    const amountReceived2 = (
+      await getParsedEventLogs(receipt3, Kudzu, "EthMoved")
+    )[0].pretty.amount;
+    expect(amountReceived2).to.equal(
+      (balanceOf1 - claimedBy1) * place0ClaimPerToken
+    );
+
+    // player 1 send 1 token to player 2
+    await Kudzu.connect(signers[1]).safeTransferFrom(
+      signers[1].address,
+      signers[2].address,
+      tokenId1,
+      1,
+      "0x"
+    );
+    const player1BalanceAfter3 = await Kudzu["balanceOf(address,uint256)"](
+      signers[1].address,
+      tokenId1
+    );
+    expect(player1BalanceAfter3).to.equal(2);
+    const player1ClaimedAfter3 = await Kudzu.claimed(
+      tokenId1,
+      signers[1].address
+    );
+    expect(player1ClaimedAfter3).to.equal(2);
+
+    const player2Balance = await Kudzu["balanceOf(address,uint256)"](
+      signers[2].address,
+      tokenId1
+    );
+    expect(player2Balance).to.equal(2);
+    const player2Claimed = await Kudzu.claimed(tokenId1, signers[2].address);
+    expect(player2Claimed).to.equal(1);
+
+    // player 2 tries to send 2 to player 6 but fails
+    await expect(
+      Kudzu.connect(signers[2]).safeTransferFrom(
+        signers[2].address,
+        signers[6].address,
+        tokenId1,
+        2,
+        "0x"
+      )
+    ).to.be.revertedWith(
+      "WINNERS CANT TRANSFER UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
+    );
+    // player 2 can only send 1, sends it to player 6
+    await Kudzu.connect(signers[2]).safeTransferFrom(
+      signers[2].address,
+      signers[6].address,
+      tokenId1,
+      1,
+      "0x"
+    );
+    const player2BalanceAfter = await Kudzu["balanceOf(address,uint256)"](
+      signers[2].address,
+      tokenId1
+    );
+    expect(player2BalanceAfter).to.equal(1);
+    const player2ClaimedAfter = await Kudzu.claimed(
+      tokenId1,
+      signers[2].address
+    );
+    expect(player2ClaimedAfter).to.equal(0);
+
+    const player6BalanceAfter = await Kudzu["balanceOf(address,uint256)"](
+      signers[6].address,
+      tokenId1
+    );
+    expect(player6BalanceAfter).to.equal(1);
+    const player6ClaimedAfter = await Kudzu.claimed(
+      tokenId1,
+      signers[6].address
+    );
+    expect(player6ClaimedAfter).to.equal(1);
+
+    // player 6 tries to claim but fails
+    await expect(Kudzu.connect(signers[6]).claimPrize(0)).to.be.revertedWith(
+      "ALREADY CLAIMED"
+    );
+
+    // player 2 tries to claim and succeeds
+    const tx4 = await Kudzu.connect(signers[2]).claimPrize(0);
+    const receipt4 = await tx4.wait();
+    const amountReceived3 = (
+      await getParsedEventLogs(receipt4, Kudzu, "EthMoved")
+    )[0].pretty.amount;
+    expect(amountReceived3).to.equal(place0ClaimPerToken);
+
+    // claim the prize for place 2 and 3 and make sure there's no prize left
+
+    await Kudzu.claimPrize(1);
+    await Kudzu.connect(signers[3]).claimPrize(1);
+
+    // fast forward time and allow token in 3rd place to be transfered without claim
     const forfeitClaim = await Kudzu.forfeitClaim();
     await hre.network.provider.send("evm_setNextBlockTimestamp", [
-      parseInt(endDate + claimDelay + forfeitClaim),
+      parseInt(endDate + forfeitClaim),
     ]);
     await hre.network.provider.send("evm_mine");
-    await expect(Kudzu.connect(signers[1]).claimPrize(0)).to.be.revertedWith(
-      "CLAIM PERIOD ENDED"
-    );
 
-    await expect(Kudzu.connect(signers[1]).infect(tokenId, signers[4].address))
-      .to.not.be.reverted;
+    const claimed3By0 = await Kudzu.claimed(tokenId3, signers[0].address);
+    expect(claimed3By0).to.equal(0);
+    const balanceOf3By0 = await Kudzu["balanceOf(address,uint256)"](
+      signers[0].address,
+      tokenId2
+    );
+    expect(balanceOf3By0).to.equal(10);
+
+    await Kudzu.safeTransferFrom(
+      signers[0].address,
+      signers[7].address,
+      tokenId3,
+      10,
+      "0x"
+    );
   });
 
   it("runs the full game", async () => {
@@ -981,7 +1267,7 @@ describe("Kudzu Tests", function () {
 
             await expect(
               Kudzu.connect(signers[0]).claimPrize(j)
-            ).to.be.revertedWith("INSUFFICIENT FUNDS");
+            ).to.be.revertedWith("ALREADY CLAIMED");
 
             expect(receipt).to.emit(Kudzu, "Claim").withArgs({
               tokenId: winningTokenId,
@@ -1007,8 +1293,8 @@ describe("Kudzu Tests", function () {
             expect(claimed).to.equal(balance);
             expect(claimed).to.equal(state.players[player][winningTokenId]);
 
-            const claimedAmount = await Kudzu.claimedAmount();
-            expect(claimedAmount).to.equal(totalClaimedAmount);
+            const totalClaimed = await Kudzu.totalClaimed();
+            expect(totalClaimed).to.equal(totalClaimedAmount);
           } else {
             unclaimedAmount += winnerPayout;
           }
@@ -1022,8 +1308,8 @@ describe("Kudzu Tests", function () {
     const prizePoolFinal = await Kudzu.prizePoolFinal();
     expect(prizePool).to.equal(prizePoolFinal);
 
-    const claimedAmount = await Kudzu.claimedAmount();
-    const diff = claimedAmount - (prizePool - unclaimedAmount);
+    const totalClaimed = await Kudzu.totalClaimed();
+    const diff = totalClaimed - (prizePool - unclaimedAmount);
     expect(diff).to.be.lessThanOrEqual(claims);
 
     const poolDiff = unclaimedAmount - state.pool;
