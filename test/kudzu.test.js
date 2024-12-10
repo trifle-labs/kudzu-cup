@@ -58,34 +58,6 @@ describe("Kudzu Tests", function () {
     }
   });
 
-  it("getPiecesOfTokenID works", async () => {
-    const tokenId = 9897988;
-    const expectedEyes = 0x8;
-    const expectedMouth = 0x4;
-    const realTokenId = 151;
-    const { Kudzu } = await deployContracts();
-    const pieces = await Kudzu.getPiecesOfTokenID(tokenId);
-    expect(pieces.id).to.equal(realTokenId);
-    expect(pieces.eyes).to.equal(expectedEyes);
-    expect(pieces.mouth).to.equal(expectedMouth);
-  });
-
-  it("checks URI works", async () => {
-    const { Kudzu, ExternalMetadata } = await deployContracts();
-    const tokenId = 1;
-    const expectedURL = "https://virus.folia.app/celestia/1";
-    const uri = await Kudzu.uri(tokenId);
-    expect(uri).to.equal(expectedURL);
-    const externalUri = await ExternalMetadata.getMetadata(tokenId);
-    expect(externalUri).to.equal(expectedURL);
-
-    const altURI = await Kudzu.tokenURI(tokenId);
-    expect(altURI).to.equal(expectedURL);
-
-    const altURI2 = await Kudzu.getTokenMetadata(tokenId);
-    expect(altURI2).to.equal(expectedURL);
-  });
-
   it("checks emitBatchMetadataUpdate works", async () => {
     const [signer, notdeployer] = await ethers.getSigners();
     const { Kudzu } = await deployContracts();

@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "license": "CC-BY-NC-4.0",
   "type": "module",
-  "main": "index.js",
-  "module": "index.js",
-  "source": "index.js",
+  "main": "index.cjs",
+  "module": "index.mjs",
+  "source": "index.mjs",
   "scripts": {
     "chain": "hardhat node",
     "deploy": "hardhat run scripts/deploy.cjs",

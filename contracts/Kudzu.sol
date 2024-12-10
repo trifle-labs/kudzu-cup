@@ -16,22 +16,21 @@ KUDZU CHRISTMAS CUP: AIRDROP TOURNAMENT
 
 MINT A TEAM
 AIRDROP TOKENS
-TEAM WITH MOST TOKENS WINS
-ENDS DEC 30 2024 00:00 UTC
+TOP 3 TEAMS WITH MOST TOKENS WINS
 
----
-
-MINT - 1 TIA
-AIRDROP - 0.1 TIA
-
+MINT: 1 TIA
+AIRDROP: 0.1 TIA
 PRIZE: 80% OF FEES + 100% OF GAS
+SPLIT: 60/30/10
+ENDS: DEC 31 2024 00:00 UTC
 
-*/
+CAN ONLY AIRDROP TO PLAYERS EXISTING BEFORE DEC 1, 2024
+AIRDROP IS RATE LIMITED 1 AIRDROP PER 26 BLOCKS AFTER DEC 25, 2024 (~every minute)
+NO CONTRACT BASED ACCOUNTS
+WAIT 3 DAYS AFTER CONTEST ENDS TO CLAIM PRIZE (ALLOWS FOR GAS FEE TO BE MANUALLY ADDED)
+PRIZE IS FORFEIT IF NOT COLLECTED AFTER 90 DAYS
 
-// TODO:
-/*
- - onchain metadata
- - possibly open up external approval mechanism
+https://kudzu.christmas
 
 */
 
@@ -56,16 +55,16 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     //
     // Variables
     ExternalMetadata public metadata;
-    uint256 public startDate = 1733756400; // TODO: 4pm Berlin (replace) // 1733853600; // Tue Dec 10 2024 18:00:00 GMT+0000
-    uint256 public endDate = 1733770800; // TODO: 8pm Berlin (replace) // 1735689600; // Tue Dec 31 2024 00:00:00 GMT+0000
-    uint256 public christmas = 1733767200; // TODO: 7pm Berlin (replace) // 1735603200; // Fri Dec 26 2024 00:00:00 GMT+0000
-    uint256 public claimDelay = 30 minutes; // TODO: 8:30pm Berlin (replace) // 3 days; // Allow 3 days for additional prize contributions
-    uint256 public forfeitClaim = 1 hours; // TODO: 9pm Berlin (replace) // 90 days; // Forfeit ability to claim prize after 90 days
+    uint256 public startDate = 1733853600; // Tue Dec 10 2024 18:00:00 GMT+0000
+    uint256 public endDate = 1735603200; // Tue Dec 31 2024 00:00:00 GMT+0000
+    uint256 public christmas = 1735171200; // Fri Dec 26 2024 00:00:00 GMT+0000
+    uint256 public claimDelay = 3 days; // Allow 3 days for additional prize contributions
+    uint256 public forfeitClaim = 90 days; // Forfeit ability to claim prize after 90 days
 
     address public recipient;
 
-    uint256 public createPrice = 0.001 ether; // TODO: replace before mainnet // 1 ether; // TIA ~$8
-    uint256 public airdropPrice = 0.0001 ether; // TODO: replace before mainnet // 0.1 ether; // TIA ~$1
+    uint256 public createPrice = 1 ether; // TIA ~$6.80 on day of launch
+    uint256 public airdropPrice = 0.1 ether; // TIA ~$0.68 on day of launch
 
     uint256 public percentOfCreate = 200; // 200 / 1000 = 20%
     uint256 public percentOfAirdrop = 200; // 200 / 1000 = 20%
@@ -86,6 +85,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         uint256 supply;
     }
     Record[3] public topSquads;
+    mapping(address => uint256) public balances;
 
     // Events
     event Created(uint256 tokenId, address buyer);
@@ -139,6 +139,10 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     //
     // Read Functions
 
+    function balanceOf(address _owner) external view returns (uint256 balance) {
+        return balances[_owner];
+    }
+
     function blocktimestamp() public view returns (uint256) {
         return block.timestamp;
     }
@@ -147,12 +151,6 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         uint256 place
     ) public view returns (uint256 tokenId) {
         return topSquads[place].tokenId;
-    }
-
-    function getPiecesOfTokenID(
-        uint256 tokenId
-    ) public pure returns (uint256 id, uint256 eyes, uint256 mouth) {
-        return (tokenId >> 16, ((tokenId >> 8) & 0xFF), tokenId & 0xFF);
     }
 
     function tokenURI(
@@ -221,10 +219,16 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         for (uint256 i = 0; i < quantity; i++) {
             uint256 tokenId = totalSquads + 1;
             totalSquads++;
+
             tokenId = tokenId << 8;
             tokenId = tokenId | pseudoRNG(32, 1);
+
+            tokenId = tokenId << 8;
+            tokenId = tokenId | pseudoRNG(32, 2);
+
             exists[tokenId] = true;
             _mint(_to, tokenId, creatorQuantity, "");
+            balances[_to] += creatorQuantity;
             squadSupply[tokenId] += creatorQuantity;
             tallyLeaderboard(tokenId);
             emit Created(tokenId, _to);
@@ -275,6 +279,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         squadSupply[tokenId] += 1;
         tallyLeaderboard(tokenId);
         _mint(_to, tokenId, 1, "");
+        balances[_to] += 1;
 
         emit Airdrop(tokenId, msg.sender, _to);
 
@@ -319,6 +324,7 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         require(balanceOf(msg.sender, tokenId) > 0, "NOT A HOLDER");
         require(balanceOf(_to, tokenId) == 0, "ALREADY INFECTED");
         _mint(_to, tokenId, 1, "");
+        balances[_to] += 1;
         emit Airdrop(tokenId, msg.sender, _to);
     }
 
