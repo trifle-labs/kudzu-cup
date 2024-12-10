@@ -1,4 +1,4 @@
-const KudzuABI = require("./contractData/ABI-984123-Kudzu.json"); // TODO: change to mainnet ABI
+const KudzuABI = require("./contractData/ABI-984122-Kudzu.json");
 
 const KudzuForma = require("./contractData/984122-Kudzu.json");
 const KudzuFromaTest = require("./contractData/984123-Kudzu.json");
