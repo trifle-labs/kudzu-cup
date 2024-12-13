@@ -67,8 +67,9 @@ export const mouths = {
   31: "grimmace",
 };
 
-export const kudzuName = (id) => {
-  return "$" + getEmoji(id).eye + "-" + getEmoji(id).mouth;
+export const kudzuName = (tokenId) => {
+  const { index, eye, mouth } = getEmoji(tokenId);
+  return `$${eye}-${mouth}-${index}`;
 };
 
 export const getEmoji = (tokenId) => {
