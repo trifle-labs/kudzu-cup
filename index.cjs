@@ -13,10 +13,16 @@ const Kudzu = {
   },
 };
 
-const { eyes, mouths, getEmoji } = require("./scripts/metadataUtils.cjs");
+const {
+  eyes,
+  mouths,
+  getEmoji,
+  kudzuName,
+} = require("./scripts/metadataUtils.cjs");
 module.exports = {
   Kudzu,
   eyes,
   mouths,
   getEmoji,
+  kudzuName,
 };
