@@ -68,25 +68,31 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
         startDate = _startDate;
     }
 
-    uint256 public endDate = 1735603200; // Tue Dec 31 2024 00:00:00 GMT+0000 // TODO: revert after opensea
+    // TODO: revert after baseSepolia
+
+    function updateOwner(address _newOwner) public {
+        transferOwnership(_newOwner);
+    }
+
+    uint256 public endDate = 1735603200; // Tue Dec 31 2024 00:00:00 GMT+0000 // TODO: revert after baseSepolia
 
     function setEndDate(uint256 _endDate) public {
         endDate = _endDate;
     }
 
-    uint256 public christmas = 1735171200; // Fri Dec 26 2024 00:00:00 GMT+0000 // TODO: revert after opensea
+    uint256 public christmas = 1735171200; // Fri Dec 26 2024 00:00:00 GMT+0000 // TODO: revert after baseSepolia
 
     function setChristmas(uint256 _christmas) public {
         christmas = _christmas;
     }
 
-    uint256 public claimDelay = 3 days; // Allow 3 days for additional prize contributions // TODO: revert after opensea
+    uint256 public claimDelay = 3 days; // Allow 3 days for additional prize contributions // TODO: revert after baseSepolia
 
     function setClaimDelay(uint256 _claimDelay) public {
         claimDelay = _claimDelay;
     }
 
-    uint256 public forfeitClaim = 90 days; // Forfeit ability to claim prize after 90 days // TODO: revert after opensea
+    uint256 public forfeitClaim = 90 days; // Forfeit ability to claim prize after 90 days // TODO: revert after baseSepolia
 
     function setForfeitClaim(uint256 _forfeitClaim) public {
         forfeitClaim = _forfeitClaim;
