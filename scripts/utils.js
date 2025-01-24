@@ -110,6 +110,15 @@ const deployMetadata = async () => {
   };
 };
 
+const deployKudzuAndBurn = async (options) => {
+  let returnValues = await deployContracts(options);
+  returnValues = await deployBurnContract(returnValues);
+  if (options?.saveAndVerify) {
+    await saveAndVerifyContracts(returnValues);
+  }
+  return returnValues;
+};
+
 const deployERC2981Contracts = async (options) => {
   const returnValue = await deployERC2981Contract(options);
   if (options?.saveAndVerify) {
@@ -176,8 +185,35 @@ const deployERC2981Contract = async (options) => {
   return returnObject;
 };
 
+const deployBurnContract = async (returnObject) => {
+  if (!returnObject.Kudzu) {
+    throw new Error("Kudzu contract is required to deploy KudzuBurn contract");
+  }
+
+  log("Deploying KudzuBurn contract");
+
+  const KudzuBurn = await hre.ethers.getContractFactory("KudzuBurn");
+  const burn = await KudzuBurn.deploy(returnObject.Kudzu.target);
+  await burn.deploymentTransaction().wait();
+  returnObject["KudzuBurn"] = burn;
+  log(`KudzuBurn Deployed at ${burn.target} `);
+  const verificationData = [
+    {
+      name: "KudzuBurn",
+      constructorArguments: [returnObject.Kudzu.target],
+    },
+  ];
+  returnObject.verificationData = verificationData;
+  return returnObject;
+};
+
 const deployContractsV0 = async (options) => {
-  const defaultOptions = { mock: false, ignoreTesting: false, verbose: false };
+  const defaultOptions = {
+    burn: false,
+    mock: false,
+    ignoreTesting: false,
+    verbose: false,
+  };
   const { mock, ignoreTesting, verbose } = Object.assign(
     defaultOptions,
     options
@@ -396,6 +432,7 @@ export {
   deployContractsV0,
   deployContracts,
   deployERC2981Contracts,
+  deployKudzuAndBurn,
   getPathABI,
   getPathAddress,
   readData,
