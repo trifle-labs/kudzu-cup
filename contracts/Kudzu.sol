@@ -63,15 +63,39 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     // Variables
     ExternalMetadata public metadata;
     uint256 public startDate = 1733853600; // Tue Dec 10 2024 18:00:00 GMT+0000
-    uint256 public endDate = 1735603200; // Tue Dec 31 2024 00:00:00 GMT+0000
-    uint256 public christmas = 1735171200; // Fri Dec 26 2024 00:00:00 GMT+0000
-    uint256 public claimDelay = 3 days; // Allow 3 days for additional prize contributions
-    uint256 public forfeitClaim = 90 days; // Forfeit ability to claim prize after 90 days
+
+    function setStartDate(uint256 _startDate) public {
+        startDate = _startDate;
+    }
+
+    uint256 public endDate = 1735603200; // Tue Dec 31 2024 00:00:00 GMT+0000 // TODO: revert after opensea
+
+    function setEndDate(uint256 _endDate) public {
+        endDate = _endDate;
+    }
+
+    uint256 public christmas = 1735171200; // Fri Dec 26 2024 00:00:00 GMT+0000 // TODO: revert after opensea
+
+    function setChristmas(uint256 _christmas) public {
+        christmas = _christmas;
+    }
+
+    uint256 public claimDelay = 3 days; // Allow 3 days for additional prize contributions // TODO: revert after opensea
+
+    function setClaimDelay(uint256 _claimDelay) public {
+        claimDelay = _claimDelay;
+    }
+
+    uint256 public forfeitClaim = 90 days; // Forfeit ability to claim prize after 90 days // TODO: revert after opensea
+
+    function setForfeitClaim(uint256 _forfeitClaim) public {
+        forfeitClaim = _forfeitClaim;
+    }
 
     address public recipient;
 
-    uint256 public createPrice = 1 ether; // TIA ~$6.80 on day of launch
-    uint256 public airdropPrice = 0.1 ether; // TIA ~$0.68 on day of launch
+    uint256 public createPrice = 0.1 ether; // TIA ~$6.80 on day of launch // TODO: revert after opensea
+    uint256 public airdropPrice = 0.01 ether; // TIA ~$0.68 on day of launch // TODO: revert after opensea
 
     uint256 public percentOfCreate = 200; // 200 / 1000 = 20%
     uint256 public percentOfAirdrop = 200; // 200 / 1000 = 20%
