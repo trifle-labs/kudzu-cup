@@ -110,6 +110,14 @@ const deployMetadata = async () => {
   };
 };
 
+const deployERC2981Contracts = async (options) => {
+  const returnValue = await deployERC2981Contract(options);
+  if (options?.saveAndVerify) {
+    await saveAndVerifyContracts(returnValue);
+  }
+  return returnValue;
+};
+
 const deployContracts = async (options) => {
   const returnValue = await deployContractsV0(options);
   if (options?.saveAndVerify) {
@@ -130,6 +138,42 @@ const saveAndVerifyContracts = async (deployedContracts) => {
   if (deployedContracts.verificationData) {
     await verifyContracts(deployedContracts);
   }
+};
+
+const deployERC2981Contract = async (options) => {
+  const defaultOptions = { mock: false, ignoreTesting: false, verbose: false };
+  const { ignoreTesting, verbose } = Object.assign(defaultOptions, options);
+  global.ignoreTesting = ignoreTesting;
+  global.verbose = verbose;
+  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const chainId = BigInt(networkinfo);
+
+  // const networkinfo = await hre.ethers.provider.getNetwork();
+  global.chainId = chainId;
+  log("Deploying contracts");
+
+  const returnObject = {};
+
+  // deploy ERC2981
+  const ERC2981 = await hre.ethers.getContractFactory("ERC2981");
+
+  const eRC2981 = await ERC2981.deploy();
+
+  await eRC2981.deploymentTransaction().wait();
+
+  returnObject["ERC2981"] = eRC2981;
+  log(`ERC2981 Deployed at ${eRC2981.target} `);
+
+  const verificationData = [
+    {
+      name: "ERC2981",
+      constructorArguments: [],
+    },
+  ];
+
+  returnObject.verificationData = verificationData;
+
+  return returnObject;
 };
 
 const deployContractsV0 = async (options) => {
@@ -351,6 +395,7 @@ export {
   initContracts,
   deployContractsV0,
   deployContracts,
+  deployERC2981Contracts,
   getPathABI,
   getPathAddress,
   readData,
