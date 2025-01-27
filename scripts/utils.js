@@ -25,7 +25,6 @@ const getPathABI = async (name) => {
 
   var savePath = path.join(
     __dirname,
-    "server",
     "contractData",
     "ABI-" + String(chainId) + "-" + String(name) + ".json"
   );
@@ -42,7 +41,6 @@ const getPathAddress = async (name) => {
   const chainId = BigInt(networkinfo);
   var savePath = path.join(
     __dirname,
-    "server",
     "contractData",
     String(chainId) + "-" + String(name) + ".json"
   );
@@ -119,6 +117,14 @@ const deployKudzuAndBurn = async (options) => {
   return returnValues;
 };
 
+const deployBurn = async (options) => {
+  options = await deployBurnContract(options);
+  if (options?.saveAndVerify) {
+    await saveAndVerifyContracts(options);
+  }
+  return options;
+};
+
 const deployERC2981Contracts = async (options) => {
   const returnValue = await deployERC2981Contract(options);
   if (options?.saveAndVerify) {
@@ -137,7 +143,11 @@ const deployContracts = async (options) => {
 
 const saveAndVerifyContracts = async (deployedContracts) => {
   for (const contractName in deployedContracts) {
-    if (contractName === "verificationData") {
+    if (
+      contractName === "verificationData" ||
+      contractName === "saveAndVerify" ||
+      contractName === "ignoreTesting"
+    ) {
       continue;
     }
     await copyABI(contractName);
@@ -433,6 +443,8 @@ export {
   deployContracts,
   deployERC2981Contracts,
   deployKudzuAndBurn,
+  deployBurnContract,
+  deployBurn,
   getPathABI,
   getPathAddress,
   readData,
