@@ -76,7 +76,7 @@ library HitchensOrderStatisticsTreeLib {
     ) internal view returns (uint _cursor) {
         require(
             value != EMPTY,
-            'OrderStatisticsTree(401) - Starting value cannot be zero'
+            "OrderStatisticsTree(401) - Starting value cannot be zero"
         );
         if (self.nodes[value].right != EMPTY) {
             _cursor = treeMinimum(self, self.nodes[value].right);
@@ -95,7 +95,7 @@ library HitchensOrderStatisticsTreeLib {
     ) internal view returns (uint _cursor) {
         require(
             value != EMPTY,
-            'OrderStatisticsTree(402) - Starting value cannot be zero'
+            "OrderStatisticsTree(402) - Starting value cannot be zero"
         );
         if (self.nodes[value].left != EMPTY) {
             _cursor = treeMaximum(self, self.nodes[value].left);
@@ -144,7 +144,7 @@ library HitchensOrderStatisticsTreeLib {
     {
         require(
             exists(self, value),
-            'OrderStatisticsTree(403) - Value does not exist.'
+            "OrderStatisticsTree(403) - Value does not exist."
         );
         Node storage gn = self.nodes[value];
         return (
@@ -163,7 +163,7 @@ library HitchensOrderStatisticsTreeLib {
     ) internal view returns (Node storage node) {
         require(
             exists(self, value),
-            'OrderStatisticsTree(403) - Value does not exist.'
+            "OrderStatisticsTree(403) - Value does not exist."
         );
         node = self.nodes[value];
     }
@@ -191,7 +191,7 @@ library HitchensOrderStatisticsTreeLib {
     ) internal view returns (bytes32 _key) {
         require(
             exists(self, value),
-            'OrderStatisticsTree(404) - Value does not exist.'
+            "OrderStatisticsTree(404) - Value does not exist."
         );
         return self.nodes[value].keys[index];
     }
@@ -256,6 +256,34 @@ library HitchensOrderStatisticsTreeLib {
         uint value
     ) internal view returns (uint _above) {
         if (count(self) > 0) _above = count(self) - rank(self, value);
+    }
+
+    function keyAtGlobalIndex(
+        Tree storage self,
+        uint index
+    ) internal view returns (bytes32 _key) {
+        bool finished;
+        uint cursor = self.root;
+        uint counted = 0;
+        while (!finished) {
+            if (cursor == EMPTY) {
+                revert("OrderStatisticsTree(409) - Index out of bounds");
+            }
+            Node storage c = self.nodes[cursor];
+            uint rightCount = getNodeCount(self, c.right);
+            uint keys = c.keys.length;
+            if (index < counted + rightCount + keys) {
+                if (index < counted + rightCount) {
+                    cursor = c.right;
+                } else {
+                    _key = c.keys[index - counted - rightCount];
+                    finished = true;
+                }
+            } else {
+                counted += rightCount + keys;
+                cursor = c.left;
+            }
+        }
     }
 
     function rank(
@@ -342,11 +370,11 @@ library HitchensOrderStatisticsTreeLib {
     function insert(Tree storage self, bytes32 key, uint value) internal {
         require(
             value != EMPTY,
-            'OrderStatisticsTree(405) - Value to insert cannot be zero'
+            "OrderStatisticsTree(405) - Value to insert cannot be zero"
         );
         require(
             !keyExists(self, key, value),
-            'OrderStatisticsTree(406) - Value and Key pair exists. Cannot be inserted again.'
+            "OrderStatisticsTree(406) - Value and Key pair exists. Cannot be inserted again."
         );
         uint cursor;
         uint probe = self.root;
@@ -385,11 +413,11 @@ library HitchensOrderStatisticsTreeLib {
     function remove(Tree storage self, bytes32 key, uint value) internal {
         require(
             value != EMPTY,
-            'OrderStatisticsTree(407) - Value to delete cannot be zero'
+            "OrderStatisticsTree(407) - Value to delete cannot be zero"
         );
         require(
             keyExists(self, key, value),
-            'OrderStatisticsTree(408) - Value to delete does not exist.'
+            "OrderStatisticsTree(408) - Value to delete does not exist."
         );
         Node storage nValue = self.nodes[value];
         uint rowToDelete = nValue.keyMap[key];

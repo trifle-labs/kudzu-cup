@@ -14,6 +14,14 @@ contract KudzuMock is Kudzu {
         endDate = _endDate;
     }
 
+    function updateClaimDelay(uint256 _claimDelay) public onlyOwner {
+        claimDelay = _claimDelay;
+    }
+
+    function updateForfeitClaim(uint256 _forfeitClaim) public onlyOwner {
+        forfeitClaim = _forfeitClaim;
+    }
+
     function updatePrices(
         uint256 _createPrice,
         uint256 _airdropPrice

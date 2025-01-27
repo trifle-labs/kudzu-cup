@@ -25,7 +25,6 @@ const getPathABI = async (name) => {
 
   var savePath = path.join(
     __dirname,
-    "server",
     "contractData",
     "ABI-" + String(chainId) + "-" + String(name) + ".json"
   );
@@ -42,7 +41,6 @@ const getPathAddress = async (name) => {
   const chainId = BigInt(networkinfo);
   var savePath = path.join(
     __dirname,
-    "server",
     "contractData",
     String(chainId) + "-" + String(name) + ".json"
   );
@@ -110,6 +108,23 @@ const deployMetadata = async () => {
   };
 };
 
+const deployKudzuAndBurn = async (options) => {
+  let returnValues = await deployContracts(options);
+  returnValues = await deployBurnContract(returnValues);
+  if (options?.saveAndVerify) {
+    await saveAndVerifyContracts(returnValues);
+  }
+  return returnValues;
+};
+
+const deployBurn = async (options) => {
+  options = await deployBurnContract(options);
+  if (options?.saveAndVerify) {
+    await saveAndVerifyContracts(options);
+  }
+  return options;
+};
+
 const deployERC2981Contracts = async (options) => {
   const returnValue = await deployERC2981Contract(options);
   if (options?.saveAndVerify) {
@@ -128,7 +143,11 @@ const deployContracts = async (options) => {
 
 const saveAndVerifyContracts = async (deployedContracts) => {
   for (const contractName in deployedContracts) {
-    if (contractName === "verificationData") {
+    if (
+      contractName === "verificationData" ||
+      contractName === "saveAndVerify" ||
+      contractName === "ignoreTesting"
+    ) {
       continue;
     }
     await copyABI(contractName);
@@ -176,8 +195,35 @@ const deployERC2981Contract = async (options) => {
   return returnObject;
 };
 
+const deployBurnContract = async (returnObject) => {
+  if (!returnObject.Kudzu) {
+    throw new Error("Kudzu contract is required to deploy KudzuBurn contract");
+  }
+
+  log("Deploying KudzuBurn contract");
+
+  const KudzuBurn = await hre.ethers.getContractFactory("KudzuBurn");
+  const burn = await KudzuBurn.deploy(returnObject.Kudzu.target);
+  await burn.deploymentTransaction().wait();
+  returnObject["KudzuBurn"] = burn;
+  log(`KudzuBurn Deployed at ${burn.target} `);
+  const verificationData = [
+    {
+      name: "KudzuBurn",
+      constructorArguments: [returnObject.Kudzu.target],
+    },
+  ];
+  returnObject.verificationData = verificationData;
+  return returnObject;
+};
+
 const deployContractsV0 = async (options) => {
-  const defaultOptions = { mock: false, ignoreTesting: false, verbose: false };
+  const defaultOptions = {
+    burn: false,
+    mock: false,
+    ignoreTesting: false,
+    verbose: false,
+  };
   const { mock, ignoreTesting, verbose } = Object.assign(
     defaultOptions,
     options
@@ -396,6 +442,9 @@ export {
   deployContractsV0,
   deployContracts,
   deployERC2981Contracts,
+  deployKudzuAndBurn,
+  deployBurnContract,
+  deployBurn,
   getPathABI,
   getPathAddress,
   readData,
