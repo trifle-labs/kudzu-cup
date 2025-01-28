@@ -9,7 +9,11 @@ async function main() {
   console.log({ chainId });
   const { initContracts, deployBurn } = await import("./utils.js");
   const { Kudzu } = await initContracts();
-  await deployBurn({ Kudzu, ignoreTesting: true, saveAndVerify: true });
+  await deployBurn({
+    Kudzu: { target: "0x822eca148785eca2c465053553c06cb4c52c5f7c" },
+    ignoreTesting: true,
+    saveAndVerify: true,
+  });
 }
 
 main()
