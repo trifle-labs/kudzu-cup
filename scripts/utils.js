@@ -250,6 +250,10 @@ const deployContractsV0 = async (options) => {
     mock ? "KudzuMock" : "Kudzu"
   );
 
+  if (mock) {
+    log("Deploying KudzuMock contract");
+  }
+
   // const now = Math.floor(Date.now() / 1000);
   // const inOneMonth = now + 60 * 60 * 24 * 30;
   // let startDate, endDate;
@@ -264,9 +268,7 @@ const deployContractsV0 = async (options) => {
   // }
 
   const kudzu = await Kudzu.deploy(externalMetadata.target); // Updated from .address to .target
-
   await kudzu.deploymentTransaction().wait(); // Updated for v6
-
   returnObject["Kudzu"] = kudzu;
   log(
     `Kudzu Deployed at ${kudzu.target} with ExternalMetadata at ${externalMetadata.target}` // Updated .address to .target

@@ -22,6 +22,10 @@ contract KudzuMock is Kudzu {
         forfeitClaim = _forfeitClaim;
     }
 
+    function updateChristmas(uint256 _christmas) public onlyOwner {
+        christmas = _christmas;
+    }
+
     function updatePrices(
         uint256 _createPrice,
         uint256 _airdropPrice
