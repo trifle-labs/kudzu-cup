@@ -150,6 +150,7 @@ const saveAndVerifyContracts = async (deployedContracts) => {
     ) {
       continue;
     }
+    log(`Saving and verifying ${contractName}`);
     await copyABI(contractName);
     const contract = deployedContracts[contractName];
     await saveAddress(contract, contractName);

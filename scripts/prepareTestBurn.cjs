@@ -28,31 +28,49 @@ async function main() {
   const userTokens = [];
   for (let i = 0; i < 10; i++) {
     const account = accounts[i];
-    const tx = await Kudzu.connect(account).mint(account.address, 0, 10);
-    const receipt = await tx.wait();
-    const tokenIds = (await getParsedEventLogs(receipt, Kudzu, "Created")).map(
-      (e) => e.pretty.tokenId
-    );
-    userTokens.push(tokenIds);
+    let tokenIds;
+    try {
+      const tx = await Kudzu.connect(account).mint(account.address, 0, 10);
+      const receipt = await tx.wait();
+      tokenIds = (await getParsedEventLogs(receipt, Kudzu, "Created")).map(
+        (e) => e.pretty.tokenId
+      );
+      userTokens.push(tokenIds);
+    } catch (e) {
+      console.warn(e);
+      i--;
+      continue;
+    }
     for (let j = 0; j < 10; j++) {
       if (i == j) continue;
       const ethBalance = await hre.ethers.provider.getBalance(
         accounts[j].address
       );
       if (ethBalance < hre.ethers.parseEther("0.01")) {
-        await accounts[0].sendTransaction({
-          to: accounts[j].address,
-          value: hre.ethers.parseEther("0.01"),
-        });
+        try {
+          await accounts[0].sendTransaction({
+            to: accounts[j].address,
+            value: hre.ethers.parseEther("0.01"),
+          });
+        } catch (e) {
+          console.warn(e);
+          j--;
+          continue;
+        }
       }
 
       for (let k = 0; k < 10; k++) {
-        await Kudzu.connect(account).airdrop(
-          accounts[j].address,
-          tokenIds[k],
-          "0x",
-          0
-        );
+        try {
+          await Kudzu.connect(account).airdrop(
+            accounts[j].address,
+            tokenIds[k],
+            "0x",
+            0
+          );
+        } catch (e) {
+          console.warn(e);
+          k--;
+        }
       }
     }
   }
@@ -61,11 +79,26 @@ async function main() {
   await Kudzu.updateEndDate(timenow);
 
   for (let i = 0; i < 10; i++) {
-    await Kudzu.connect(accounts[i]).setApprovalForAll(KudzuBurn.target, true);
+    try {
+      await Kudzu.connect(accounts[i]).setApprovalForAll(
+        KudzuBurn.target,
+        true
+      );
+    } catch (e) {
+      console.warn(e);
+      i--;
+      continue;
+    }
     for (let j = 0; j <= i; j++) {
       const tokenId = userTokens[i][0];
       console.log({ tokenId });
-      await KudzuBurn.connect(accounts[i]).burn(tokenId);
+      try {
+        await KudzuBurn.connect(accounts[i]).burn(tokenId);
+      } catch (e) {
+        console.warn(e);
+        j--;
+        continue;
+      }
     }
   }
 }
