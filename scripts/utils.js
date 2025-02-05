@@ -109,7 +109,7 @@ const deployMetadata = async () => {
 };
 
 const deployKudzuAndBurn = async (options) => {
-  let returnValues = await deployContracts(options);
+  let returnValues = await deployContractsV0(options);
   returnValues = await deployBurnContract(returnValues);
   if (options?.saveAndVerify) {
     await saveAndVerifyContracts(returnValues);

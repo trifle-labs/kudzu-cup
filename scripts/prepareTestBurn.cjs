@@ -1,4 +1,5 @@
 const hre = require("hardhat");
+let skip = true;
 
 async function main() {
   const accounts = await hre.ethers.getSigners();
@@ -8,36 +9,76 @@ async function main() {
   const chainId = BigInt(networkinfo);
   console.log("Deploy to chain:");
   console.log({ chainId });
-  const { deployKudzuAndBurn, getParsedEventLogs } = await import("./utils.js");
-  const { Kudzu, KudzuBurn } = await deployKudzuAndBurn({
-    mock: true,
-    ignoreTesting: true,
-    saveAndVerify: true,
-  });
-  const block = await hre.ethers.provider.getBlock("latest");
-  console.log({ block });
-  const currentTime = block.timestamp;
-  console.log({ currentTime });
+  const { deployKudzuAndBurn, getParsedEventLogs, initContracts } =
+    await import("./utils.js");
+  let Kudzu, KudzuBurn, tx;
+  if (skip) {
+    const { Kudzu: Kudzu_, KudzuBurn: KudzuBurn_ } = await initContracts([
+      "Kudzu",
+      "KudzuBurn",
+    ]);
+    Kudzu = Kudzu_;
+    KudzuBurn = KudzuBurn_;
+  } else {
+    const { Kudzu: Kudzu_, KudzuBurn: KudzuBurn_ } = await deployKudzuAndBurn({
+      mock: true,
+      ignoreTesting: true,
+      saveAndVerify: true,
+    });
+    Kudzu = Kudzu_;
+    KudzuBurn = KudzuBurn_;
 
-  await Kudzu.updateStartDate(currentTime);
-  await Kudzu.updateEndDate(currentTime + 60 * 60 * 24 * 30);
-  await Kudzu.updateChristmas(currentTime + 60 * 60 * 24 * 30);
-  await Kudzu.updateClaimDelay(0);
-  await Kudzu.updateForfeitClaim(0);
-  await Kudzu.updatePrices(0, 0);
+    // const {Kudzu, KudzuBurn} = await initContracts(['Kudzu', 'KudzuBurn']);
+    const block = await hre.ethers.provider.getBlock("latest");
+    console.log({ block });
+    const currentTime = block.timestamp;
+    console.log({ currentTime });
+
+    tx = await Kudzu.updateStartDate(currentTime);
+    await tx.wait();
+    const startDate = await Kudzu.startDate();
+    console.log({ startDate });
+    if (parseInt(startDate) !== parseInt(currentTime))
+      throw new Error("startDate");
+
+    tx = await Kudzu.updateEndDate(9999999999);
+    await tx.wait();
+    const endDate = await Kudzu.endDate();
+    console.log({ endDate });
+
+    tx = await Kudzu.updateChristmas(currentTime + 60 * 60 * 24 * 30);
+    await tx.wait();
+    const christmas = await Kudzu.christmas();
+    console.log({ christmas });
+
+    tx = await Kudzu.updateClaimDelay(0);
+    await tx.wait();
+    const claimDelay = await Kudzu.claimDelay();
+    console.log({ claimDelay });
+
+    tx = await Kudzu.updateForfeitClaim(0);
+    await tx.wait();
+    const forfeitClaim = await Kudzu.forfeitClaim();
+    console.log({ forfeitClaim });
+
+    tx = await Kudzu.updatePrices(0, 0);
+    await tx.wait();
+  }
+  const fundAccountsWith = "0.5";
   const userTokens = [];
-  for (let i = 0; i < 10; i++) {
+
+  for (let i = 4; i < 10; i++) {
     const account = accounts[i];
     let tokenIds;
     try {
-      const tx = await Kudzu.connect(account).mint(account.address, 0, 10);
+      tx = await Kudzu.connect(account).mint(account.address, 0, 10);
       const receipt = await tx.wait();
       tokenIds = (await getParsedEventLogs(receipt, Kudzu, "Created")).map(
         (e) => e.pretty.tokenId
       );
       userTokens.push(tokenIds);
     } catch (e) {
-      console.warn(e);
+      console.log({ i, e });
       i--;
       continue;
     }
@@ -46,14 +87,15 @@ async function main() {
       const ethBalance = await hre.ethers.provider.getBalance(
         accounts[j].address
       );
-      if (ethBalance < hre.ethers.parseEther("0.01")) {
+      if (ethBalance < hre.ethers.parseEther(fundAccountsWith)) {
         try {
-          await accounts[0].sendTransaction({
+          tx = await accounts[0].sendTransaction({
             to: accounts[j].address,
-            value: hre.ethers.parseEther("0.01"),
+            value: hre.ethers.parseEther(fundAccountsWith),
           });
+          await tx.wait();
         } catch (e) {
-          console.warn(e);
+          console.log({ i, j, e });
           j--;
           continue;
         }
@@ -61,14 +103,19 @@ async function main() {
 
       for (let k = 0; k < 10; k++) {
         try {
-          await Kudzu.connect(account).airdrop(
+          tx = await Kudzu.connect(account).airdrop(
             accounts[j].address,
             tokenIds[k],
             "0x",
             0
           );
+          await tx.wait();
         } catch (e) {
-          console.warn(e);
+          if (e.message.includes("ALREADY INFECTED")) {
+            continue;
+          }
+
+          console.log({ i, j, k, e });
           k--;
         }
       }
@@ -76,14 +123,16 @@ async function main() {
   }
   const block2 = await hre.ethers.provider.getBlock("latest");
   const timenow = block2.timestamp;
-  await Kudzu.updateEndDate(timenow);
+  tx = await Kudzu.updateEndDate(timenow);
+  await tx.wait();
 
   for (let i = 0; i < 10; i++) {
     try {
-      await Kudzu.connect(accounts[i]).setApprovalForAll(
+      tx = await Kudzu.connect(accounts[i]).setApprovalForAll(
         KudzuBurn.target,
         true
       );
+      await tx.wait();
     } catch (e) {
       console.warn(e);
       i--;
@@ -93,7 +142,8 @@ async function main() {
       const tokenId = userTokens[i][0];
       console.log({ tokenId });
       try {
-        await KudzuBurn.connect(accounts[i]).burn(tokenId);
+        tx = await KudzuBurn.connect(accounts[i]).burn(tokenId);
+        await tx.wait();
       } catch (e) {
         console.warn(e);
         j--;
