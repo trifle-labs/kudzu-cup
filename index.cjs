@@ -6,6 +6,7 @@ const KudzuBaseSepolia = require("./contractData/84532-Kudzu.json");
 
 const KudzuBurnABI = require("./contractData/ABI-84532-KudzuBurn.json");
 const KudzuBurnBaseSeplia = require("./contractData/84532-KudzuBurn.json");
+const KudzuBurnFormaTest = require("./contractData/984123-KudzuBurn.json");
 
 const Kudzu = {
   abi: KudzuABI,
@@ -20,6 +21,7 @@ const KudzuBurn = {
   abi: KudzuBurnABI,
   networks: {
     84532: KudzuBurnBaseSeplia,
+    984123: KudzuBurnFormaTest,
   },
 };
 

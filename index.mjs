@@ -6,6 +6,7 @@ import KudzuBaseSepolia from "./contractData/84532-Kudzu.json" assert { type: "j
 
 import KudzuBurnABI from "./contractData/ABI-84532-KudzuBurn.json" assert { type: "json" };
 import KudzuBurnBaseSeplia from "./contractData/84532-KudzuBurn.json" assert { type: "json" };
+import KudzuBurnFormaTest from "./contractData/984123-KudzuBurn.json" assert { type: "json" };
 
 export const Kudzu = {
   abi: KudzuABI,
@@ -20,6 +21,7 @@ export const KudzuBurn = {
   abi: KudzuBurnABI,
   networks: {
     84532: KudzuBurnBaseSeplia,
+    984123: KudzuBurnFormaTest,
   },
 };
 
