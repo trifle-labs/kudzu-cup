@@ -4,7 +4,7 @@ import { describe, it, before, afterEach } from "mocha";
 import hre from "hardhat";
 const ethers = hre.ethers;
 
-import { deployKudzuAndBurn, getParsedEventLogs } from "../scripts/utils.js";
+import { deployKudzuAndBurn, getParsedEventLogs, prepareKudzuForTests } from "../scripts/utils.js";
 
 let snapshot;
 describe("KudzuBurn Tests", function () {
@@ -54,7 +54,7 @@ describe("KudzuBurn Tests", function () {
       { name: "updateBurnPoint", params: [0] },
       { name: "updateNewStrainBonus", params: [0] },
       { name: "updateEndDate", params: [0, 0] },
-      { name: "recoverFunds", params: [0] },
+      { name: "recoverFunds", params: [0, 0] },
     ];
 
     for (let i = 0; i < functions.length; i++) {
@@ -220,41 +220,3 @@ describe("KudzuBurn Tests", function () {
     expect(getRank4).to.equal(acct1.address);
   });
 });
-
-const prepareKudzuForTests = async (Kudzu, recipients = []) => {
-  const currentTime = (await ethers.provider.getBlock("latest")).timestamp;
-  const currentTimePlusOneDay = currentTime + 86400;
-
-  await Kudzu.updateStartDate(currentTime);
-  await Kudzu.updateEndDate(currentTimePlusOneDay);
-  await Kudzu.updatePrices(0, 0);
-  await Kudzu.updateClaimDelay(0);
-  await Kudzu.updateForfeitClaim(0);
-  const allTokenIds = [];
-  for (let i = 0; i < recipients.length; i++) {
-    const address = recipients[i].address;
-    const quantity = recipients[i].quantity;
-    const infected = recipients[i].infected;
-    const tx = await Kudzu.connect(address).mint(address.address, 0, quantity);
-    const receipt = await tx.wait();
-    const tokenIds = (
-      await getParsedEventLogs(receipt, Kudzu, "TransferSingle")
-    ).map((e) => e.pretty.id);
-    allTokenIds.push(...tokenIds);
-    for (let j = 0; j < infected.length; j++) {
-      const infectedAddress = infected[j].address;
-      const strainIndex = infected[j].strainIndex;
-      await Kudzu.connect(address).airdrop(
-        infectedAddress,
-        tokenIds[strainIndex],
-        "0x",
-        0
-      );
-    }
-  }
-  await hre.network.provider.send("evm_setNextBlockTimestamp", [
-    parseInt(currentTimePlusOneDay),
-  ]);
-  await hre.network.provider.send("evm_mine");
-  return allTokenIds;
-};

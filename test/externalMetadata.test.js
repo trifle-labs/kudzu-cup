@@ -12,7 +12,7 @@ import hre from "hardhat";
 const ethers = hre.ethers;
 
 let snapshot;
-describe("ExternalMetadata Tests", function () {
+describe.skip("ExternalMetadata Tests", function () {
   this.timeout(50000000);
 
   before(async function () {

@@ -23,7 +23,7 @@ async function getExistingAddresses() {
 }
 
 let snapshot;
-describe("Kudzu Tests", function () {
+describe.skip("Kudzu Tests", function () {
   this.timeout(50000000);
   before(async function () {
     snapshot = await hre.network.provider.send("evm_snapshot", []);

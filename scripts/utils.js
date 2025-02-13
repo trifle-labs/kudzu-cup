@@ -436,7 +436,57 @@ async function writedata(path, data) {
   }
 }
 
+const prepareKudzuForTests = async (Kudzu, recipients = []) => {
+  const currentTime = (await hre.ethers.provider.getBlock("latest")).timestamp;
+  console.log({ prepareKudzuForTests_currentTime: currentTime })
+  const currentTimePlusOneDay = currentTime + 86400;
+  let tx = await Kudzu.updateStartDate(currentTime);
+  await tx.wait()
+  const startDate = await Kudzu.startDate()
+  console.log({ prepareKudzuForTests_startDate: startDate })
+
+  tx = await Kudzu.updateEndDate(currentTimePlusOneDay);
+  await tx.wait()
+  const endDate = await Kudzu.endDate()
+  console.log({ prepareKudzuForTests_endDate: endDate })
+  tx = await Kudzu.updatePrices(0, 0);
+  await tx.wait()
+  tx = await Kudzu.updateClaimDelay(0);
+  await tx.wait()
+  tx = await Kudzu.updateForfeitClaim(0);
+  await tx.wait()
+  const allTokenIds = [];
+  for (let i = 0; i < recipients.length; i++) {
+    const address = recipients[i].address;
+    const quantity = recipients[i].quantity;
+    const infected = recipients[i].infected;
+    const tx = await Kudzu.connect(address).mint(address.address, 0, quantity);
+    const receipt = await tx.wait();
+    const tokenIds = (
+      await getParsedEventLogs(receipt, Kudzu, "TransferSingle")
+    ).map((e) => e.pretty.id);
+    allTokenIds.push(...tokenIds);
+    for (let j = 0; j < infected.length; j++) {
+      const infectedAddress = infected[j].address;
+      const strainIndex = infected[j].strainIndex;
+      await Kudzu.connect(address).airdrop(
+        infectedAddress,
+        tokenIds[strainIndex],
+        "0x",
+        0
+      );
+    }
+  }
+  await hre.network.provider.send("evm_setNextBlockTimestamp", [
+    parseInt(currentTimePlusOneDay),
+  ]);
+  await hre.network.provider.send("evm_mine");
+  return allTokenIds;
+};
+
+
 export {
+  prepareKudzuForTests,
   saveAddress,
   copyABI,
   getParsedEventLogs,
