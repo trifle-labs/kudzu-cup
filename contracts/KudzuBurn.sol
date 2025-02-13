@@ -164,14 +164,11 @@ contract KudzuBurn is Ownable {
     }
 
     // assumes that setApprovalForAll has already been called
-    function burn(uint256 tokenId) public {
+    function burn(uint256 tokenId, uint256 quantity) public {
         if (isOver()) {
             rewardWinner();
         }
-        uint256 startingBalance = kudzu.balanceOf(msg.sender, tokenId);
-        kudzu.safeTransferFrom(msg.sender, burnAddress, tokenId, 1, "");
-        uint256 endingBalance = kudzu.balanceOf(msg.sender, tokenId);
-        require(startingBalance - endingBalance == 1, "Burn failed");
+        kudzu.safeTransferFrom(msg.sender, burnAddress, tokenId, quantity, "");
         updateTree(msg.sender, burnPoint, true);
         emit PointsRewarded(msg.sender, tokenId, burnPoint);
 
@@ -199,7 +196,7 @@ contract KudzuBurn is Ownable {
         require(isOver(), "Current round is not over");
         address winner = getWinningAddress();
         uint256 points = burnerPoints[winner];
-        tree.remove(bytes32(uint256(uint160(winner))), points);
+        updateTree(winner, points, false);
         uint256 payout = rounds[currentRound].payoutToRecipient;
         currentRound += 1;
         (bool success, bytes memory data) = winner.call{value: payout}("");

@@ -438,17 +438,14 @@ async function writedata(path, data) {
 
 const prepareKudzuForTests = async (Kudzu, recipients = []) => {
   const currentTime = (await hre.ethers.provider.getBlock("latest")).timestamp;
-  console.log({ prepareKudzuForTests_currentTime: currentTime })
   const currentTimePlusOneDay = currentTime + 86400;
   let tx = await Kudzu.updateStartDate(currentTime);
   await tx.wait()
   const startDate = await Kudzu.startDate()
-  console.log({ prepareKudzuForTests_startDate: startDate })
 
   tx = await Kudzu.updateEndDate(currentTimePlusOneDay);
   await tx.wait()
   const endDate = await Kudzu.endDate()
-  console.log({ prepareKudzuForTests_endDate: endDate })
   tx = await Kudzu.updatePrices(0, 0);
   await tx.wait()
   tx = await Kudzu.updateClaimDelay(0);
@@ -456,6 +453,8 @@ const prepareKudzuForTests = async (Kudzu, recipients = []) => {
   tx = await Kudzu.updateForfeitClaim(0);
   await tx.wait()
   const allTokenIds = [];
+
+  // Create tokens and handle airdrops
   for (let i = 0; i < recipients.length; i++) {
     const address = recipients[i].address;
     const quantity = recipients[i].quantity;
@@ -477,10 +476,34 @@ const prepareKudzuForTests = async (Kudzu, recipients = []) => {
       );
     }
   }
+
+  // Fast forward to end of game
   await hre.network.provider.send("evm_setNextBlockTimestamp", [
     parseInt(currentTimePlusOneDay),
   ]);
   await hre.network.provider.send("evm_mine");
+
+  // Get winning tokens
+  const winningTokens = [];
+  for (let i = 0; i < 3; i++) {
+    winningTokens.push(await Kudzu.getWinningToken(i));
+  }
+
+  // Try claiming for all recipients
+  for (let i = 0; i < recipients.length; i++) {
+    const address = recipients[i].address;
+
+    // Try claiming for all places (0, 1, 2)
+    for (let place = 0; place < 3; place++) {
+      // This address holds a winning token
+      try {
+        await Kudzu.connect(address).claimPrize(place);
+      } catch (e) {
+      }
+
+    }
+  }
+
   return allTokenIds;
 };
 

@@ -167,11 +167,11 @@ describe("KudzuBurn Tests", function () {
     ).to.equal(2);
 
     // burn fails before approval is set
-    await expect(KudzuBurn.connect(acct1).burn(tokenIds[0])).to.be.reverted;
+    await expect(KudzuBurn.connect(acct1).burn(tokenIds[0], 1)).to.be.reverted;
 
     await Kudzu.connect(acct1).setApprovalForAll(KudzuBurn.target, true);
 
-    const tx = await KudzuBurn.connect(acct1).burn(tokenIds[0]);
+    const tx = await KudzuBurn.connect(acct1).burn(tokenIds[0], 1);
     const receipt = await tx.wait();
     const events = await getParsedEventLogs(
       receipt,
@@ -185,7 +185,7 @@ describe("KudzuBurn Tests", function () {
     expect(winningAddress).to.equal(acct1.address);
 
     await Kudzu.connect(acct2).setApprovalForAll(KudzuBurn.target, true);
-    await KudzuBurn.connect(acct2).burn(tokenIds[0]);
+    await KudzuBurn.connect(acct2).burn(tokenIds[0], 1);
     const winningAddress2 = await KudzuBurn.getWinningAddress();
     // first to make the score should be in first place
     expect(winningAddress2).to.equal(acct1.address);
@@ -202,7 +202,7 @@ describe("KudzuBurn Tests", function () {
     const getRank2 = await KudzuBurn.getRank(1);
     expect(getRank2).to.equal(acct2.address);
 
-    await KudzuBurn.connect(acct2).burn(tokenIds[0]);
+    await KudzuBurn.connect(acct2).burn(tokenIds[0], 1);
 
     const acct2Points2 = await KudzuBurn.getPoints(acct2.address);
     expect(acct2Points2).to.equal(burnPoint * 2n + newStrainBonus);
@@ -218,5 +218,370 @@ describe("KudzuBurn Tests", function () {
 
     const getRank4 = await KudzuBurn.getRank(1);
     expect(getRank4).to.equal(acct1.address);
+  });
+
+  it("adminReward and adminPunish work correctly", async () => {
+    const [deployer, acct1, acct2] = await ethers.getSigners();
+    const { KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+
+    // Test adminReward
+    await KudzuBurn.connect(deployer).adminReward(acct1.address, 10);
+    expect(await KudzuBurn.getPoints(acct1.address)).to.equal(10);
+    expect(await KudzuBurn.getWinningAddress()).to.equal(acct1.address);
+
+    // Test multiple rewards
+    await KudzuBurn.connect(deployer).adminReward(acct2.address, 15);
+    expect(await KudzuBurn.getPoints(acct2.address)).to.equal(15);
+    expect(await KudzuBurn.getWinningAddress()).to.equal(acct2.address);
+
+    // Test adminPunish
+    await KudzuBurn.connect(deployer).adminPunish(acct2.address, 10);
+    expect(await KudzuBurn.getPoints(acct2.address)).to.equal(5);
+    expect(await KudzuBurn.getWinningAddress()).to.equal(acct1.address);
+
+    // Test that non-owners cannot use these functions
+    await expect(
+      KudzuBurn.connect(acct1).adminReward(acct1.address, 10)
+    ).to.be.revertedWith("Ownable: caller is not the owner");
+
+    await expect(
+      KudzuBurn.connect(acct1).adminPunish(acct2.address, 10)
+    ).to.be.revertedWith("Ownable: caller is not the owner");
+
+    // Verify rankings
+    expect(await KudzuBurn.getRank(0)).to.equal(acct1.address);
+    expect(await KudzuBurn.getRank(1)).to.equal(acct2.address);
+  });
+
+  it("burn calls rewardWinner when round is over", async () => {
+    const [deployer, acct1, acct2] = await ethers.getSigners();
+    const { Kudzu, KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+
+    // Setup initial state
+    const recipients = [{
+      address: acct1,
+      quantity: 1,
+      infected: []
+    }, {
+      address: acct2,
+      quantity: 1,
+      infected: []
+    }];
+    const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
+
+    await Kudzu.connect(acct1).setApprovalForAll(KudzuBurn.target, true);
+    await Kudzu.connect(acct2).setApprovalForAll(KudzuBurn.target, true);
+
+    await KudzuBurn.connect(acct1).burn(tokenIds[0], 1);
+    expect(await KudzuBurn.getRank(0)).to.equal(acct1.address);
+
+    await KudzuBurn.connect(acct2).burn(tokenIds[1], 1);
+    expect(await KudzuBurn.getRank(1)).to.equal(acct2.address);
+
+    // Fund the round
+    await deployer.sendTransaction({
+      to: KudzuBurn.target,
+      value: ethers.parseEther("1.0")
+    });
+
+    // Fast forward time to after round end
+    const roundEndTime = await KudzuBurn.rounds(0);
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [parseInt(roundEndTime[1]) + 1]);
+    await hre.network.provider.send("evm_mine");
+
+    // Get initial balances
+    const initialBalance = await ethers.provider.getBalance(acct1.address);
+
+    // Perform burn which should trigger reward
+    const tx = await KudzuBurn.connect(acct1).burn(tokenIds[0], 1);
+    const receipt = await tx.wait();
+
+    // Verify reward was distributed
+    const finalBalance = await ethers.provider.getBalance(acct1.address);
+    expect(finalBalance).to.be.gt(initialBalance); // Account for gas costs
+
+    // Verify round advanced
+    expect(await KudzuBurn.currentRound()).to.equal(1);
+
+    // Verify EthMoved event was emitted
+    const ethMovedEvents = receipt.logs.filter(
+      log => log.fragment && log.fragment.name === 'EthMoved'
+    );
+    expect(ethMovedEvents.length).to.equal(1);
+    expect(ethMovedEvents[0].args.to).to.equal(acct1.address);
+    expect(ethMovedEvents[0].args.success).to.be.true;
+    expect(ethMovedEvents[0].args.amount).to.equal(ethers.parseEther("1.0"));
+  });
+
+  it("fundRound works and validates round indices", async () => {
+    const [deployer, acct1] = await ethers.getSigners();
+    const { Kudzu, KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+
+
+    // Setup initial state
+    const recipients = [{
+      address: acct1,
+      quantity: 1,
+      infected: []
+    }];
+    const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
+
+    await Kudzu.connect(acct1).setApprovalForAll(KudzuBurn.target, true);
+
+    await KudzuBurn.connect(acct1).burn(tokenIds[0], 1);
+    expect(await KudzuBurn.getRank(0)).to.equal(acct1.address);
+
+    const fundAmount = ethers.parseEther("1.0");
+
+
+    // Test successful funding of current round
+    await KudzuBurn.fundRound(0, { value: fundAmount });
+    const round0 = await KudzuBurn.rounds(0);
+    expect(round0.payoutToRecipient).to.equal(fundAmount);
+
+    // Test funding future valid round
+    await KudzuBurn.fundRound(12, { value: fundAmount });
+    const round12 = await KudzuBurn.rounds(12);
+    expect(round12.payoutToRecipient).to.equal(fundAmount);
+
+    // Test invalid round index (13)
+    await expect(
+      KudzuBurn.fundRound(13, { value: fundAmount })
+    ).to.be.revertedWith("Invalid round index");
+
+
+
+    // Fast forward past round 0
+    const roundEndTime = await KudzuBurn.rounds(0);
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [parseInt(roundEndTime.endDate) + 1]);
+    await hre.network.provider.send("evm_mine");
+
+    // Trigger round advancement
+    await KudzuBurn.rewardWinner();
+
+    // Test funding past round (0) after advancement
+    await expect(
+      KudzuBurn.fundRound(0, { value: fundAmount })
+    ).to.be.revertedWith("Round already over");
+  });
+
+  it("receive function calls rewardWinner when round is over", async () => {
+    const [deployer, acct1, acct2] = await ethers.getSigners();
+    const { Kudzu, KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+
+
+    // Send ETH directly to contract which should trigger reward
+    await deployer.sendTransaction({
+      to: KudzuBurn.target,
+      value: ethers.parseEther("1.0")
+    });
+
+    // Setup initial state
+    const recipients = [{
+      address: acct1,
+      quantity: 1,
+      infected: []
+    }, {
+      address: acct2,
+      quantity: 1,
+      infected: []
+    }];
+    const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
+
+    await Kudzu.connect(acct1).setApprovalForAll(KudzuBurn.target, true);
+    await Kudzu.connect(acct2).setApprovalForAll(KudzuBurn.target, true);
+
+    // Create a winner by burning tokens
+    await KudzuBurn.connect(acct1).burn(tokenIds[0], 1);
+    expect(await KudzuBurn.getRank(0)).to.equal(acct1.address);
+
+    await KudzuBurn.connect(acct2).burn(tokenIds[1], 1);
+    expect(await KudzuBurn.getRank(1)).to.equal(acct2.address);
+
+    // Fast forward time to after round end
+    const roundEndTime = await KudzuBurn.rounds(0);
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [parseInt(roundEndTime[1]) + 1]);
+    await hre.network.provider.send("evm_mine");
+
+    const over = await KudzuBurn.isOver();
+    expect(over).to.be.true;
+
+    // Get initial balances
+    const initialBalance = await ethers.provider.getBalance(acct1.address);
+
+    // Send ETH directly to contract which should trigger reward
+    const tx = await deployer.sendTransaction({
+      to: KudzuBurn.target,
+      value: ethers.parseEther("1.0")
+    });
+    const receipt = await tx.wait();
+
+    // Verify reward was distributed
+    const finalBalance = await ethers.provider.getBalance(acct1.address);
+    expect(finalBalance).to.be.gt(initialBalance);
+
+    // Verify round advanced
+    expect(await KudzuBurn.currentRound()).to.equal(1);
+
+    const ethMovedEvents = await getParsedEventLogs(receipt, KudzuBurn, "EthMoved");
+    expect(ethMovedEvents.length).to.equal(2);
+
+    // First event should be the reward distribution
+    expect(ethMovedEvents[0].args.to).to.equal(acct1.address);
+    expect(ethMovedEvents[0].args.success).to.be.true;
+    expect(ethMovedEvents[0].args.amount).to.equal(ethers.parseEther("1.0")); // No funds in round 0 yet
+
+    // Second event should be the receive function recording the new funds
+    expect(ethMovedEvents[1].args.to).to.equal(deployer.address);
+    expect(ethMovedEvents[1].args.success).to.be.true;
+    expect(ethMovedEvents[1].args.amount).to.equal(ethers.parseEther("1.0"));
+  });
+
+  it("burn fails when token transfer fails", async () => {
+    const [deployer, acct1] = await ethers.getSigners();
+    const { Kudzu, KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+
+    // Setup initial state with no tokens
+    const recipients = [{
+      address: acct1,
+      quantity: 1,
+      infected: []
+    }];
+    const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
+
+    // Try to burn without approval - this will fail the transfer
+    // but the balance check in burn() should catch it
+    await expect(
+      KudzuBurn.connect(acct1).burn(tokenIds[0], 1)
+    ).to.be.reverted;
+
+    // Verify balance remained unchanged
+    expect(
+      await Kudzu["balanceOf(address,uint256)"](acct1.address, tokenIds[0])
+    ).to.equal(10);
+  });
+
+  it("burn fails under various invalid conditions", async () => {
+    const [deployer, acct1, randomAccount] = await ethers.getSigners();
+    const { Kudzu, KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+
+    // Setup initial state
+    const recipients = [{
+      address: acct1,
+      quantity: 1,
+      infected: []
+    }];
+    const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
+
+    // Approve KudzuBurn to handle tokens
+    await Kudzu.connect(acct1).setApprovalForAll(KudzuBurn.target, true);
+
+    // Try to burn non-existent token ID
+    const nonExistentTokenId = 999999;
+    await expect(
+      KudzuBurn.connect(acct1).burn(nonExistentTokenId, 1)
+    ).to.be.reverted;
+
+    // Try to burn when caller has no tokens
+    await expect(
+      KudzuBurn.connect(randomAccount).burn(tokenIds[0], 1)
+    ).to.be.reverted;
+
+    // Verify original balance remains unchanged
+    expect(
+      await Kudzu["balanceOf(address,uint256)"](acct1.address, tokenIds[0])
+    ).to.equal(10);
+
+    // Successfully burn one token to verify the function works normally
+    await KudzuBurn.connect(acct1).burn(tokenIds[0], 1);
+
+    // Verify balance decreased by exactly 1
+    expect(
+      await Kudzu["balanceOf(address,uint256)"](acct1.address, tokenIds[0])
+    ).to.equal(9);
+  });
+
+  it("rewardWinner fails when round is not over", async () => {
+    const [deployer, acct1] = await ethers.getSigners();
+    const { Kudzu, KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+
+    // Setup initial state with a winner
+    const recipients = [{
+      address: acct1,
+      quantity: 1,
+      infected: []
+    }];
+    const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
+
+    await Kudzu.connect(acct1).setApprovalForAll(KudzuBurn.target, true);
+    await KudzuBurn.connect(acct1).burn(tokenIds[0], 1);
+
+    // Fund the round
+    await deployer.sendTransaction({
+      to: KudzuBurn.target,
+      value: ethers.parseEther("1.0")
+    });
+
+    // Verify round is not over
+    const over = await KudzuBurn.isOver();
+    expect(over).to.be.false;
+
+    // Try to call rewardWinner - should fail
+    await expect(
+      KudzuBurn.rewardWinner()
+    ).to.be.revertedWith("Current round is not over");
+  });
+
+  it("reverts when all rounds are over", async () => {
+    const accounts = await ethers.getSigners();
+    const [deployer, acct1] = accounts;
+    const { Kudzu, KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+
+    // Setup initial state with a winner
+    const recipients = [{
+      address: acct1,
+      quantity: 2,
+      infected: []
+    }];
+    const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
+
+    await Kudzu.connect(acct1).setApprovalForAll(KudzuBurn.target, true);
+
+    // Progress through all 13 rounds
+    for (let i = 0; i < 13; i++) {
+      // Create a winner and fund each round
+      await KudzuBurn.connect(acct1).burn(tokenIds[i < 9 ? 0 : 1], 1);
+      await deployer.sendTransaction({
+        to: KudzuBurn.target,
+        value: ethers.parseEther("1.0")
+      });
+
+      // Fast forward to end of round
+      const roundEndTime = await KudzuBurn.rounds(i);
+      await hre.network.provider.send("evm_setNextBlockTimestamp", [parseInt(roundEndTime[1]) + 1]);
+      await hre.network.provider.send("evm_mine");
+
+      // Trigger round advancement
+      await KudzuBurn.rewardWinner();
+    }
+
+    // Verify we're past the last round
+    expect(await KudzuBurn.currentRound()).to.equal(13);
+
+    // Try to call functions that use isOver - should all revert
+    await expect(
+      KudzuBurn.isOver()
+    ).to.be.revertedWith("All rounds are over");
+
+    await expect(
+      KudzuBurn.burn(tokenIds[0], 1)
+    ).to.be.revertedWith("All rounds are over");
+
+    await expect(
+      deployer.sendTransaction({
+        to: KudzuBurn.target,
+        value: ethers.parseEther("1.0")
+      })
+    ).to.be.revertedWith("All rounds are over");
   });
 });

@@ -369,11 +369,13 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
             //    2a. claimed prize
             //    2b. forfeit period is over
             bool alreadyClaimed = claimed[tokenId][msg.sender] >= amount;
+
             bool claimIsOver = block.timestamp > (endDate + forfeitClaim);
             require(
                 alreadyClaimed || claimIsOver,
                 "WINNERS CANT TRANSFER UNTIL THEY CLAIM OR CLAIM PERIOD IS OVER"
             );
+
             // if claim is live, prevent new owner from claiming prize
             if (!claimIsOver) {
                 claimed[tokenId][_to] += amount;
