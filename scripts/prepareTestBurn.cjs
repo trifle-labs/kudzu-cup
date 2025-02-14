@@ -1,5 +1,5 @@
 const hre = require("hardhat");
-let skip = true;
+let skip = false;
 
 async function main() {
   const accounts = await hre.ethers.getSigners();
@@ -67,7 +67,7 @@ async function main() {
     const fundAccountsWith = "0.5";
     const userTokens = [];
 
-    for (let i = 4; i < 10; i++) {
+    for (let i = 0; i < 3; i++) {
       const account = accounts[i];
       let tokenIds;
       try {

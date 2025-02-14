@@ -111,7 +111,7 @@ contract KudzuBurn is Ownable {
     event PointsRewarded(
         address indexed to,
         uint256 indexed tokenId,
-        uint256 points
+        int256 points
     );
 
     constructor(Kudzu kudzu_) {
@@ -140,7 +140,18 @@ contract KudzuBurn is Ownable {
 
     function updateTree(address burner, uint256 quantity, bool add) private {
         uint256 prevValue = burnerPoints[burner];
-        uint256 newValue = add ? prevValue + quantity : prevValue - quantity;
+        uint256 newValue;
+        if (add) {
+            newValue = prevValue + quantity;
+        } else {
+            if (quantity > prevValue) {
+                uint256 negativeQuantity = quantity - prevValue;
+                emit PointsRewarded(burner, 0, int256(negativeQuantity));
+                newValue = 0;
+            } else {
+                newValue = prevValue - quantity;
+            }
+        }
 
         // if key exists, remove it
         bytes32 addressAsKey = bytes32(uint256(uint160(burner)));
@@ -159,6 +170,9 @@ contract KudzuBurn is Ownable {
     }
 
     function getRank(uint256 rank) public view returns (address) {
+        if (rank >= tree.count()) {
+            return address(0);
+        }
         bytes32 key = tree.keyAtGlobalIndex(rank);
         return address(uint160(uint256(key)));
     }
@@ -170,21 +184,49 @@ contract KudzuBurn is Ownable {
         }
         kudzu.safeTransferFrom(msg.sender, burnAddress, tokenId, quantity, "");
         updateTree(msg.sender, burnPoint, true);
-        emit PointsRewarded(msg.sender, tokenId, burnPoint);
+        emit PointsRewarded(msg.sender, tokenId, int256(burnPoint));
 
         if (hasBurned[msg.sender][tokenId] == false) {
             hasBurned[msg.sender][tokenId] = true;
             updateTree(msg.sender, newStrainBonus, true); // bonus
-            emit PointsRewarded(msg.sender, tokenId, newStrainBonus);
+            emit PointsRewarded(msg.sender, tokenId, int256(newStrainBonus));
         }
     }
 
     function adminReward(address burner, uint256 quantity) public onlyOwner {
+        emit PointsRewarded(burner, 0, int256(quantity));
         updateTree(burner, quantity, true);
     }
 
     function adminPunish(address burner, uint256 quantity) public onlyOwner {
+        emit PointsRewarded(burner, 0, -1 * int256(quantity));
         updateTree(burner, quantity, false);
+    }
+
+    function adminMassReward(
+        address[] memory burners,
+        uint256[] memory quantities
+    ) public onlyOwner {
+        require(
+            burners.length == quantities.length,
+            "Arrays must be same length"
+        );
+        for (uint256 i = 0; i < burners.length; i++) {
+            adminReward(burners[i], quantities[i]);
+        }
+    }
+
+    function adminMassPunish(
+        address[] memory burners,
+        uint256[] memory quantities
+    ) public onlyOwner {
+        require(
+            burners.length == quantities.length,
+            "Arrays must be same length"
+        );
+        for (uint256 i = 0; i < burners.length; i++) {
+            adminPunish(burners[i], quantities[i]);
+        }
     }
 
     function isOver() public view returns (bool) {

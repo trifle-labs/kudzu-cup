@@ -584,4 +584,111 @@ describe("KudzuBurn Tests", function () {
       })
     ).to.be.revertedWith("All rounds are over");
   });
+
+  it("adminMassReward and adminMassPunish work correctly and emit events", async () => {
+    const [deployer, acct1, acct2, acct3] = await ethers.getSigners();
+    const { KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+
+    const addresses = [acct1.address, acct2.address, acct3.address];
+    const quantities = [10, 20, 30];
+
+    // Test adminMassReward
+    const rewardTx = await KudzuBurn.adminMassReward(addresses, quantities);
+    const rewardReceipt = await rewardTx.wait();
+
+    // Check events
+    const rewardEvents = await getParsedEventLogs(rewardReceipt, KudzuBurn, "PointsRewarded");
+    expect(rewardEvents.length).to.equal(3);
+
+    // Verify each reward event
+    for (let i = 0; i < rewardEvents.length; i++) {
+      expect(rewardEvents[i].args.to).to.equal(addresses[i]);
+      expect(rewardEvents[i].args.tokenId).to.equal(0);
+      expect(rewardEvents[i].args.points).to.equal(quantities[i]);
+    }
+
+    // Verify points were awarded correctly
+    expect(await KudzuBurn.getPoints(acct1.address)).to.equal(10);
+    expect(await KudzuBurn.getPoints(acct2.address)).to.equal(20);
+    expect(await KudzuBurn.getPoints(acct3.address)).to.equal(30);
+
+    // Verify rankings
+    expect(await KudzuBurn.getRank(0)).to.equal(acct3.address); // 30 points
+    expect(await KudzuBurn.getRank(1)).to.equal(acct2.address); // 20 points
+    expect(await KudzuBurn.getRank(2)).to.equal(acct1.address); // 10 points
+
+    // Test adminMassPunish
+    const punishQuantities = [5, 15, 10];
+    const punishTx = await KudzuBurn.adminMassPunish(addresses, punishQuantities);
+    const punishReceipt = await punishTx.wait();
+
+    // Check events
+    const punishEvents = await getParsedEventLogs(punishReceipt, KudzuBurn, "PointsRewarded");
+    expect(punishEvents.length).to.equal(3);
+
+    // Verify each punish event
+    for (let i = 0; i < punishEvents.length; i++) {
+      expect(punishEvents[i].args.to).to.equal(addresses[i]);
+      expect(punishEvents[i].args.tokenId).to.equal(0);
+      expect(punishEvents[i].args.points).to.equal(-1 * punishQuantities[i]); // Should be negative
+    }
+
+    const newBalances = [5, 5, 20]
+    // Verify points were deducted correctly
+    expect(await KudzuBurn.getPoints(acct1.address)).to.equal(newBalances[0]);  // 10 - 5
+    expect(await KudzuBurn.getPoints(acct2.address)).to.equal(newBalances[1]);  // 20 - 15
+    expect(await KudzuBurn.getPoints(acct3.address)).to.equal(newBalances[2]); // 30 - 10
+
+    // Verify new rankings
+    expect(await KudzuBurn.getRank(0)).to.equal(acct3.address); // 20 points
+    expect(await KudzuBurn.getRank(1)).to.equal(acct1.address); // 5 points
+    expect(await KudzuBurn.getRank(2)).to.equal(acct2.address); // 5 points
+
+    // Test that points can't go negative
+    const excessivePunishQuantities = [10, 20, 30];
+    const massPunishTx = await KudzuBurn.adminMassPunish(addresses, excessivePunishQuantities);
+    const massPunishReceipt = await massPunishTx.wait();
+    const massPunishEvents = await getParsedEventLogs(massPunishReceipt, KudzuBurn, "PointsRewarded");
+    expect(massPunishEvents.length).to.equal(6);
+    for (let i = 0; i < massPunishEvents.length; i++) {
+      const ii = Math.floor(i / 2)
+      if (i % 2 === 0) {
+        expect(massPunishEvents[i].args.to).to.equal(addresses[ii]);
+        expect(massPunishEvents[i].args.tokenId).to.equal(0);
+        expect(massPunishEvents[i].args.points).to.equal(-1 * excessivePunishQuantities[ii]);
+      } else {
+        const resultingBalance = newBalances[ii] - excessivePunishQuantities[ii];
+        expect(massPunishEvents[i].args.points).to.equal(-1 * resultingBalance);
+      }
+    }
+
+    // Verify points bottom out at 0
+    expect(await KudzuBurn.getPoints(acct1.address)).to.equal(0);  // 5 - 10 = 0 (not -5)
+    expect(await KudzuBurn.getPoints(acct2.address)).to.equal(0);  // 5 - 20 = 0 (not -15)
+    expect(await KudzuBurn.getPoints(acct3.address)).to.equal(0);  // 20 - 30 = 0 (not -10)
+
+    const zeroAddress = ethers.ZeroAddress;
+    // Verify rankings after zeroing out
+    expect(await KudzuBurn.getRank(0)).to.equal(zeroAddress); // All tied at 0
+    expect(await KudzuBurn.getRank(1)).to.equal(zeroAddress); // Order preserved for ties
+    expect(await KudzuBurn.getRank(2)).to.equal(zeroAddress);
+
+    // Test array length mismatch
+    await expect(
+      KudzuBurn.adminMassReward(addresses, [10, 20])
+    ).to.be.revertedWith("Arrays must be same length");
+
+    await expect(
+      KudzuBurn.adminMassPunish(addresses, [10, 20])
+    ).to.be.revertedWith("Arrays must be same length");
+
+    // Test non-owner access
+    await expect(
+      KudzuBurn.connect(acct1).adminMassReward(addresses, quantities)
+    ).to.be.revertedWith("Ownable: caller is not the owner");
+
+    await expect(
+      KudzuBurn.connect(acct1).adminMassPunish(addresses, quantities)
+    ).to.be.revertedWith("Ownable: caller is not the owner");
+  });
 });

@@ -50,7 +50,10 @@
     ],
     "globals": {},
     "ignorePatterns": [],
-    "root": true
+    "root": true,
+    "rules": {
+      "no-unused-vars": "warn"
+    }
   },
   "resolutions": {},
   "dependencies": {
