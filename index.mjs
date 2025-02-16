@@ -1,12 +1,12 @@
-import KudzuABI from "./contractData/ABI-984122-Kudzu.json" assert { type: "json" };
+import KudzuABI from './contractData/ABI-984122-Kudzu.json' assert { type: 'json' };
 
-import KudzuForma from "./contractData/984122-Kudzu.json" assert { type: "json" };
-import KudzuFromaTest from "./contractData/984123-Kudzu.json" assert { type: "json" };
-import KudzuBaseSepolia from "./contractData/84532-Kudzu.json" assert { type: "json" };
+import KudzuBaseSepolia from './contractData/84532-Kudzu.json' assert { type: 'json' };
+import KudzuForma from './contractData/984122-Kudzu.json' assert { type: 'json' };
+import KudzuFromaTest from './contractData/984123-Kudzu.json' assert { type: 'json' };
 
-import KudzuBurnABI from "./contractData/ABI-84532-KudzuBurn.json" assert { type: "json" };
-import KudzuBurnBaseSeplia from "./contractData/84532-KudzuBurn.json" assert { type: "json" };
-import KudzuBurnFormaTest from "./contractData/984123-KudzuBurn.json" assert { type: "json" };
+import KudzuBurnBaseSeplia from './contractData/84532-KudzuBurn.json' assert { type: 'json' };
+import KudzuBurnFormaTest from './contractData/984123-KudzuBurn.json' assert { type: 'json' };
+import KudzuBurnABI from './contractData/ABI-984123-KudzuBurn.json' assert { type: 'json' };
 
 export const Kudzu = {
   abi: KudzuABI,
@@ -25,6 +25,6 @@ export const KudzuBurn = {
   },
 };
 
-export { getParamsForProof } from "./scripts/exportUtils.js";
+export { getParamsForProof } from './scripts/exportUtils.js';
 
-export { kudzuName, eyes, mouths, getEmoji } from "./scripts/metadataUtils.mjs";
+export { eyes, getEmoji, kudzuName, mouths } from './scripts/metadataUtils.mjs';
