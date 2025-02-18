@@ -1,5 +1,6 @@
 const hre = require('hardhat');
 let skip = false;
+let reuseKudzu = true;
 
 async function main() {
   const accounts = await hre.ethers.getSigners();
@@ -9,7 +10,7 @@ async function main() {
   const chainId = BigInt(networkinfo);
   console.log('Deploy to chain:');
   console.log({ chainId });
-  const { deployKudzuAndBurn, getParsedEventLogs, initContracts } =
+  const { deployKudzuAndBurn, getParsedEventLogs, initContracts, deployBurn } =
     await import('./utils.js');
   let Kudzu, KudzuBurn, tx;
   if (skip) {
@@ -20,13 +21,27 @@ async function main() {
     Kudzu = Kudzu_;
     KudzuBurn = KudzuBurn_;
   } else {
-    const { Kudzu: Kudzu_, KudzuBurn: KudzuBurn_ } = await deployKudzuAndBurn({
-      mock: true,
-      ignoreTesting: true,
-      saveAndVerify: true,
-    });
-    Kudzu = Kudzu_;
-    KudzuBurn = KudzuBurn_;
+    if (reuseKudzu) {
+      const { Kudzu: Kudzu_ } = await initContracts(['Kudzu'], { mock: true });
+      Kudzu = Kudzu_;
+      const { KudzuBurn: KudzuBurn_ } = await deployBurn({
+        mock: true,
+        Kudzu,
+        ignoreTesting: true,
+        saveAndVerify: true,
+      });
+      KudzuBurn = KudzuBurn_;
+    } else {
+      const { Kudzu: Kudzu_, KudzuBurn: KudzuBurn_ } = await deployKudzuAndBurn(
+        {
+          mock: true,
+          ignoreTesting: true,
+          saveAndVerify: true,
+        }
+      );
+      Kudzu = Kudzu_;
+      KudzuBurn = KudzuBurn_;
+    }
 
     // const {Kudzu, KudzuBurn} = await initContracts(['Kudzu', 'KudzuBurn']);
     const block = await hre.ethers.provider.getBlock('latest');
@@ -38,9 +53,12 @@ async function main() {
     await tx.wait();
     const startDate = await Kudzu.startDate();
     console.log({ startDate });
-    if (parseInt(startDate) !== parseInt(currentTime))
+    if (parseInt(startDate) !== parseInt(currentTime)) {
+      console.error(
+        `startDate is not currentTime: ${startDate} !== ${currentTime}`
+      );
       throw new Error('startDate');
-
+    }
     tx = await Kudzu.updateEndDate(9999999999);
     await tx.wait();
     const endDate = await Kudzu.endDate();

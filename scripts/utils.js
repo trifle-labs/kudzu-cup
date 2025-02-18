@@ -49,7 +49,7 @@ const getPathAddress = async (name) => {
 
 const initContracts = async (
   contractNames = ['Kudzu', 'ExternalMetadata'],
-  skipErrors = false
+  { skipErrors = false, mock = false } = {}
 ) => {
   let [deployer] = await hre.ethers.getSigners();
 
@@ -60,9 +60,23 @@ const initContracts = async (
       const address = JSON.parse(
         await readData(await getPathAddress(contractNames[i]))
       )['address'];
-      const abi = JSON.parse(
-        await readData(await getPathABI(contractNames[i]))
-      )['abi'];
+      let abi;
+      if (contractNames[i] === 'Kudzu' && mock) {
+        const mockKudzu = await hre.ethers.getContractFactory('KudzuMock');
+        console.log({ mockKudzu });
+        const fragments = mockKudzu.interface.fragments;
+        abi = fragments.map((f) => ({
+          name: f.name,
+          type: f.type,
+          inputs: f.inputs,
+          outputs: f.outputs,
+        }));
+        console.log({ abi });
+      } else {
+        abi = JSON.parse(await readData(await getPathABI(contractNames[i])))[
+          'abi'
+        ];
+      }
       returnObject[contractNames[i]] = new ethers.Contract(
         address,
         abi,
@@ -146,7 +160,10 @@ const saveAndVerifyContracts = async (deployedContracts) => {
     if (
       contractName === 'verificationData' ||
       contractName === 'saveAndVerify' ||
-      contractName === 'ignoreTesting'
+      contractName === 'ignoreTesting' ||
+      contractName === 'verbose' ||
+      contractName === 'chainId' ||
+      contractName === 'mock'
     ) {
       continue;
     }
