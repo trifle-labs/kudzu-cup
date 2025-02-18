@@ -1,12 +1,12 @@
-import { ethers } from "ethers";
-import hre from "hardhat";
-import path from "node:path";
-import { promises as fs } from "fs";
+import { ethers } from 'ethers';
+import { promises as fs } from 'fs';
+import hre from 'hardhat';
+import path from 'node:path';
 
 const __dirname = path.resolve();
 
 BigInt.prototype.toJSON = function () {
-  return this.toString() + "n";
+  return this.toString() + 'n';
 };
 
 const testJson = (tJson) => {
@@ -20,35 +20,35 @@ const testJson = (tJson) => {
 
 const getPathABI = async (name) => {
   // var networkinfo = await hre.ethers.provider.getNetwork();
-  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const networkinfo = await hre.network.provider.send('eth_chainId');
   const chainId = BigInt(networkinfo);
 
   var savePath = path.join(
     __dirname,
-    "contractData",
-    "ABI-" + String(chainId) + "-" + String(name) + ".json"
+    'contractData',
+    'ABI-' + String(chainId) + '-' + String(name) + '.json'
   );
   return savePath;
 };
 
 async function readData(path) {
-  const Newdata = await fs.readFile(path, "utf8");
+  const Newdata = await fs.readFile(path, 'utf8');
   return Newdata;
 }
 
 const getPathAddress = async (name) => {
-  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const networkinfo = await hre.network.provider.send('eth_chainId');
   const chainId = BigInt(networkinfo);
   var savePath = path.join(
     __dirname,
-    "contractData",
-    String(chainId) + "-" + String(name) + ".json"
+    'contractData',
+    String(chainId) + '-' + String(name) + '.json'
   );
   return savePath;
 };
 
 const initContracts = async (
-  contractNames = ["Kudzu", "ExternalMetadata"],
+  contractNames = ['Kudzu', 'ExternalMetadata'],
   skipErrors = false
 ) => {
   let [deployer] = await hre.ethers.getSigners();
@@ -59,10 +59,10 @@ const initContracts = async (
     try {
       const address = JSON.parse(
         await readData(await getPathAddress(contractNames[i]))
-      )["address"];
+      )['address'];
       const abi = JSON.parse(
         await readData(await getPathABI(contractNames[i]))
-      )["abi"];
+      )['abi'];
       returnObject[contractNames[i]] = new ethers.Contract(
         address,
         abi,
@@ -80,23 +80,23 @@ const initContracts = async (
 
 const decodeUri = (decodedJson) => {
   const metaWithoutDataURL = decodedJson.substring(
-    decodedJson.indexOf(",") + 1
+    decodedJson.indexOf(',') + 1
   );
-  let buff = Buffer.from(metaWithoutDataURL, "base64");
-  let text = buff.toString("ascii");
+  let buff = Buffer.from(metaWithoutDataURL, 'base64');
+  let text = buff.toString('ascii');
   return text;
 };
 
 const deployMetadata = async () => {
   let externalMetadata;
   try {
-    const networkinfo = await hre.network.provider.send("eth_chainId");
+    const networkinfo = await hre.network.provider.send('eth_chainId');
     const chainId = BigInt(networkinfo);
     global.chainId = chainId;
 
     // deploy ExternalMetadata
     const ExternalMetadata =
-      await hre.ethers.getContractFactory("ExternalMetadata");
+      await hre.ethers.getContractFactory('ExternalMetadata');
     externalMetadata = await ExternalMetadata.deploy();
     await externalMetadata.deploymentTransaction().wait(); // Updated for v6
   } catch (e) {
@@ -144,9 +144,9 @@ const deployContracts = async (options) => {
 const saveAndVerifyContracts = async (deployedContracts) => {
   for (const contractName in deployedContracts) {
     if (
-      contractName === "verificationData" ||
-      contractName === "saveAndVerify" ||
-      contractName === "ignoreTesting"
+      contractName === 'verificationData' ||
+      contractName === 'saveAndVerify' ||
+      contractName === 'ignoreTesting'
     ) {
       continue;
     }
@@ -165,28 +165,28 @@ const deployERC2981Contract = async (options) => {
   const { ignoreTesting, verbose } = Object.assign(defaultOptions, options);
   global.ignoreTesting = ignoreTesting;
   global.verbose = verbose;
-  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const networkinfo = await hre.network.provider.send('eth_chainId');
   const chainId = BigInt(networkinfo);
 
   // const networkinfo = await hre.ethers.provider.getNetwork();
   global.chainId = chainId;
-  log("Deploying contracts");
+  log('Deploying contracts');
 
   const returnObject = {};
 
   // deploy ERC2981
-  const ERC2981 = await hre.ethers.getContractFactory("ERC2981");
+  const ERC2981 = await hre.ethers.getContractFactory('ERC2981');
 
   const eRC2981 = await ERC2981.deploy();
 
   await eRC2981.deploymentTransaction().wait();
 
-  returnObject["ERC2981"] = eRC2981;
+  returnObject['ERC2981'] = eRC2981;
   log(`ERC2981 Deployed at ${eRC2981.target} `);
 
   const verificationData = [
     {
-      name: "ERC2981",
+      name: 'ERC2981',
       constructorArguments: [],
     },
   ];
@@ -198,20 +198,42 @@ const deployERC2981Contract = async (options) => {
 
 const deployBurnContract = async (returnObject) => {
   if (!returnObject.Kudzu) {
-    throw new Error("Kudzu contract is required to deploy KudzuBurn contract");
+    throw new Error('Kudzu contract is required to deploy KudzuBurn contract');
   }
 
-  log("Deploying KudzuBurn contract");
+  log('Deploying KudzuBurn contract');
 
-  const KudzuBurn = await hre.ethers.getContractFactory("KudzuBurn");
+  const KudzuBurn = await hre.ethers.getContractFactory('KudzuBurn');
   const burn = await KudzuBurn.deploy(returnObject.Kudzu.target);
   await burn.deploymentTransaction().wait();
-  returnObject["KudzuBurn"] = burn;
+  returnObject['KudzuBurn'] = burn;
   log(`KudzuBurn Deployed at ${burn.target} `);
+
+  const KudzuBurnController = await hre.ethers.getContractFactory(
+    'KudzuBurnController'
+  );
+  const burnController = await KudzuBurnController.deploy(
+    returnObject.Kudzu.target,
+    burn.target
+  );
+  await burnController.deploymentTransaction().wait();
+  returnObject['KudzuBurnController'] = burnController;
+  log(
+    `KudzuBurnController Deployed at ${burnController.target} with Kudzu at ${returnObject.Kudzu.target} and KudzuBurn at ${burn.target} `
+  );
+
+  // update KudzuBurn with KudzuController address
+  await burn.updateKudzuBurnController(burnController.target);
+  log(`KudzuBurn updated with KudzuBurnController at ${burnController.target}`);
+
   const verificationData = [
     {
-      name: "KudzuBurn",
+      name: 'KudzuBurn',
       constructorArguments: [returnObject.Kudzu.target],
+    },
+    {
+      name: 'KudzuBurnController',
+      constructorArguments: [returnObject.Kudzu.target, burn.target],
     },
   ];
   returnObject.verificationData = verificationData;
@@ -231,28 +253,28 @@ const deployContractsV0 = async (options) => {
   );
   global.ignoreTesting = ignoreTesting;
   global.verbose = verbose;
-  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const networkinfo = await hre.network.provider.send('eth_chainId');
   const chainId = BigInt(networkinfo);
 
   // const networkinfo = await hre.ethers.provider.getNetwork();
   global.chainId = chainId;
-  log("Deploying contracts");
+  log('Deploying contracts');
 
   const returnObject = {};
 
   // deploy Metadata
   const { externalMetadata } = await deployMetadata();
-  log("ExternalMetadata Deployed at " + String(externalMetadata.target)); // Updated from .address to .target
+  log('ExternalMetadata Deployed at ' + String(externalMetadata.target)); // Updated from .address to .target
 
-  returnObject["ExternalMetadata"] = externalMetadata;
+  returnObject['ExternalMetadata'] = externalMetadata;
 
   // deploy Kudzu
   const Kudzu = await hre.ethers.getContractFactory(
-    mock ? "KudzuMock" : "Kudzu"
+    mock ? 'KudzuMock' : 'Kudzu'
   );
 
   if (mock) {
-    log("Deploying KudzuMock contract");
+    log('Deploying KudzuMock contract');
   }
 
   // const now = Math.floor(Date.now() / 1000);
@@ -270,18 +292,18 @@ const deployContractsV0 = async (options) => {
 
   const kudzu = await Kudzu.deploy(externalMetadata.target); // Updated from .address to .target
   await kudzu.deploymentTransaction().wait(); // Updated for v6
-  returnObject["Kudzu"] = kudzu;
+  returnObject['Kudzu'] = kudzu;
   log(
     `Kudzu Deployed at ${kudzu.target} with ExternalMetadata at ${externalMetadata.target}` // Updated .address to .target
   );
 
   const verificationData = [
     {
-      name: "ExternalMetadata",
+      name: 'ExternalMetadata',
       constructorArguments: [],
     },
     {
-      name: "Kudzu",
+      name: 'Kudzu',
       constructorArguments: [externalMetadata.target], // Updated from .address to .target
     },
   ];
@@ -311,7 +333,7 @@ const verifyContracts = async (returnObject) => {
       await new Promise((r) => setTimeout(r, 1000));
       log(`Verifying ${verificationData[i].name} Contract`);
       try {
-        await hre.run("verify:verify", {
+        await hre.run('verify:verify', {
           address: returnObject[verificationData[i].name].target, // Updated from .address to .target
           constructorArguments: verificationData[i].constructorArguments,
         });
@@ -325,12 +347,12 @@ const verifyContracts = async (returnObject) => {
     // Updated to use bigint
     // This is so dev accounts have spending money on local chain
     await deployer.sendTransaction({
-      to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-      value: ethers.parseEther("1.0"), // Updated from utils.parseEther
+      to: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+      value: ethers.parseEther('1.0'), // Updated from utils.parseEther
     });
     await deployer.sendTransaction({
-      to: "0xc795344b1b30E3CfEE1AFA1D5204B141940CF445",
-      value: ethers.parseEther("1.0"), // Updated from utils.parseEther
+      to: '0xc795344b1b30E3CfEE1AFA1D5204B141940CF445',
+      value: ethers.parseEther('1.0'), // Updated from utils.parseEther
     });
   }
 };
@@ -382,44 +404,44 @@ const getParsedEventLogs = async (receipt, contract, eventName) => {
 async function copyABI(name, contractName) {
   contractName = contractName || name;
 
-  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const networkinfo = await hre.network.provider.send('eth_chainId');
   const chainId = BigInt(networkinfo);
   log(`--copy ${name} ABI`);
   var pathname = path.join(
     __dirname,
-    "artifacts",
-    "contracts",
+    'artifacts',
+    'contracts',
     `${name}.sol`,
     `${contractName}.json`
   );
   try {
     const readABI = await fs.readFile(pathname);
     const parsedABI = JSON.parse(readABI);
-    const abi = parsedABI["abi"];
+    const abi = parsedABI['abi'];
 
     const newContent = { contractName, abi };
 
     var copy = path.join(
       __dirname,
-      "contractData",
-      "ABI-" + String(chainId) + `-${name}.json`
+      'contractData',
+      'ABI-' + String(chainId) + `-${name}.json`
     );
     await writedata(copy, JSON.stringify(newContent));
-    log("-- OK");
+    log('-- OK');
   } catch (e) {
-    console.error("Failed to copy ABI" + name, { e });
+    console.error('Failed to copy ABI' + name, { e });
   }
 }
 
 async function saveAddress(contract, name) {
-  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const networkinfo = await hre.network.provider.send('eth_chainId');
   const chainId = BigInt(networkinfo);
-  log("-save json for " + name);
+  log('-save json for ' + name);
   var newAddress = await contract.target; // Updated from .address to .target
   var savePath = path.join(
     __dirname,
-    "contractData",
-    String(chainId) + "-" + String(name) + ".json"
+    'contractData',
+    String(chainId) + '-' + String(name) + '.json'
   );
   var objToWrite = {
     address: newAddress,
@@ -432,26 +454,26 @@ async function writedata(path, data) {
   try {
     await fs.writeFile(path, data);
   } catch (e) {
-    console.error("Failed to write file" + path, { e });
+    console.error('Failed to write file' + path, { e });
   }
 }
 
 const prepareKudzuForTests = async (Kudzu, recipients = []) => {
-  const currentTime = (await hre.ethers.provider.getBlock("latest")).timestamp;
+  const currentTime = (await hre.ethers.provider.getBlock('latest')).timestamp;
   const currentTimePlusOneDay = currentTime + 86400;
   let tx = await Kudzu.updateStartDate(currentTime);
-  await tx.wait()
-  const startDate = await Kudzu.startDate()
+  await tx.wait();
+  const startDate = await Kudzu.startDate();
 
   tx = await Kudzu.updateEndDate(currentTimePlusOneDay);
-  await tx.wait()
-  const endDate = await Kudzu.endDate()
+  await tx.wait();
+  const endDate = await Kudzu.endDate();
   tx = await Kudzu.updatePrices(0, 0);
-  await tx.wait()
+  await tx.wait();
   tx = await Kudzu.updateClaimDelay(0);
-  await tx.wait()
+  await tx.wait();
   tx = await Kudzu.updateForfeitClaim(0);
-  await tx.wait()
+  await tx.wait();
   const allTokenIds = [];
 
   // Create tokens and handle airdrops
@@ -462,7 +484,7 @@ const prepareKudzuForTests = async (Kudzu, recipients = []) => {
     const tx = await Kudzu.connect(address).mint(address.address, 0, quantity);
     const receipt = await tx.wait();
     const tokenIds = (
-      await getParsedEventLogs(receipt, Kudzu, "TransferSingle")
+      await getParsedEventLogs(receipt, Kudzu, 'TransferSingle')
     ).map((e) => e.pretty.id);
     allTokenIds.push(...tokenIds);
     for (let j = 0; j < infected.length; j++) {
@@ -471,17 +493,17 @@ const prepareKudzuForTests = async (Kudzu, recipients = []) => {
       await Kudzu.connect(address).airdrop(
         infectedAddress,
         tokenIds[strainIndex],
-        "0x",
+        '0x',
         0
       );
     }
   }
 
   // Fast forward to end of game
-  await hre.network.provider.send("evm_setNextBlockTimestamp", [
+  await hre.network.provider.send('evm_setNextBlockTimestamp', [
     parseInt(currentTimePlusOneDay),
   ]);
-  await hre.network.provider.send("evm_mine");
+  await hre.network.provider.send('evm_mine');
 
   // Get winning tokens
   const winningTokens = [];
@@ -498,34 +520,31 @@ const prepareKudzuForTests = async (Kudzu, recipients = []) => {
       // This address holds a winning token
       try {
         await Kudzu.connect(address).claimPrize(place);
-      } catch (e) {
-      }
-
+      } catch (e) {}
     }
   }
 
   return allTokenIds;
 };
 
-
 export {
-  prepareKudzuForTests,
-  saveAddress,
   copyABI,
-  getParsedEventLogs,
   decodeUri,
-  initContracts,
-  deployContractsV0,
+  deployBurn,
+  deployBurnContract,
   deployContracts,
+  deployContractsV0,
   deployERC2981Contracts,
   deployKudzuAndBurn,
-  deployBurnContract,
-  deployBurn,
+  deployMetadata,
+  getParsedEventLogs,
   getPathABI,
   getPathAddress,
+  initContracts,
+  prepareKudzuForTests,
   readData,
+  saveAddress,
+  saveAndVerifyContracts,
   testJson,
   verifyContracts,
-  deployMetadata,
-  saveAndVerifyContracts,
 };

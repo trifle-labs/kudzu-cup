@@ -15,12 +15,11 @@ KUDZU BURN
 
 contract KudzuBurn is Ownable {
     using HitchensOrderStatisticsTreeLib for HitchensOrderStatisticsTreeLib.Tree;
-    HitchensOrderStatisticsTreeLib.Tree tree;
+    HitchensOrderStatisticsTreeLib.Tree public tree;
 
+    bool public paused = false;
     Kudzu public kudzu;
-    address public burnAddress = 0x000000000000000000000000000000000000dEaD;
-    uint256 public burnPoint = 1;
-    uint256 public newStrainBonus = 5;
+    address public kudzuBurnController;
     uint256 public currentRound = 0;
 
     mapping(address => uint256) public burnerPoints;
@@ -31,7 +30,6 @@ contract KudzuBurn is Ownable {
         uint256 payoutToRecipient;
     }
 
-    mapping(address => mapping(uint256 => bool)) public hasBurned;
 
     Round[13] public rounds = [
         Round({
@@ -118,6 +116,11 @@ contract KudzuBurn is Ownable {
         kudzu = kudzu_;
     }
 
+    modifier onlyController() {
+        require(msg.sender == kudzuBurnController, "Only KudzuBurnController can call this function");
+        _;
+    }
+
     receive() external payable {
         if (isOver()) {
             rewardWinner();
@@ -138,18 +141,25 @@ contract KudzuBurn is Ownable {
         return address(uint160(uint256(key)));
     }
 
-    function updateTree(address burner, uint256 quantity, bool add) private {
+    function updateTreeOnlyController(address burner, uint256 quantity, bool add, uint256 tokenId) public onlyController {
+        updateTree(burner, quantity, add, tokenId);
+    }
+
+    function updateTree(address burner, uint256 quantity, bool add, uint256 tokenId) private {
+        require(!paused, "Contract is paused");
         uint256 prevValue = burnerPoints[burner];
         uint256 newValue;
+        int256 pointsChange;
         if (add) {
             newValue = prevValue + quantity;
+            pointsChange = int256(quantity);
         } else {
             if (quantity > prevValue) {
-                uint256 negativeQuantity = quantity - prevValue;
-                emit PointsRewarded(burner, 0, int256(negativeQuantity));
                 newValue = 0;
+                pointsChange = -1 * int256(prevValue);
             } else {
                 newValue = prevValue - quantity;
+                pointsChange = -1 * int256(quantity);
             }
         }
 
@@ -161,8 +171,10 @@ contract KudzuBurn is Ownable {
         if (newValue != 0) {
             // add key with new value
             tree.insert(addressAsKey, newValue);
+            // TODO: confirm whether it's possible to insert tree with new value == 0
         }
         burnerPoints[burner] = newValue;
+        emit PointsRewarded(msg.sender, tokenId, pointsChange);
     }
 
     function getPoints(address burner) public view returns (uint256) {
@@ -177,55 +189,42 @@ contract KudzuBurn is Ownable {
         return address(uint160(uint256(key)));
     }
 
-    // assumes that setApprovalForAll has already been called
-    function burn(uint256 tokenId, uint256 quantity) public {
-        if (isOver()) {
-            rewardWinner();
-        }
-        kudzu.safeTransferFrom(msg.sender, burnAddress, tokenId, quantity, "");
-        updateTree(msg.sender, burnPoint, true);
-        emit PointsRewarded(msg.sender, tokenId, int256(burnPoint));
 
-        if (hasBurned[msg.sender][tokenId] == false) {
-            hasBurned[msg.sender][tokenId] = true;
-            updateTree(msg.sender, newStrainBonus, true); // bonus
-            emit PointsRewarded(msg.sender, tokenId, int256(newStrainBonus));
-        }
-    }
-
-    function adminReward(address burner, uint256 quantity) public onlyOwner {
+    function adminReward(address burner, uint256 quantity, uint256 rewardId) public onlyOwner {
         emit PointsRewarded(burner, 0, int256(quantity));
-        updateTree(burner, quantity, true);
+        updateTree(burner, quantity, true, rewardId);
     }
 
-    function adminPunish(address burner, uint256 quantity) public onlyOwner {
+    function adminPunish(address burner, uint256 quantity, uint256 rewardId) public onlyOwner {
         emit PointsRewarded(burner, 0, -1 * int256(quantity));
-        updateTree(burner, quantity, false);
+        updateTree(burner, quantity, false, rewardId);
     }
 
     function adminMassReward(
         address[] memory burners,
-        uint256[] memory quantities
+        uint256[] memory quantities,
+        uint256[] memory rewardIds
     ) public onlyOwner {
         require(
             burners.length == quantities.length,
             "Arrays must be same length"
         );
         for (uint256 i = 0; i < burners.length; i++) {
-            adminReward(burners[i], quantities[i]);
+            adminReward(burners[i], quantities[i], rewardIds[i]);
         }
     }
 
     function adminMassPunish(
         address[] memory burners,
-        uint256[] memory quantities
+        uint256[] memory quantities,
+        uint256[] memory rewardIds
     ) public onlyOwner {
         require(
             burners.length == quantities.length,
             "Arrays must be same length"
         );
         for (uint256 i = 0; i < burners.length; i++) {
-            adminPunish(burners[i], quantities[i]);
+            adminPunish(burners[i], quantities[i], rewardIds[i]);
         }
     }
 
@@ -236,25 +235,20 @@ contract KudzuBurn is Ownable {
 
     function rewardWinner() public {
         require(isOver(), "Current round is not over");
+        require(!paused, "Contract is paused");
         address winner = getWinningAddress();
         uint256 points = burnerPoints[winner];
-        updateTree(winner, points, false);
+        // NOTE: remove winner's points with rewardId 1
+        updateTree(winner, points, false, 1);
         uint256 payout = rounds[currentRound].payoutToRecipient;
         currentRound += 1;
         (bool success, bytes memory data) = winner.call{value: payout}("");
         emit EthMoved(winner, success, data, payout);
     }
 
-    function updateBurnAddress(address burnAddress_) public onlyOwner {
-        burnAddress = burnAddress_;
-    }
 
-    function updateBurnPoint(uint256 burnPoint_) public onlyOwner {
-        burnPoint = burnPoint_;
-    }
-
-    function updateNewStrainBonus(uint256 newStrainBonus_) public onlyOwner {
-        newStrainBonus = newStrainBonus_;
+    function updateKudzuBurnController(address kudzuBurnController_) public onlyOwner {
+        kudzuBurnController = kudzuBurnController_;
     }
 
     function updateEndDate(uint256 round, uint256 endDate) public onlyOwner {
@@ -265,5 +259,9 @@ contract KudzuBurn is Ownable {
         (bool success, bytes memory data) = owner().call{value: amount}("");
         emit EthMoved(owner(), success, data, amount);
         rounds[roundIndex].payoutToRecipient -= amount;
+    }
+
+    function updatePaused(bool paused_) public onlyOwner {
+        paused = paused_;
     }
 }
