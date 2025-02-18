@@ -63,25 +63,42 @@ const initContracts = async (
       let abi;
       if (contractNames[i] === 'Kudzu' && mock) {
         const mockKudzu = await hre.ethers.getContractFactory('KudzuMock');
-        console.log({ mockKudzu });
-        const fragments = mockKudzu.interface.fragments;
-        abi = fragments.map((f) => ({
-          name: f.name,
-          type: f.type,
-          inputs: f.inputs,
-          outputs: f.outputs,
-        }));
+        // abi = JSON.parse(mockKudzu.interface.formatJson());
+        // abi = mockKudzu.interface;
+        // abi = mockKudzu.interface.fragments;
+        // abi = hre.ethers.Interface.from(mockKudzu.interface);
+        abi = mockKudzu.interface.fragments.map((f) => {
+          return {
+            type: f.type,
+            name: f.name,
+            inputs: f.inputs,
+            outputs: f.outputs,
+            stateMutability: f.stateMutability,
+            constant: f.constant,
+            payable: f.payable,
+            anonymous: f.anonymous,
+          };
+        });
+        // const fragments = mockKudzu.interface.fragments;
+        // abi = fragments.map((f) => ({
+        //   name: f.name,
+        //   type: f.type,
+        //   inputs: f.inputs,
+        //   outputs: f.outputs,
+        // }));
+        // console.log({ mockKudzu });
         console.log({ abi });
       } else {
         abi = JSON.parse(await readData(await getPathABI(contractNames[i])))[
           'abi'
         ];
       }
-      returnObject[contractNames[i]] = new ethers.Contract(
+      returnObject[contractNames[i]] = new hre.ethers.Contract(
         address,
         abi,
         deployer
       );
+      console.log({ mock: returnObject[contractNames[i]] });
     } catch (e) {
       if (!skipErrors) {
         console.log({ e });
