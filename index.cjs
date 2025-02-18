@@ -8,6 +8,9 @@ const KudzuBurnABI = require('./contractData/ABI-984123-KudzuBurn.json');
 const KudzuBurnBaseSeplia = require('./contractData/84532-KudzuBurn.json');
 const KudzuBurnFormaTest = require('./contractData/984123-KudzuBurn.json');
 
+const KudzuBurnControllerABI = require('./contractData/ABI-984123-KudzuBurnController.json');
+const KudzuBurnControllerFormaTest = require('./contractData/984123-KudzuBurnController.json');
+
 const Kudzu = {
   abi: KudzuABI,
   networks: {
@@ -25,6 +28,13 @@ const KudzuBurn = {
   },
 };
 
+const KudzuBurnController = {
+  abi: KudzuBurnControllerABI,
+  networks: {
+    984123: KudzuBurnControllerFormaTest,
+  },
+};
+
 const {
   eyes,
   mouths,
@@ -34,6 +44,7 @@ const {
 module.exports = {
   Kudzu,
   KudzuBurn,
+  KudzuBurnController,
   eyes,
   mouths,
   getEmoji,

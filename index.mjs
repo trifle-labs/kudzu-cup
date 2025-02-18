@@ -8,6 +8,9 @@ import KudzuBurnBaseSeplia from './contractData/84532-KudzuBurn.json' assert { t
 import KudzuBurnFormaTest from './contractData/984123-KudzuBurn.json' assert { type: 'json' };
 import KudzuBurnABI from './contractData/ABI-984123-KudzuBurn.json' assert { type: 'json' };
 
+import KudzuBurnControllerFormaTest from './contractData/984123-KudzuBurnController.json' assert { type: 'json' };
+import KudzuBurnControllerABI from './contractData/ABI-984123-KudzuBurnController.json' assert { type: 'json' };
+
 export const Kudzu = {
   abi: KudzuABI,
   networks: {
@@ -22,6 +25,13 @@ export const KudzuBurn = {
   networks: {
     84532: KudzuBurnBaseSeplia,
     984123: KudzuBurnFormaTest,
+  },
+};
+
+export const KudzuBurnController = {
+  abi: KudzuBurnControllerABI,
+  networks: {
+    984123: KudzuBurnControllerFormaTest,
   },
 };
 
