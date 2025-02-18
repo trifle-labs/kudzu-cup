@@ -1,21 +1,21 @@
-const hre = require("hardhat");
+const hre = require('hardhat');
 let skip = false;
 
 async function main() {
   const accounts = await hre.ethers.getSigners();
   const [deployer] = accounts;
   console.log({ deployer: deployer.address });
-  const networkinfo = await hre.network.provider.send("eth_chainId");
+  const networkinfo = await hre.network.provider.send('eth_chainId');
   const chainId = BigInt(networkinfo);
-  console.log("Deploy to chain:");
+  console.log('Deploy to chain:');
   console.log({ chainId });
   const { deployKudzuAndBurn, getParsedEventLogs, initContracts } =
-    await import("./utils.js");
+    await import('./utils.js');
   let Kudzu, KudzuBurn, tx;
   if (skip) {
     const { Kudzu: Kudzu_, KudzuBurn: KudzuBurn_ } = await initContracts([
-      "Kudzu",
-      "KudzuBurn",
+      'Kudzu',
+      'KudzuBurn',
     ]);
     Kudzu = Kudzu_;
     KudzuBurn = KudzuBurn_;
@@ -29,7 +29,7 @@ async function main() {
     KudzuBurn = KudzuBurn_;
 
     // const {Kudzu, KudzuBurn} = await initContracts(['Kudzu', 'KudzuBurn']);
-    const block = await hre.ethers.provider.getBlock("latest");
+    const block = await hre.ethers.provider.getBlock('latest');
     console.log({ block });
     const currentTime = block.timestamp;
     console.log({ currentTime });
@@ -39,7 +39,7 @@ async function main() {
     const startDate = await Kudzu.startDate();
     console.log({ startDate });
     if (parseInt(startDate) !== parseInt(currentTime))
-      throw new Error("startDate");
+      throw new Error('startDate');
 
     tx = await Kudzu.updateEndDate(9999999999);
     await tx.wait();
@@ -64,7 +64,7 @@ async function main() {
     tx = await Kudzu.updatePrices(0, 0);
     await tx.wait();
 
-    const fundAccountsWith = "0.5";
+    const fundAccountsWith = '0.5';
     const userTokens = [];
 
     for (let i = 0; i < 3; i++) {
@@ -73,7 +73,7 @@ async function main() {
       try {
         tx = await Kudzu.connect(account).mint(account.address, 0, 10);
         const receipt = await tx.wait();
-        tokenIds = (await getParsedEventLogs(receipt, Kudzu, "Created")).map(
+        tokenIds = (await getParsedEventLogs(receipt, Kudzu, 'Created')).map(
           (e) => e.pretty.tokenId
         );
         userTokens.push(tokenIds);
@@ -106,12 +106,12 @@ async function main() {
             tx = await Kudzu.connect(account).airdrop(
               accounts[j].address,
               tokenIds[k],
-              "0x",
+              '0x',
               0
             );
             await tx.wait();
           } catch (e) {
-            if (e.message.includes("ALREADY INFECTED")) {
+            if (e.message.includes('ALREADY INFECTED')) {
               continue;
             }
 
@@ -122,21 +122,21 @@ async function main() {
       }
     }
   }
-  const block2 = await hre.ethers.provider.getBlock("latest");
+  const block2 = await hre.ethers.provider.getBlock('latest');
   const timenow = block2.timestamp;
   console.log({ Kudzu });
 
   if (skip) {
-    const { Interface } = require("ethers");
+    const { Interface } = require('ethers');
 
     // Create minimal ABI for just the function we need
-    const minimalABI = ["function updateEndDate(uint256) external"];
+    const minimalABI = ['function updateEndDate(uint256) external'];
 
     // Create interface with minimal ABI
     const iface = new Interface(minimalABI);
 
     // Encode the function call
-    const data = iface.encodeFunctionData("updateEndDate", [timenow]);
+    const data = iface.encodeFunctionData('updateEndDate', [timenow]);
 
     // Create transaction object with the target address
     const txData = {

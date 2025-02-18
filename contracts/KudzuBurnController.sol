@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract KudzuBurnController is Ownable {
     Kudzu public kudzu;
     KudzuBurn public kudzuBurn;
-        address public burnAddress = 0x000000000000000000000000000000000000dEaD;
+    address public burnAddress = 0x000000000000000000000000000000000000dEaD;
 
     uint256 public burnPoint = 1;
     uint256 public newStrainBonus = 5;
@@ -21,6 +21,8 @@ contract KudzuBurnController is Ownable {
       kudzu = _kudzu;
       kudzuBurn = _kudzuBurn;
     }
+
+    receive() external payable {}
 
     // assumes that setApprovalForAll has already been called
     function burn(uint256 tokenId, uint256 quantity) public {
@@ -37,6 +39,8 @@ contract KudzuBurnController is Ownable {
     }
 
 
+
+
     function updateBurnAddress(address burnAddress_) public onlyOwner {
         burnAddress = burnAddress_;
     }
@@ -48,5 +52,11 @@ contract KudzuBurnController is Ownable {
     function updateNewStrainBonus(uint256 newStrainBonus_) public onlyOwner {
         newStrainBonus = newStrainBonus_;
     }
+
+    function recoverFunds(uint256 amount) public onlyOwner {
+        (bool success, bytes memory data) = owner().call{value: amount}("");
+        emit KudzuBurn.EthMoved(owner(), success, data, amount);
+    }
+
 
 }

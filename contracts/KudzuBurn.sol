@@ -171,10 +171,9 @@ contract KudzuBurn is Ownable {
         if (newValue != 0) {
             // add key with new value
             tree.insert(addressAsKey, newValue);
-            // TODO: confirm whether it's possible to insert tree with new value == 0
         }
         burnerPoints[burner] = newValue;
-        emit PointsRewarded(msg.sender, tokenId, pointsChange);
+        emit PointsRewarded(burner, tokenId, pointsChange);
     }
 
     function getPoints(address burner) public view returns (uint256) {
@@ -191,12 +190,10 @@ contract KudzuBurn is Ownable {
 
 
     function adminReward(address burner, uint256 quantity, uint256 rewardId) public onlyOwner {
-        emit PointsRewarded(burner, 0, int256(quantity));
         updateTree(burner, quantity, true, rewardId);
     }
 
     function adminPunish(address burner, uint256 quantity, uint256 rewardId) public onlyOwner {
-        emit PointsRewarded(burner, 0, -1 * int256(quantity));
         updateTree(burner, quantity, false, rewardId);
     }
 
@@ -207,6 +204,10 @@ contract KudzuBurn is Ownable {
     ) public onlyOwner {
         require(
             burners.length == quantities.length,
+            "Arrays must be same length"
+        );
+        require(
+            burners.length == rewardIds.length,
             "Arrays must be same length"
         );
         for (uint256 i = 0; i < burners.length; i++) {
@@ -221,6 +222,10 @@ contract KudzuBurn is Ownable {
     ) public onlyOwner {
         require(
             burners.length == quantities.length,
+            "Arrays must be same length"
+        );
+        require(
+            burners.length == rewardIds.length,
             "Arrays must be same length"
         );
         for (uint256 i = 0; i < burners.length; i++) {
