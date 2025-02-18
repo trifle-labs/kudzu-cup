@@ -84,57 +84,58 @@ async function main() {
 
     const fundAccountsWith = '0.5';
     const userTokens = [];
-
-    for (let i = 0; i < 3; i++) {
-      const account = accounts[i];
-      let tokenIds;
-      try {
-        tx = await Kudzu.connect(account).mint(account.address, 0, 10);
-        const receipt = await tx.wait();
-        tokenIds = (await getParsedEventLogs(receipt, Kudzu, 'Created')).map(
-          (e) => e.pretty.tokenId
-        );
-        userTokens.push(tokenIds);
-      } catch (e) {
-        console.log({ i, e });
-        i--;
-        continue;
-      }
-      for (let j = 0; j < 10; j++) {
-        if (i == j) continue;
-        const ethBalance = await hre.ethers.provider.getBalance(
-          accounts[j].address
-        );
-        if (ethBalance < hre.ethers.parseEther(fundAccountsWith)) {
-          try {
-            tx = await accounts[0].sendTransaction({
-              to: accounts[j].address,
-              value: hre.ethers.parseEther(fundAccountsWith),
-            });
-            await tx.wait();
-          } catch (e) {
-            console.log({ i, j, e });
-            j--;
-            continue;
-          }
+    if (!reuseKudzu) {
+      for (let i = 0; i < 3; i++) {
+        const account = accounts[i];
+        let tokenIds;
+        try {
+          tx = await Kudzu.connect(account).mint(account.address, 0, 10);
+          const receipt = await tx.wait();
+          tokenIds = (await getParsedEventLogs(receipt, Kudzu, 'Created')).map(
+            (e) => e.pretty.tokenId
+          );
+          userTokens.push(tokenIds);
+        } catch (e) {
+          console.log({ i, e });
+          i--;
+          continue;
         }
-
-        for (let k = 0; k < 10; k++) {
-          try {
-            tx = await Kudzu.connect(account).airdrop(
-              accounts[j].address,
-              tokenIds[k],
-              '0x',
-              0
-            );
-            await tx.wait();
-          } catch (e) {
-            if (e.message.includes('ALREADY INFECTED')) {
+        for (let j = 0; j < 10; j++) {
+          if (i == j) continue;
+          const ethBalance = await hre.ethers.provider.getBalance(
+            accounts[j].address
+          );
+          if (ethBalance < hre.ethers.parseEther(fundAccountsWith)) {
+            try {
+              tx = await accounts[0].sendTransaction({
+                to: accounts[j].address,
+                value: hre.ethers.parseEther(fundAccountsWith),
+              });
+              await tx.wait();
+            } catch (e) {
+              console.log({ i, j, e });
+              j--;
               continue;
             }
+          }
 
-            console.log({ i, j, k, e });
-            k--;
+          for (let k = 0; k < 10; k++) {
+            try {
+              tx = await Kudzu.connect(account).airdrop(
+                accounts[j].address,
+                tokenIds[k],
+                '0x',
+                0
+              );
+              await tx.wait();
+            } catch (e) {
+              if (e.message.includes('ALREADY INFECTED')) {
+                continue;
+              }
+
+              console.log({ i, j, k, e });
+              k--;
+            }
           }
         }
       }
