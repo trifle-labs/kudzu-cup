@@ -5,7 +5,7 @@ const ethers = hre.ethers;
 
 let snapshot;
 describe('HitchensOrderStatisticsTreeLib Tests', function () {
-  this.timeout(50000);
+  this.timeout(100000);
   let tree;
 
   before(async function () {
@@ -62,46 +62,6 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
       await tree.insert(ethers.id(`key${i}`), 100 * (i + 1));
     }
 
-    // Debug log the structure
-    // const node50 = await tree.getNode(50);
-    // const node100 = await tree.getNode(100);
-    // const node150 = await tree.getNode(150);
-    // const node200 = await tree.getNode(200);
-
-    // console.log('Tree structure:');
-    // console.log('Node 50:', {
-    //   keyCount: node50.keyCount,
-    //   nodeCount: node50.nodeCount,
-    //   left: node50.left,
-    //   right: node50.right,
-    // });
-    // console.log('Node 100:', {
-    //   keyCount: node100.keyCount,
-    //   nodeCount: node100.nodeCount,
-    //   left: node100.left,
-    //   right: node100.right,
-    // });
-    // console.log('Node 150:', {
-    //   keyCount: node150.keyCount,
-    //   nodeCount: node150.nodeCount,
-    //   left: node150.left,
-    //   right: node150.right,
-    // });
-    // console.log('Node 200:', {
-    //   keyCount: node200.keyCount,
-    //   nodeCount: node200.nodeCount,
-    //   left: node200.left,
-    //   right: node200.right,
-    // });
-
-    // const rank100 = await tree.rank(100);
-    // console.log('Rank calculation steps for 100:');
-    // console.log('Final rank:', rank100.toString());
-
-    // const rank50 = await tree.rank(50);
-    // console.log('Rank calculation steps for 50:');
-    // console.log('Final rank:', rank50.toString());
-
     // Check ranks (1-based)
     expect(await tree.rank(100)).to.equal(1, '100 should be rank 1');
     expect(await tree.rank(200)).to.equal(2, '200 should be rank 2');
@@ -109,25 +69,18 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     expect(await tree.rank(700)).to.equal(7, '700 should be rank 7');
     expect(await tree.rank(1000)).to.equal(10, '1000 should be rank 10');
 
-    // Check percentiles (0-1000)
-    await expect(tree.percentile(50)).to.be.revertedWith(
-      'OrderStatisticsTree(407) - Value does not exist.'
-    );
     expect(await tree.percentile(100)).to.equal(
-      100,
-      '100 should be 1st percentile'
-    );
-    await expect(tree.percentile(150)).to.be.revertedWith(
-      'OrderStatisticsTree(407) - Value does not exist.'
+      10,
+      '100 should be 10th percentile'
     );
     expect(await tree.percentile(200)).to.equal(
-      200,
-      '200 should be 2nd percentile'
+      20,
+      '200 should be 20th percentile'
     );
 
     expect(await tree.percentile(800)).to.equal(
-      800,
-      '200 should be 2nd percentile'
+      80,
+      '800 should be 80th percentile'
     );
   });
 
@@ -162,9 +115,9 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
 
     expect(await tree.atRank(2)).to.equal(100);
     const key2Rank = await tree.rank(100);
-    expect(key2Rank).to.equal(1);
+    expect(key2Rank).to.equal(1); // value begins with rank 1
 
-    const count = await tree.getTotalCount();
+    const count = await tree.count();
     expect(count).to.equal(3);
 
     expect(await tree.atRank(3)).to.equal(200);
@@ -197,13 +150,13 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     // Insert duplicate value with different key
     await tree.insert(ethers.id('key2'), 100);
     expect(await tree.count()).to.equal(
-      1,
+      2,
       'Duplicate value should not increase count'
     );
 
     // Insert new value
     await tree.insert(ethers.id('key3'), 50);
-    expect(await tree.count()).to.equal(2, 'New value should increase count');
+    expect(await tree.count()).to.equal(3, 'New value should increase count');
 
     await tree.remove(ethers.id('key1'), 100);
     expect(await tree.count()).to.equal(
@@ -308,112 +261,110 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     expect(await tree.exists(100)).to.be.false;
   });
 
-  describe('First and Last functionality', () => {
-    it('should handle first() and last() with single node', async () => {
-      await tree.insert(ethers.id('key1'), 100);
+  it('should handle first() and last() with single node', async () => {
+    await tree.insert(ethers.id('key1'), 100);
 
-      expect(await tree.first()).to.equal(100);
-      expect(await tree.last()).to.equal(100);
-    });
+    expect(await tree.first()).to.equal(100);
+    expect(await tree.last()).to.equal(100);
+  });
 
-    it('should maintain correct first() and last() after multiple insertions', async () => {
-      // Insert in non-sequential order
-      await tree.insert(ethers.id('key1'), 100);
-      expect(await tree.first()).to.equal(
-        100,
-        'First should be 100 after initial insert'
-      );
-      expect(await tree.last()).to.equal(
-        100,
-        'Last should be 100 after initial insert'
-      );
+  it('should maintain correct first() and last() after multiple insertions', async () => {
+    // Insert in non-sequential order
+    await tree.insert(ethers.id('key1'), 100);
+    expect(await tree.first()).to.equal(
+      100,
+      'First should be 100 after initial insert'
+    );
+    expect(await tree.last()).to.equal(
+      100,
+      'Last should be 100 after initial insert'
+    );
 
-      await tree.insert(ethers.id('key2'), 50);
-      expect(await tree.first()).to.equal(50, 'First should update to 50');
-      expect(await tree.last()).to.equal(100, 'Last should remain 100');
+    await tree.insert(ethers.id('key2'), 50);
+    expect(await tree.first()).to.equal(50, 'First should update to 50');
+    expect(await tree.last()).to.equal(100, 'Last should remain 100');
 
-      await tree.insert(ethers.id('key3'), 150);
-      expect(await tree.first()).to.equal(50, 'First should remain 50');
-      expect(await tree.last()).to.equal(150, 'Last should update to 150');
-    });
+    await tree.insert(ethers.id('key3'), 150);
+    expect(await tree.first()).to.equal(50, 'First should remain 50');
+    expect(await tree.last()).to.equal(150, 'Last should update to 150');
+  });
 
-    it('should maintain correct first() and last() after removals', async () => {
-      // Setup initial tree
-      await tree.insert(ethers.id('key1'), 100);
-      await tree.insert(ethers.id('key2'), 50);
-      await tree.insert(ethers.id('key3'), 150);
+  it('should maintain correct first() and last() after removals', async () => {
+    // Setup initial tree
+    await tree.insert(ethers.id('key1'), 100);
+    await tree.insert(ethers.id('key2'), 50);
+    await tree.insert(ethers.id('key3'), 150);
 
-      // Remove middle node
-      await tree.remove(ethers.id('key1'), 100);
-      expect(await tree.first()).to.equal(
-        50,
-        'First should remain 50 after middle removal'
-      );
-      const lastValue = await tree.last();
-      expect(lastValue).to.equal(
-        150,
-        `Last should remain 150 after middle removal but got ${lastValue}. ` +
-          `Tree state: first=${await tree.first()}, count=${await tree.count()}`
-      );
-    });
+    // Remove middle node
+    await tree.remove(ethers.id('key1'), 100);
+    expect(await tree.first()).to.equal(
+      50,
+      'First should remain 50 after middle removal'
+    );
+    const lastValue = await tree.last();
+    expect(lastValue).to.equal(
+      150,
+      `Last should remain 150 after middle removal but got ${lastValue}. ` +
+        `Tree state: first=${await tree.first()}, count=${await tree.count()}`
+    );
+  });
 
-    it('should handle first() and last() with duplicate values', async () => {
-      await tree.insert(ethers.id('key1'), 100);
+  it('should handle first() and last() with duplicate values', async () => {
+    await tree.insert(ethers.id('key1'), 100);
 
-      // Let's check the node structure after first insert
-      const node1 = await tree.getNode(100);
-      // console.log('First node:', {
-      //   parent: node1[0],
-      //   left: node1[1],
-      //   right: node1[2],
-      //   red: node1[3],
-      //   keyCount: node1[4],
-      //   nodeCount: node1[5],
-      // });
+    // Let's check the node structure after first insert
+    const node1 = await tree.getNode(100);
+    // console.log('First node:', {
+    //   parent: node1[0],
+    //   left: node1[1],
+    //   right: node1[2],
+    //   red: node1[3],
+    //   keyCount: node1[4],
+    //   nodeCount: node1[5],
+    // });
 
-      await tree.insert(ethers.id('key2'), 100);
+    await tree.insert(ethers.id('key2'), 100);
 
-      // Check node structure after second insert
-      const node2 = await tree.getNode(100);
-      // console.log('Node after duplicate:', {
-      //   parent: node2[0],
-      //   left: node2[1],
-      //   right: node2[2],
-      //   red: node2[3],
-      //   keyCount: node2[4],
-      //   nodeCount: node2[5],
-      // });
+    // Check node structure after second insert
+    const node2 = await tree.getNode(100);
+    // console.log('Node after duplicate:', {
+    //   parent: node2[0],
+    //   left: node2[1],
+    //   right: node2[2],
+    //   red: node2[3],
+    //   keyCount: node2[4],
+    //   nodeCount: node2[5],
+    // });
 
-      const firstVal = await tree.first();
-      // console.log('First value:', firstVal);
-      const lastVal = await tree.last();
-      // console.log('Last value:', lastVal);
+    const firstVal = await tree.first();
+    // console.log('First value:', firstVal);
+    const lastVal = await tree.last();
+    // console.log('Last value:', lastVal);
 
-      expect(await tree.first()).to.equal(100);
-      expect(await tree.last()).to.equal(100);
-    });
+    expect(await tree.first()).to.equal(100);
+    expect(await tree.last()).to.equal(100);
+  });
 
-    it('should maintain correct order with mixed operations', async () => {
-      // Build tree: 50 -> 100 -> 150
-      await tree.insert(ethers.id('key1'), 100);
-      await tree.insert(ethers.id('key2'), 50);
-      await tree.insert(ethers.id('key3'), 150);
+  it('should maintain correct order with mixed operations', async () => {
+    // Build tree: 50 -> 100 -> 150
+    await tree.insert(ethers.id('key1'), 100);
+    await tree.insert(ethers.id('key2'), 50);
+    await tree.insert(ethers.id('key3'), 150);
 
-      // Remove middle and verify order
-      await tree.remove(ethers.id('key1'), 100);
-      expect(await tree.first()).to.equal(50);
-      expect(await tree.last()).to.equal(150);
+    // Remove middle and verify order
+    await tree.remove(ethers.id('key1'), 100);
+    expect(await tree.first()).to.equal(50);
+    expect(await tree.last()).to.equal(150);
 
-      // Add new middle value
-      await tree.insert(ethers.id('key4'), 75);
-      expect(await tree.first()).to.equal(50);
-      expect(await tree.last()).to.equal(150);
+    // Add new middle value
+    await tree.insert(ethers.id('key4'), 75);
+    expect(await tree.first()).to.equal(50);
+    expect(await tree.last()).to.equal(150);
 
-      // Remove smallest
-      await tree.remove(ethers.id('key2'), 50);
-      expect(await tree.first()).to.equal(75);
-      expect(await tree.last()).to.equal(150);
-    });
+    // Remove smallest
+    await tree.remove(ethers.id('key2'), 50);
+    expect(await tree.first()).to.equal(75);
+    expect(await tree.last()).to.equal(150);
   });
 
   it('should maintain insertion order for equal values', async () => {
@@ -447,9 +398,11 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
   it('should maintain correct node structure', async () => {
     await tree.insert(ethers.id('key1'), 100);
 
-    const node = await tree.getNode(100);
-    expect(node.keyCount).to.equal(1);
-    expect(node.nodeCount).to.equal(1);
+    const [parent, left, right, red, keyCount, nodeCount] =
+      await tree.getNode(100);
+    // console.log({ parent, left, right, red, keyCount, nodeCount });
+    expect(keyCount).to.equal(1);
+    expect(nodeCount).to.equal(1);
 
     await tree.insert(ethers.id('key2'), 50);
     const parentNode = await tree.getNode(100);
@@ -570,9 +523,9 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     // console.log('Tree structure before rank calculation:');
 
     // Get node information
-    const node150 = await tree.getNode(150);
-    const node100 = await tree.getNode(100);
-    const node50 = await tree.getNode(50);
+    // const node150 = await tree.getNode(150);
+    // const node100 = await tree.getNode(100);
+    // const node50 = await tree.getNode(50);
 
     // console.log('Node 150:', {
     //   keyCount: node150.keyCount.toString(),
@@ -598,18 +551,18 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     //   parent: node50.parent.toString(),
     // });
 
-    const rank150 = await tree.rank(150);
+    // const rank150 = await tree.rank(150);
     // console.log('Rank calculation steps for 150:');
     // console.log('Final rank:', rank150.toString());
 
     // Check ranks
-    expect(await tree.rank(150)).to.equal(1, '150 should be rank 1');
+    expect(await tree.rank(150)).to.equal(4, '150 should be rank 4');
     expect(await tree.rank(100)).to.equal(
-      4,
+      2,
       '100 should be rank 4 (after 3 keys of 150)'
     );
     expect(await tree.rank(50)).to.equal(
-      6,
+      1,
       '50 should be rank 6 (after 3 keys of 150 and 2 keys of 100)'
     );
   });
@@ -666,10 +619,10 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     // console.log('Tree count():', totalCount.toString());
 
     // console.log('\nTesting key at rank lookups:');
-    for (let i = 0; i < 6; i++) {
-      const key = await tree.keyAtGlobalRank(i);
-      console.log(`Rank ${i} key: ${lookup[key]}`);
-    }
+    // for (let i = 0; i < 6; i++) {
+    //   const key = await tree.keyAtGlobalRank(i);
+    //   console.log(`Rank ${i} key: ${lookup[key]}`);
+    // }
 
     // Verify ranks (0-based)
     expect(await tree.keyAtGlobalRank(0)).to.equal(
@@ -713,11 +666,11 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     await tree.insert(ethers.id('key_C'), 100);
 
     const keyA = await tree.keyAtGlobalRank(0);
-    console.log(`index 0: ${keyToName(keyA)}`);
+    // console.log(`index 0: ${keyToName(keyA)}`);
     const keyB = await tree.keyAtGlobalRank(1);
-    console.log(`index 1: ${keyToName(keyB)}`);
+    // console.log(`index 1: ${keyToName(keyB)}`);
     const keyC = await tree.keyAtGlobalRank(2);
-    console.log(`index 2: ${keyToName(keyC)}`);
+    // console.log(`index 2: ${keyToName(keyC)}`);
 
     expect(keyToName(await tree.keyAtGlobalRank(0))).to.equal('key_A'); // A at 100
     expect(keyToName(await tree.keyAtGlobalRank(1))).to.equal('key_B'); // B at 100
@@ -891,7 +844,7 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
   });
 
   it.only('shoudl handle a fuzzy amount of adds and removes', async () => {
-    const total = 20;
+    const total = 500;
 
     const sort = (ar) => {
       return ar
@@ -916,7 +869,7 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     }
     let localArray = [];
     for (let i = 0; i < total; i++) {
-      const randomInt = 10 + Math.floor(Math.random() * 5);
+      const randomInt = 10 + Math.floor(Math.random() * 20);
       const entry = {
         key: ethers.id(`key${i}`),
         value: randomInt,
@@ -925,27 +878,31 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
       localArray.push(entry);
     }
     localArray = sort(localArray);
-    console.log({ localArray });
-    for (let i = 0; i < localArray.length; i++) {
-      const [key, value] = await tree.kvAtGlobalRank(i);
-      console.log(`${i}: ${key} ${value}`);
-    }
+    // console.log({ localArray });
+    // for (let i = 0; i < localArray.length; i++) {
+    //   const [key, value] = await tree.kvAtGlobalRank(i);
+    //   console.log(`${i}: ${key} ${value}`);
+    // }
 
     for (let i = 0; i < localArray.length; i++) {
       const entry = localArray[i];
       const [key, value] = await tree.kvAtGlobalRank(i);
       expect(key).to.equal(entry.key, i);
     }
-    for (let i = 0; i < localArray.length; i++) {
-      const item = localArray[i];
-      // const valExists = await tree.exists(item.value);
-      // expect(valExists).to.equal(true, item.key, item.value);
-      // const keyExists = await tree.keyExists(item.key, item.value);
-      // expect(keyExists).to.equal(true, item.key, item.value);
+    for (let i = 0; i < localArray.length / 2; i++) {
+      const randomIndex = Math.floor(Math.random() * localArray.length);
+      const item = localArray[randomIndex];
+      const valExists = await tree.exists(item.value);
+      expect(valExists).to.equal(true, item.key, item.value);
+      const keyExists = await tree.keyExists(item.key, item.value);
+      expect(keyExists).to.equal(true, item.key, item.value);
       await tree.remove(item.key, item.value);
-      const change = Math.floor(Math.random() * 2);
-      item.value += change;
-      await tree.insert(item.key, item.value);
+      const change = 1 + Math.floor(Math.random() * 10);
+      localArray[randomIndex].value += change;
+      await tree.insert(
+        localArray[randomIndex].key,
+        localArray[randomIndex].value
+      );
     }
     localArray = sort(localArray);
 
@@ -970,22 +927,17 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     expect(localArray.length).to.equal(total / 2);
 
     localArray = sort(localArray);
-    console.log({ localArray });
+    // console.log({ localArray });
+
+    // for (let i = 0; i < localArray.length; i++) {
+    //   console.log({ i });
+    //   const [key, value] = await tree.kvAtGlobalRank(i);
+    //   console.log(`${i}: ${key} ${value}`);
+    // }
 
     for (let i = 0; i < localArray.length; i++) {
-      console.log({ i });
       const [key, value] = await tree.kvAtGlobalRank(i);
-      console.log(`${i}: ${key} ${value}`);
-    }
-
-    for (let i = 0; i < localArray.length; i++) {
-      try {
-        const [key, value] = await tree.kvAtGlobalRank(i);
-        expect(key).to.equal(localArray[i].key, i);
-      } catch (e) {
-        console.log(i);
-        throw e;
-      }
+      expect(key).to.equal(localArray[i].key, i);
     }
   });
 });

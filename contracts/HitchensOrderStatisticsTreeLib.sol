@@ -57,7 +57,7 @@ library HitchensOrderStatisticsTreeLib {
 
     function first(Tree storage self) internal view returns (uint _value) {
         _value = self.root;
-        if (_value == EMPTY) return 0;
+        require(_value != EMPTY, "OrderStatisticsTree(401) - Empty tree");
         while (self.nodes[_value].left != EMPTY) {
             _value = self.nodes[_value].left;
         }
@@ -65,7 +65,7 @@ library HitchensOrderStatisticsTreeLib {
 
     function last(Tree storage self) internal view returns (uint _value) {
         _value = self.root;
-        if (_value == EMPTY) return 0;
+        require(_value != EMPTY, "OrderStatisticsTree(401) - Empty tree");
         while (self.nodes[_value].right != EMPTY) {
             _value = self.nodes[_value].right;
         }
@@ -259,43 +259,14 @@ library HitchensOrderStatisticsTreeLib {
         if (count(self) > 0) _above = count(self) - rank(self, value);
     }
 
-    // // Original keyAtGlobalIndex method
+    // 
     // function keyAtGlobalIndex(
     //     Tree storage self,
     //     uint index
-    // ) internal view returns (bytes32 _key) {
-    //     bool finished;
-    //     uint cursor = self.root;
-    //     uint counted = 0;
-    //     while (!finished) {
-    //         if (cursor == EMPTY) {
-    //             revert("OrderStatisticsTree(409) - Index out of bounds");
-    //         }
-    //         Node storage c = self.nodes[cursor];
-    //         uint rightCount = getNodeCount(self, c.right);
-    //         uint keys = c.keys.length;
-    //         if (index < counted + rightCount + keys) {
-    //             if (index < counted + rightCount) {
-    //                 cursor = c.right;
-    //             } else {
-    //                 // This will return the key at the index without FIFO ordering
-    //                 _key = c.keys[index - counted - rightCount];
-    //                 finished = true;
-    //             }
-    //         } else {
-    //             counted += rightCount + keys;
-    //             cursor = c.left;
-    //         }
-    //     }
+    // ) internal view returns (bytes32 _key, uint cursor) {
+    //     uint adjusted = count(self) - index - 1;
+    //     return keyAtGlobalRank(self, adjusted);
     // }
-
-    function keyAtGlobalIndex(
-        Tree storage self,
-        uint index
-    ) internal view returns (bytes32 _key, uint cursor) {
-        uint adjusted = count(self) - index - 1;
-        return keyAtGlobalRank(self, adjusted);
-    }
 
 
 
@@ -365,6 +336,11 @@ library HitchensOrderStatisticsTreeLib {
         Tree storage self,
         uint value
     ) internal view returns (uint _rank) {
+        require(
+            exists(self, value),
+            "OrderStatisticsTree(407) - Value does not exist."
+        );
+        
         if (count(self) > 0) {
             bool finished;
             uint cursor = self.root;
@@ -382,9 +358,7 @@ library HitchensOrderStatisticsTreeLib {
                     } else {
                         cursor = c.left;
                         c = self.nodes[cursor];
-                        if (
-                            smaller >= (keyCount + getNodeCount(self, c.right))
-                        ) {
+                        if (smaller >= (keyCount + getNodeCount(self, c.right))) {
                             smaller -= (keyCount + getNodeCount(self, c.right));
                         } else {
                             smaller = 0;
@@ -398,42 +372,48 @@ library HitchensOrderStatisticsTreeLib {
             }
             return smaller + 1;
         }
+        revert("OrderStatisticsTree(407) - Value to delete does not exist.");
     }
 
     function atRank(
         Tree storage self,
         uint _rank
     ) internal view returns (uint _value) {
+        require(_rank > 0, "OrderStatisticsTree(414) - Rank must be greater than 0");
+        require(_rank <= count(self), "OrderStatisticsTree(415) - Rank exceeds tree size");
+
         bool finished;
         uint cursor = self.root;
         Node storage c = self.nodes[cursor];
-        // Case when only one node exist
+        
+        // Case when only one node exists
         if (c.parent == 0 && c.left == 0 && c.right == 0) {
             _value = cursor;
             return _value;
         }
+        
         uint smaller = getNodeCount(self, c.left);
         while (!finished) {
             _value = cursor;
             c = self.nodes[cursor];
             uint keyCount = c.keys.length;
-            if (smaller + 1 >= _rank && smaller + keyCount <= _rank) {
+            
+            // If rank falls within current node's range
+            if (smaller < _rank && smaller + keyCount >= _rank) {
                 _value = cursor;
                 finished = true;
             } else {
-                if (smaller + keyCount <= _rank) {
+                if (smaller + keyCount < _rank) {
+                    // Rank is in right subtree
                     cursor = c.right;
                     c = self.nodes[cursor];
                     smaller += keyCount + getNodeCount(self, c.left);
                 } else {
+                    // Rank is in left subtree
                     cursor = c.left;
                     c = self.nodes[cursor];
-                    if (smaller >= (keyCount + getNodeCount(self, c.right))) {
-                        smaller -= (keyCount + getNodeCount(self, c.right));
-                    } else {
-                        smaller = 0;
-                        finished = true;
-                    }
+                    smaller = smaller - getNodeCount(self, c.right) - keyCount;
+                    if (smaller < 0) smaller = 0;
                 }
             }
             if (!exists(self, cursor)) {
@@ -792,31 +772,31 @@ library HitchensOrderStatisticsTreeLib {
         self.nodes[value].red = false;
     }
 
-    // Helper function to get the earliest key by join time for a given node
-    function getEarliestKey(Tree storage self, uint value) internal view returns (bytes32) {
-        require(exists(self, value), "OrderStatisticsTree(407) - Value does not exist.");
-        Node storage node = self.nodes[value];
-        require(node.keys.length > 0, "OrderStatisticsTree(412) - Node has no keys");
+    // // Helper function to get the earliest key by join time for a given node
+    // function getEarliestKey(Tree storage self, uint value) internal view returns (bytes32) {
+    //     require(exists(self, value), "OrderStatisticsTree(407) - Value does not exist.");
+    //     Node storage node = self.nodes[value];
+    //     require(node.keys.length > 0, "OrderStatisticsTree(412) - Node has no keys");
         
-        bytes32 earliestKey = node.keys[0];
-        uint earliestTime = node.joinTimes[earliestKey];
+    //     bytes32 earliestKey = node.keys[0];
+    //     uint earliestTime = node.joinTimes[earliestKey];
         
-        for (uint i = 1; i < node.keys.length; i++) {
-            bytes32 currentKey = node.keys[i];
-            uint currentTime = node.joinTimes[currentKey];
+    //     for (uint i = 1; i < node.keys.length; i++) {
+    //         bytes32 currentKey = node.keys[i];
+    //         uint currentTime = node.joinTimes[currentKey];
             
-            if (currentTime < earliestTime) {
-                earliestTime = currentTime;
-                earliestKey = currentKey;
-            }
-        }
+    //         if (currentTime < earliestTime) {
+    //             earliestTime = currentTime;
+    //             earliestKey = currentKey;
+    //         }
+    //     }
         
-        return earliestKey;
-    }
+    //     return earliestKey;
+    // }
     
-    // Helper function to get the timestamp for a specific key
-    function getKeyJoinTime(Tree storage self, bytes32 key, uint value) internal view returns (uint) {
-        require(keyExists(self, key, value), "OrderStatisticsTree(413) - Key does not exist.");
-        return self.nodes[value].joinTimes[key];
-    }
+    // // Helper function to get the timestamp for a specific key
+    // function getKeyJoinTime(Tree storage self, bytes32 key, uint value) internal view returns (uint) {
+    //     require(keyExists(self, key, value), "OrderStatisticsTree(413) - Key does not exist.");
+    //     return self.nodes[value].joinTimes[key];
+    // }
 }
