@@ -186,7 +186,8 @@ contract KudzuBurn is Ownable {
 
 
     function getRank(uint targetRank) public view returns (address) {
-        return address(uint160(uint256(tree.keyAtGlobalRank(targetRank))));
+        (bytes32 key, ) = tree.keyAtGlobalRank(targetRank);
+        return address(uint160(uint256(key)));
     }
 
 

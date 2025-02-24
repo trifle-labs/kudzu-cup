@@ -49,17 +49,35 @@ contract TreeTest {
         return tree.rank(value);
     }
 
-    function keyAtGlobalRank(uint targetRank) public view returns (bytes32) {
+    function kvAtGlobalRank(uint targetRank) public view returns (bytes32, uint) {
         return tree.keyAtGlobalRank(targetRank);
     }
 
-    function getCurrentKey(uint value) public view returns (bytes32) {
-        return tree.getCurrentKey(value);
+    function keyAtGlobalRank(uint targetRank) public view returns (bytes32) {
+        (bytes32 key, ) = tree.keyAtGlobalRank(targetRank);
+        return key;
     }
 
-    function getTotalCount() public view returns (uint) {
-        return tree.getTotalCount();
+    function valueAtGlobalRank(uint targetRank) public view returns (uint) {
+        (, uint value) = tree.keyAtGlobalIndex(targetRank);
+        return value;
     }
+
+    function keyAtGlobalIndex(uint targetIndex) public view returns (bytes32) {
+        (bytes32 key, ) = tree.keyAtGlobalIndex(targetIndex);
+        return key;
+    }
+    function kvAtGlobalIndex(uint targetIndex) public view returns (bytes32, uint) {
+        return tree.keyAtGlobalIndex(targetIndex);
+    }
+
+    // function getCurrentKey(uint value) public view returns (bytes32) {
+    //     return tree.getCurrentKey(value);
+    // }
+
+    // function getTotalCount() public view returns (uint) {
+    //     return tree.getTotalCount();
+    // }
     
     function count() public view returns (uint) {
         return tree.count();
