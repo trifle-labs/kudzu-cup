@@ -1,11 +1,11 @@
-require("@nomicfoundation/hardhat-chai-matchers");
+require('@nomicfoundation/hardhat-chai-matchers');
 
-require("hardhat-gas-reporter");
-require("hardhat-contract-sizer");
-require("dotenv").config();
-require("@nomicfoundation/hardhat-verify");
-require("solidity-coverage");
-require("@nomicfoundation/hardhat-ethers");
+require('hardhat-gas-reporter');
+require('hardhat-contract-sizer');
+require('dotenv').config();
+require('@nomicfoundation/hardhat-verify');
+require('solidity-coverage');
+require('@nomicfoundation/hardhat-ethers');
 
 // const { subtask } = require('hardhat/config')
 // const {
@@ -37,7 +37,7 @@ const config = {
   solidity: {
     compilers: [
       {
-        version: "0.8.28",
+        version: '0.8.28',
         settings: {
           viaIR: true,
           optimizer: { enabled: true, runs: 200 },
@@ -48,18 +48,25 @@ const config = {
   networks: {
     hardhat: {
       accounts: { mnemonic: process.env.localKey, count: 121 },
-      gasPrice: 1_000_000_000, // 1 GWEI
-      blockGasLimit: 20_000_000,
+      gasPrice: 18_000_000_000, // 18 GWEI
+      blockGasLimit: 30_000_000,
+      chainId: 12345,
+      // loggingEnabled: false
+    },
+    localhost: {
+      accounts: { mnemonic: process.env.localKey, count: 121 },
+      gasPrice: 18_000_000_000, // 18 GWEI
+      blockGasLimit: 30_000_000,
       chainId: 12345,
       // loggingEnabled: false
     },
     forma: {
-      url: "https://rpc.forma.art/",
+      url: 'https://rpc.forma.art/',
       accounts: { mnemonic: process.env.deploymentKey },
       gasPrice: 18_000_000_000, // 18 GWEI
     },
     formatest: {
-      url: "https://rpc.sketchpad-1.forma.art/",
+      url: 'https://rpc.sketchpad-1.forma.art/',
       accounts: { mnemonic: process.env.deploymentKey },
       gasPrice: 18_000_000_000, // 18 GWEI
     },
@@ -82,22 +89,22 @@ const config = {
     sepolia: {
       // url: 'https://sepolia.infura.io/v3/' + process.env.INFURA_API_KEY,
       // url: 'https://sepolia.rpc.grove.city/v1/' + process.env.grove,
-      url: "https://ethereum-sepolia.blockpi.network/v1/rpc/public",
+      url: 'https://ethereum-sepolia.blockpi.network/v1/rpc/public',
       accounts: { mnemonic: process.env.deploymentKey },
       gasPrice: 15_000_000_000, // 10 GWEI
       gas: 10_000_000,
     },
     garnet: {
-      url: "https://rpc.garnetchain.com",
+      url: 'https://rpc.garnetchain.com',
       accounts: { mnemonic: process.env.localKey },
       gasPrice: 10_000_000, // 0.01 GWEI
     },
   },
   gasReporter: {
-    currency: "USD",
+    currency: 'USD',
     gasPrice: 0.1,
-    url: "http://localhost:8545",
-    coinmarketcap: "38b60711-0559-45f4-8bda-e72f446c8278",
+    url: 'http://localhost:8545',
+    coinmarketcap: '38b60711-0559-45f4-8bda-e72f446c8278',
     enabled: true,
     showMethodSig: true,
   },
@@ -110,33 +117,33 @@ const config = {
       sepolia: process.env.etherscanApiNew,
       base: process.env.etherscanApiBase,
       baseSepolia: process.env.etherscanApiBase,
-      formatest: "asdf",
-      forma: "asdf",
+      formatest: 'asdf',
+      forma: 'asdf',
     },
 
     customChains: [
       {
-        network: "garnet",
+        network: 'garnet',
         chainId: 17069,
         urls: {
-          apiURL: "https://explorer.garnetchain.com/api/",
-          browserURL: "https://explorer.garnetchain.com",
+          apiURL: 'https://explorer.garnetchain.com/api/',
+          browserURL: 'https://explorer.garnetchain.com',
         },
       },
       {
-        network: "formatest",
+        network: 'formatest',
         chainId: 984123,
         urls: {
-          apiURL: "https://explorer.sketchpad-1.forma.art/api/",
-          browserURL: "https://explorer.sketchpad-1.forma.art",
+          apiURL: 'https://explorer.sketchpad-1.forma.art/api/',
+          browserURL: 'https://explorer.sketchpad-1.forma.art',
         },
       },
       {
-        network: "forma",
+        network: 'forma',
         chainId: 984122,
         urls: {
-          apiURL: "https://explorer.forma.art/api/",
-          browserURL: "https://explorer.forma.art",
+          apiURL: 'https://explorer.forma.art/api/',
+          browserURL: 'https://explorer.forma.art',
         },
       },
     ],
@@ -146,7 +153,7 @@ const config = {
     disambiguatePaths: false,
     runOnCompile: true,
     strict: false,
-    only: ["Kudzu", "ExternalMetadata"],
+    only: ['Kudzu', 'ExternalMetadata'],
   },
 };
 module.exports = config;

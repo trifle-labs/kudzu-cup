@@ -491,12 +491,6 @@ describe('KudzuBurn Tests', function () {
     expect(await KudzuBurn.getPoints(acct2.address)).to.equal(0); // 5 - 20 = 0 (not -15)
     expect(await KudzuBurn.getPoints(acct3.address)).to.equal(0); // 20 - 30 = 0 (not -10)
 
-    const zeroAddress = ethers.ZeroAddress;
-    // Verify rankings after zeroing out
-    expect(await KudzuBurn.getRank(0)).to.equal(zeroAddress); // All tied at 0
-    expect(await KudzuBurn.getRank(1)).to.equal(zeroAddress); // Order preserved for ties
-    expect(await KudzuBurn.getRank(2)).to.equal(zeroAddress);
-
     // Test array length mismatch
     await expect(
       KudzuBurn.adminMassReward(addresses, [10, 20], rewardIds)
@@ -596,4 +590,74 @@ describe('KudzuBurn Tests', function () {
       'Ownable: caller is not the owner'
     );
   });
+
+  it('ranks ties correctly', async () => {
+    const accounts = await ethers.getSigners();
+    const [deployer] = accounts;
+    const { KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+
+    await KudzuBurn.updateKudzuBurnController(deployer.address);
+
+    // First round: Add 100 points to each account in order
+    // console.log('\nFirst round - Adding 100 points to each account:');
+    for (let i = 0; i < 6; i++) {
+      const acct = accounts[i];
+      // console.log(`Adding 100 points to ${acct.address} (index ${i})`);
+      await KudzuBurn.updateTreeOnlyController(acct.address, 100, true, 123);
+
+      // Print current points and rank for verification
+      const points = await KudzuBurn.getPoints(acct.address);
+      const rank = await KudzuBurn.getRank(i);
+      // console.log(`Account ${i} now has ${points} points and is at rank ${i}`);
+
+      // Verify points and rank
+      expect(points).to.equal(100);
+      expect(rank).to.equal(acct.address);
+    }
+
+    // Second round: Add another 100 points in reverse order
+    // console.log('\nSecond round - Adding another 100 points in reverse order:');
+    for (let i = 5; i >= 0; i--) {
+      const acct = accounts[i];
+      // console.log(`Adding 100 points to ${acct.address} (index ${i})`);
+      await KudzuBurn.updateTreeOnlyController(acct.address, 100, true, 123);
+
+      // Print current points for verification
+      const points = await KudzuBurn.getPoints(acct.address);
+      // console.log(`Account ${i} now has ${points} points`);
+      expect(points).to.equal(200);
+    }
+
+    // Print final rankings before removing points
+    // console.log('\nRankings before removing points:');
+    for (let i = 0; i < 6; i++) {
+      const rank = await KudzuBurn.getRank(i);
+      const points = await KudzuBurn.getPoints(rank);
+      // console.log(`Rank ${i}: ${rank} with ${points} points`);
+    }
+
+    // Remove 100 points from account 5
+    // console.log('\nRemoving 100 points from account 5:');
+    await KudzuBurn.updateTreeOnlyController(
+      accounts[5].address,
+      100,
+      false,
+      123
+    );
+
+    // Print final rankings
+    // console.log('\nFinal rankings after removing points:');
+    for (let i = 0; i < 6; i++) {
+      const rank = await KudzuBurn.getRank(i);
+      const points = await KudzuBurn.getPoints(rank);
+      // console.log(`Rank ${i}: ${rank} with ${points} points`);
+    }
+
+    // Verify account 5 is now at the end (rank 5)
+    const lastRank = await KudzuBurn.getRank(5);
+    expect(lastRank).to.equal(accounts[5].address);
+    expect(await KudzuBurn.getPoints(lastRank)).to.equal(100);
+  });
+
+  it('removes first place after round is over');
 });

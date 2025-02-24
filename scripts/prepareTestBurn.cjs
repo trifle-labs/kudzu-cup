@@ -1,6 +1,6 @@
 const hre = require('hardhat');
 let skip = false;
-let reuseKudzu = true;
+let reuseKudzu = false;
 
 async function main() {
   const accounts = await hre.ethers.getSigners();

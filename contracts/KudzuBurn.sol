@@ -145,6 +145,10 @@ contract KudzuBurn is Ownable {
         updateTree(burner, quantity, add, tokenId);
     }
 
+    // NOTE: tokenId when a token is involved, rewardId when it is not
+    // NOTE: rewardId 1 == remove round winner balance
+    // NOTE: rewardId 2 == mamo bonus
+    // NOTE: rewardId 3 == pre-game retweet bonus
     function updateTree(address burner, uint256 quantity, bool add, uint256 tokenId) private {
         require(!paused, "Contract is paused");
         uint256 prevValue = burnerPoints[burner];
@@ -180,12 +184,9 @@ contract KudzuBurn is Ownable {
         return burnerPoints[burner];
     }
 
-    function getRank(uint256 rank) public view returns (address) {
-        if (rank >= tree.count()) {
-            return address(0);
-        }
-        bytes32 key = tree.keyAtGlobalIndex(rank);
-        return address(uint160(uint256(key)));
+
+    function getRank(uint targetRank) public view returns (address) {
+        return address(uint160(uint256(tree.keyAtGlobalRank(targetRank))));
     }
 
 

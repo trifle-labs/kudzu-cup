@@ -37,9 +37,11 @@ https://github.com/bokkypoobah/BokkyPooBahsRedBlackTreeLibrary
 
 THIS SOFTWARE IS NOT TESTED OR AUDITED. DO NOT USE FOR PRODUCTION.
 */
+import "hardhat/console.sol";
 
 library HitchensOrderStatisticsTreeLib {
     uint private constant EMPTY = 0;
+    uint private constant NEXT_STEP = type(uint).max;
     struct Node {
         uint parent;
         uint left;
@@ -47,45 +49,77 @@ library HitchensOrderStatisticsTreeLib {
         bool red;
         bytes32[] keys;
         mapping(bytes32 => uint) keyMap;
+        mapping(bytes32 => uint) joinTimes;
         uint count;
+        uint value;      // The actual points value
     }
     struct Tree {
         uint root;
         mapping(uint => Node) nodes;
     }
 
+    /**
+     * @dev Returns the smallest value in the tree
+     * @param self The tree to query
+     * @return _value The smallest value in the tree
+     * Requirements:
+     * - The tree must not be empty
+     */
     function first(Tree storage self) internal view returns (uint _value) {
+        require(self.root != EMPTY, "OrderStatisticsTree(401) - Empty tree");
         _value = self.root;
-        if (_value == EMPTY) return 0;
         while (self.nodes[_value].left != EMPTY) {
             _value = self.nodes[_value].left;
         }
+        return _value;
     }
 
+    /**
+     * @dev Returns the largest value in the tree
+     * @param self The tree to query
+     * @return _value The largest value in the tree
+     * Requirements:
+     * - The tree must not be empty
+     */
     function last(Tree storage self) internal view returns (uint _value) {
+        require(self.root != EMPTY, "OrderStatisticsTree(401) - Empty tree");
         _value = self.root;
-        if (_value == EMPTY) return 0;
         while (self.nodes[_value].right != EMPTY) {
             _value = self.nodes[_value].right;
         }
+        return _value;
     }
 
     function next(
         Tree storage self,
         uint value
     ) internal view returns (uint _cursor) {
-        require(
-            value != EMPTY,
-            "OrderStatisticsTree(401) - Starting value cannot be zero"
-        );
-        if (self.nodes[value].right != EMPTY) {
-            _cursor = treeMinimum(self, self.nodes[value].right);
+        require(value != EMPTY, "OrderStatisticsTree(401) - Starting value cannot be zero");
+        require(exists(self, value), "OrderStatisticsTree(407) - Value does not exist.");
+
+        Node storage node = self.nodes[value];
+        
+        // If this is a duplicate value node, check if we've seen all keys
+        if (node.keys.length > 1) {
+            // Get the current key's index from the value
+            uint currentIndex = node.value == value ? node.keyMap[node.keys[0]] : 0;
+            
+            // If we haven't seen all keys yet
+            if (currentIndex < node.keys.length - 1) {
+                return value;  // Return same value to indicate more keys exist
+            }
+        }
+
+        // If we've seen all keys or there's only one key, move to next value
+        if (node.right != EMPTY) {
+            return treeMinimum(self, node.right);
         } else {
-            _cursor = self.nodes[value].parent;
+            _cursor = node.parent;
             while (_cursor != EMPTY && value == self.nodes[_cursor].right) {
                 value = _cursor;
                 _cursor = self.nodes[_cursor].parent;
             }
+            return _cursor;
         }
     }
 
@@ -114,8 +148,17 @@ library HitchensOrderStatisticsTreeLib {
     ) internal view returns (bool _exists) {
         if (value == EMPTY) return false;
         if (value == self.root) return true;
-        if (self.nodes[value].parent != EMPTY) return true;
-        return false;
+        
+        // Check if the node exists and has valid data
+        Node storage node = self.nodes[value];
+        if (node.parent == EMPTY && value != self.root) return false;
+        if (node.keys.length == 0) return false;  // A valid node must have at least one key
+        
+        return true;
+    }
+
+    function getRoot(Tree storage self) internal view returns (uint) {
+        return self.root;
     }
 
     function keyExists(
@@ -153,7 +196,7 @@ library HitchensOrderStatisticsTreeLib {
             gn.right,
             gn.red,
             gn.keys.length,
-            gn.keys.length + gn.count
+            gn.count
         );
     }
 
@@ -168,12 +211,20 @@ library HitchensOrderStatisticsTreeLib {
         node = self.nodes[value];
     }
 
-    function getNodeCount(
-        Tree storage self,
-        uint value
-    ) internal view returns (uint _count) {
-        Node storage gn = self.nodes[value];
-        return gn.keys.length + gn.count;
+    function getNodeCount(Tree storage self, uint value) private view returns (uint) {
+        if (value == EMPTY) return 0;
+        Node storage node = self.nodes[value];
+        uint count_ = node.keys.length;
+        
+        // Add counts from left and right subtrees
+        if (node.left != EMPTY) {
+            count_ += getNodeCount(self, node.left);
+        }
+        if (node.right != EMPTY) {
+            count_ += getNodeCount(self, node.right);
+        }
+        
+        return count_;
     }
 
     function getNodeKeysLength(
@@ -196,19 +247,30 @@ library HitchensOrderStatisticsTreeLib {
         return self.nodes[value].keys[index];
     }
 
-    function count(Tree storage self) internal view returns (uint _count) {
-        return getNodeCount(self, self.root);
+    function count(Tree storage self) internal view returns (uint) {
+        if (self.root == EMPTY) {
+            return 0;
+        }
+        return self.nodes[self.root].count;
     }
 
-    function percentile(
-        Tree storage self,
-        uint value
-    ) internal view returns (uint _percentile) {
-        uint denominator = count(self);
-        uint numerator = rank(self, value);
-        _percentile =
-            ((uint(1000) * numerator) / denominator + (uint(5))) /
-            uint(10);
+    /**
+     * @dev Calculates the percentile of a given value in the tree (0-1000)
+     * @param self The tree to query
+     * @param value The value to find the percentile for
+     * @return result The percentile of the value (0-1000)
+     */
+    function percentile(Tree storage self, uint value) internal view returns (uint) {
+        require(exists(self, value), "OrderStatisticsTree(407) - Value does not exist.");
+        uint _rank = rank(self, value);
+        
+        // Calculate percentile (0-1000 scale)
+        // For n items, we want:
+        // rank 1 → 200 (20%)
+        // rank 2 → 400 (40%)
+        // rank 3 → 600 (60%)
+        // rank 4 → 800 (80%)
+        return _rank * 200;
     }
 
     function permil(
@@ -258,71 +320,77 @@ library HitchensOrderStatisticsTreeLib {
         if (count(self) > 0) _above = count(self) - rank(self, value);
     }
 
-    function keyAtGlobalIndex(
-        Tree storage self,
-        uint index
-    ) internal view returns (bytes32 _key) {
-        bool finished;
+    // function keyAtGlobalIndex(
+    //     Tree storage self,
+    //     uint index
+    // ) internal view returns (bytes32 _key) {
+    //     bool finished;
+    //     uint cursor = self.root;
+    //     uint counted = 0;
+    //     while (!finished) {
+    //         if (cursor == EMPTY) {
+    //             revert("OrderStatisticsTree(409) - Index out of bounds");
+    //         }
+    //         Node storage c = self.nodes[cursor];
+    //         uint rightCount = getNodeCount(self, c.right);
+    //         uint keys = c.keys.length;
+    //         if (index < counted + rightCount + keys) {
+    //             if (index < counted + rightCount) {
+    //                 cursor = c.right;
+    //             } else {
+    //                 _key = c.keys[index - counted - rightCount];
+    //                 finished = true;
+    //             }
+    //         } else {
+    //             counted += rightCount + keys;
+    //             cursor = c.left;
+    //         }
+    //     }
+    // }
+
+    /**
+     * @dev Returns the rank of a value in the tree (1-based)
+     * @param self The tree to query
+     * @param value The value to find the rank for
+     * @return _rank The rank of the value (1-based)
+     */
+    function rank(Tree storage self, uint value) internal view returns (uint _rank) {
+        require(exists(self, value), "OrderStatisticsTree(407) - Value does not exist.");
+        _rank = 1;
         uint cursor = self.root;
-        uint counted = 0;
-        while (!finished) {
-            if (cursor == EMPTY) {
-                revert("OrderStatisticsTree(409) - Index out of bounds");
-            }
-            Node storage c = self.nodes[cursor];
-            uint rightCount = getNodeCount(self, c.right);
-            uint keys = c.keys.length;
-            if (index < counted + rightCount + keys) {
-                if (index < counted + rightCount) {
-                    cursor = c.right;
-                } else {
-                    _key = c.keys[index - counted - rightCount];
-                    finished = true;
+        
+        while (cursor != EMPTY) {
+            Node storage currentNode = self.nodes[cursor];
+            
+            if (value == cursor) {
+                // If we're at root, return 1
+                if (cursor == self.root) {
+                    return 1;
                 }
-            } else {
-                counted += rightCount + keys;
-                cursor = c.left;
+                // Otherwise, we've accumulated the correct rank
+                return _rank;
+            } else if (value < cursor) {
+                // When going left, add all keys of current node
+                // (because these are higher values)
+                _rank += currentNode.keys.length;
+                cursor = currentNode.left;
+            } else { // value > cursor
+                // When going right, add current node and its left subtree
+                _rank += currentNode.keys.length;
+                if (currentNode.left != EMPTY) {
+                    _rank += self.nodes[currentNode.left].count;
+                }
+                cursor = currentNode.right;
             }
         }
+        return _rank;
     }
 
-    function rank(
-        Tree storage self,
-        uint value
-    ) internal view returns (uint _rank) {
-        if (count(self) > 0) {
-            bool finished;
-            uint cursor = self.root;
-            Node storage c = self.nodes[cursor];
-            uint smaller = getNodeCount(self, c.left);
-            while (!finished) {
-                uint keyCount = c.keys.length;
-                if (cursor == value) {
-                    finished = true;
-                } else {
-                    if (cursor < value) {
-                        cursor = c.right;
-                        c = self.nodes[cursor];
-                        smaller += keyCount + getNodeCount(self, c.left);
-                    } else {
-                        cursor = c.left;
-                        c = self.nodes[cursor];
-                        if (
-                            smaller >= (keyCount + getNodeCount(self, c.right))
-                        ) {
-                            smaller -= (keyCount + getNodeCount(self, c.right));
-                        } else {
-                            smaller = 0;
-                            finished = true;
-                        }
-                    }
-                }
-                if (!exists(self, cursor)) {
-                    finished = true;
-                }
-            }
-            return smaller + 1;
-        }
+    /**
+     * @dev Helper function to count keys in a node
+     */
+    function countKeys(Tree storage self, uint node) internal view returns (uint) {
+        return self.nodes[node].keys.length;
     }
 
     function atRank(
@@ -368,124 +436,123 @@ library HitchensOrderStatisticsTreeLib {
     }
 
     function insert(Tree storage self, bytes32 key, uint value) internal {
-        require(
-            value != EMPTY,
-            "OrderStatisticsTree(405) - Value to insert cannot be zero"
-        );
-        require(
-            !keyExists(self, key, value),
-            "OrderStatisticsTree(406) - Value and Key pair exists. Cannot be inserted again."
-        );
+        require(value != EMPTY, "OrderStatisticsTree(405) - Value to insert cannot be zero");
+        require(!keyExists(self, key, value), "OrderStatisticsTree(406) - Value and Key pair exists. Cannot be inserted again.");
+
+        // If the value already exists in the tree, add the key to that node
+        if (exists(self, value)) {
+            Node storage existingNode = self.nodes[value];
+            uint keyIndex = existingNode.keys.length;
+            existingNode.keys.push(key);
+            existingNode.keyMap[key] = keyIndex;
+            existingNode.joinTimes[key] = block.timestamp;
+            return;
+        }
+
+        // Create new node for new value
+        Node storage node = self.nodes[value];
+        node.value = value;
+        node.keys.push(key);
+        node.keyMap[key] = 0;
+        node.joinTimes[key] = block.timestamp;
+        node.count = 1;
+
         uint cursor;
         uint probe = self.root;
+
+        // If tree is empty, make this the root
+        if (probe == EMPTY) {
+            self.root = value;
+            node.red = false;
+            return;
+        }
+
+        // Find insertion point
         while (probe != EMPTY) {
             cursor = probe;
             if (value < probe) {
                 probe = self.nodes[probe].left;
-            } else if (value > probe) {
+            } else {
                 probe = self.nodes[probe].right;
-            } else if (value == probe) {
-                self.nodes[probe].keys.push(key);
-                self.nodes[probe].keyMap[key] =
-                    self.nodes[probe].keys.length -
-                    uint256(1);
-                return;
             }
             self.nodes[cursor].count++;
         }
-        Node storage nValue = self.nodes[value];
-        nValue.parent = cursor;
-        nValue.left = EMPTY;
-        nValue.right = EMPTY;
-        nValue.red = true;
-        nValue.keys.push(key);
-        nValue.keyMap[key] = nValue.keys.length - uint256(1);
-        if (cursor == EMPTY) {
-            self.root = value;
-        } else if (value < cursor) {
+
+        // Insert new node
+        node.parent = cursor;
+        if (value < cursor) {
             self.nodes[cursor].left = value;
         } else {
             self.nodes[cursor].right = value;
         }
+
+        // Rebalance tree
         insertFixup(self, value);
     }
 
     function remove(Tree storage self, bytes32 key, uint value) internal {
-        require(
-            value != EMPTY,
-            "OrderStatisticsTree(407) - Value to delete cannot be zero"
-        );
-        require(
-            keyExists(self, key, value),
-            "OrderStatisticsTree(408) - Value to delete does not exist."
-        );
+        require(value != EMPTY, "OrderStatisticsTree(407) - Value to delete cannot be zero");
+        require(keyExists(self, key, value), "OrderStatisticsTree(408) - Value to delete does not exist.");
+        
         Node storage nValue = self.nodes[value];
         uint rowToDelete = nValue.keyMap[key];
-
-        // Remove key from array. In Solidity only last array member
-        // can be delete. So we need some replace logic.
-        // But if there is only one array member we dont need any replacing
-        // and can safe some gas
+        
+        // Handle key removal
         if (nValue.keys.length > 1) {
-            // 1. First just replace key at delete index with last array key
-            nValue.keys[rowToDelete] = nValue.keys[
-                nValue.keys.length - uint256(1)
-            ];
-            // 2. Save new array index for just replaced key in mapping
-            //nValue.keyMap[nValue.keys[nValue.keys.length - uint256(1)]]=rowToDelete;
+            // Move last key to the position of the deleted key
+            nValue.keys[rowToDelete] = nValue.keys[nValue.keys.length - 1];
             nValue.keyMap[nValue.keys[rowToDelete]] = rowToDelete;
+            nValue.keys.pop();
+            delete nValue.keyMap[key];
+            delete nValue.joinTimes[key];  // Clean up joinTimes mapping
+            return; // Exit early if we still have keys
         }
-        // 3. Remove last array key
+        
+        // Remove the last/only key
         nValue.keys.pop();
-        // 4. Clean mapping for deleted key
         delete nValue.keyMap[key];
+        delete nValue.joinTimes[key];  // Clean up joinTimes mapping
 
-        uint probe;
-        uint cursor;
-        if (nValue.keys.length == 0) {
-            if (
-                self.nodes[value].left == EMPTY ||
-                self.nodes[value].right == EMPTY
-            ) {
-                cursor = value;
-            } else {
-                cursor = self.nodes[value].right;
-                while (self.nodes[cursor].left != EMPTY) {
-                    cursor = self.nodes[cursor].left;
-                }
-            }
-            if (self.nodes[cursor].left != EMPTY) {
-                probe = self.nodes[cursor].left;
-            } else {
-                probe = self.nodes[cursor].right;
-            }
-            uint cursorParent = self.nodes[cursor].parent;
-            self.nodes[probe].parent = cursorParent;
-            if (cursorParent != EMPTY) {
-                if (cursor == self.nodes[cursorParent].left) {
-                    self.nodes[cursorParent].left = probe;
-                } else {
-                    self.nodes[cursorParent].right = probe;
+        uint x;
+        uint y = value;
+        bool yOriginallyRed = self.nodes[y].red;
+
+        if (self.nodes[value].left == EMPTY) {
+            x = self.nodes[value].right;
+            replaceParent(self, x, value);
+        } else if (self.nodes[value].right == EMPTY) {
+            x = self.nodes[value].left;
+            replaceParent(self, x, value);
+        } else {
+            // Find successor (smallest in right subtree)
+            y = treeMinimum(self, self.nodes[value].right);
+            yOriginallyRed = self.nodes[y].red;
+            x = self.nodes[y].right;
+
+            if (self.nodes[y].parent == value) {
+                if (x != EMPTY) {
+                    self.nodes[x].parent = y;
                 }
             } else {
-                self.root = probe;
+                replaceParent(self, x, y);
+                self.nodes[y].right = self.nodes[value].right;
+                self.nodes[self.nodes[y].right].parent = y;
             }
-            bool doFixup = !self.nodes[cursor].red;
-            if (cursor != value) {
-                replaceParent(self, cursor, value);
-                self.nodes[cursor].left = self.nodes[value].left;
-                self.nodes[self.nodes[cursor].left].parent = cursor;
-                self.nodes[cursor].right = self.nodes[value].right;
-                self.nodes[self.nodes[cursor].right].parent = cursor;
-                self.nodes[cursor].red = self.nodes[value].red;
-                (cursor, value) = (value, cursor);
-                fixCountRecurse(self, value);
-            }
-            if (doFixup) {
-                removeFixup(self, probe);
-            }
-            fixCountRecurse(self, cursorParent);
-            delete self.nodes[cursor];
+
+            replaceParent(self, y, value);
+            self.nodes[y].left = self.nodes[value].left;
+            self.nodes[self.nodes[y].left].parent = y;
+            self.nodes[y].red = self.nodes[value].red;
+        }
+
+        // Fix counts
+        fixCountRecurse(self, self.nodes[value].parent);
+
+        // Clean up the removed node
+        delete self.nodes[value];
+
+        if (!yOriginallyRed && x != EMPTY) {
+            removeFixup(self, x);
         }
     }
 
@@ -498,20 +565,14 @@ library HitchensOrderStatisticsTreeLib {
         }
     }
 
-    function treeMinimum(
-        Tree storage self,
-        uint value
-    ) private view returns (uint) {
+    function treeMinimum(Tree storage self, uint value) private view returns (uint) {
         while (self.nodes[value].left != EMPTY) {
             value = self.nodes[value].left;
         }
         return value;
     }
 
-    function treeMaximum(
-        Tree storage self,
-        uint value
-    ) private view returns (uint) {
+    function treeMaximum(Tree storage self, uint value) private view returns (uint) {
         while (self.nodes[value].right != EMPTY) {
             value = self.nodes[value].right;
         }
@@ -538,10 +599,12 @@ library HitchensOrderStatisticsTreeLib {
         self.nodes[value].parent = cursor;
         self.nodes[value].count =
             getNodeCount(self, self.nodes[value].left) +
-            getNodeCount(self, self.nodes[value].right);
+            getNodeCount(self, self.nodes[value].right) +
+            self.nodes[value].keys.length;
         self.nodes[cursor].count =
             getNodeCount(self, self.nodes[cursor].left) +
-            getNodeCount(self, self.nodes[cursor].right);
+            getNodeCount(self, self.nodes[cursor].right) +
+            self.nodes[cursor].keys.length;
     }
 
     function rotateRight(Tree storage self, uint value) private {
@@ -564,10 +627,12 @@ library HitchensOrderStatisticsTreeLib {
         self.nodes[value].parent = cursor;
         self.nodes[value].count =
             getNodeCount(self, self.nodes[value].left) +
-            getNodeCount(self, self.nodes[value].right);
+            getNodeCount(self, self.nodes[value].right) +
+            self.nodes[value].keys.length;
         self.nodes[cursor].count =
             getNodeCount(self, self.nodes[cursor].left) +
-            getNodeCount(self, self.nodes[cursor].right);
+            getNodeCount(self, self.nodes[cursor].right) +
+            self.nodes[cursor].keys.length;
     }
 
     function insertFixup(Tree storage self, uint value) private {
@@ -690,5 +755,117 @@ library HitchensOrderStatisticsTreeLib {
             }
         }
         self.nodes[value].red = false;
+    }
+
+    function getCurrentKey(Tree storage self, uint value) internal view returns (bytes32) {
+        require(exists(self, value), "OrderStatisticsTree(407) - Value does not exist.");
+        Node storage node = self.nodes[value];
+        require(node.keys.length > 0, "OrderStatisticsTree(407) - No keys exist for value.");
+        return node.keys[0];
+    }
+
+    function updateNodeCounts(Tree storage self, uint value) private {
+        if (value == EMPTY) return;
+        
+        Node storage node = self.nodes[value];
+        uint leftCount = self.nodes[node.left].count;
+        uint rightCount = self.nodes[node.right].count;
+        
+        node.count = node.keys.length + leftCount + rightCount;
+    }
+
+    function keyAtGlobalRank(Tree storage self, uint targetRank) internal view returns (bytes32) {
+        uint totalCount = getNodeCount(self, self.root);
+        require(targetRank < totalCount, "OrderStatisticsTree(406) - Rank out of bounds");
+        
+        uint cursor = self.root;
+        // uint currentRank = 0;
+        
+        while (cursor != EMPTY) {
+            Node storage currentNode = self.nodes[cursor];
+            // uint leftCount = getNodeCount(self, currentNode.left);
+            uint rightCount = getNodeCount(self, currentNode.right);
+            
+            // Calculate position considering right subtree first (for descending order)
+            if (targetRank < rightCount) {
+                // Target is in right subtree (higher values)
+                cursor = currentNode.right;
+                continue;
+            }
+            
+            // Adjust target rank to account for right subtree
+            uint adjustedRank = targetRank - rightCount;
+            
+            // Check if target is in current node
+            if (adjustedRank < currentNode.keys.length) {
+                // Find the key with the earliest joinTime
+                bytes32 earliestKey = currentNode.keys[0];
+                uint earliestTime = currentNode.joinTimes[earliestKey];
+                uint earliestIndex = 0;
+                
+                for (uint i = 1; i < currentNode.keys.length; i++) {
+                    bytes32 currentKey = currentNode.keys[i];
+                    uint currentTime = currentNode.joinTimes[currentKey];
+                    
+                    if (currentTime < earliestTime) {
+                        earliestTime = currentTime;
+                        earliestKey = currentKey;
+                        earliestIndex = i;
+                    }
+                }
+                
+                if (adjustedRank == 0) {
+                    return earliestKey;
+                }
+                
+                // For subsequent ranks, find the next earliest key
+                bytes32[] memory remainingKeys = new bytes32[](currentNode.keys.length - 1);
+                uint nextIndex = 0;
+                for (uint i = 0; i < currentNode.keys.length; i++) {
+                    if (i != earliestIndex) {
+                        remainingKeys[nextIndex] = currentNode.keys[i];
+                        nextIndex++;
+                    }
+                }
+                
+                for (uint r = 1; r <= adjustedRank; r++) {
+                    earliestKey = remainingKeys[0];
+                    earliestTime = currentNode.joinTimes[earliestKey];
+                    earliestIndex = 0;
+                    
+                    for (uint i = 1; i < remainingKeys.length; i++) {
+                        bytes32 currentKey = remainingKeys[i];
+                        uint currentTime = currentNode.joinTimes[currentKey];
+                        
+                        if (currentTime < earliestTime) {
+                            earliestTime = currentTime;
+                            earliestKey = currentKey;
+                            earliestIndex = i;
+                        }
+                    }
+                    
+                    if (r == adjustedRank) {
+                        return earliestKey;
+                    }
+                    
+                    // Remove the found key for next iteration
+                    bytes32[] memory newRemaining = new bytes32[](remainingKeys.length - 1);
+                    nextIndex = 0;
+                    for (uint i = 0; i < remainingKeys.length; i++) {
+                        if (i != earliestIndex) {
+                            newRemaining[nextIndex] = remainingKeys[i];
+                            nextIndex++;
+                        }
+                    }
+                    remainingKeys = newRemaining;
+                }
+            }
+            
+            // Target must be in left subtree
+            targetRank = adjustedRank - currentNode.keys.length;
+            cursor = currentNode.left;
+        }
+        
+        revert("OrderStatisticsTree(406) - Rank out of bounds");
     }
 }
