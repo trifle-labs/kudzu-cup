@@ -62,6 +62,8 @@ library HitchensOrderStatisticsTreeLib {
      * @dev Returns the smallest value in the tree
      * @param self The tree to query
      * @return _value The smallest value in the tree
+     * @notice Traverses down the left side of the tree to find the minimum value
+     * @notice Complexity: O(log n)
      * Requirements:
      * - The tree must not be empty
      */
@@ -78,6 +80,8 @@ library HitchensOrderStatisticsTreeLib {
      * @dev Returns the largest value in the tree
      * @param self The tree to query
      * @return _value The largest value in the tree
+     * @notice Traverses down the right side of the tree to find the maximum value
+     * @notice Complexity: O(log n)
      * Requirements:
      * - The tree must not be empty
      */
@@ -90,6 +94,17 @@ library HitchensOrderStatisticsTreeLib {
         return _value;
     }
 
+    /**
+     * @dev Returns the next value in the ordered sequence
+     * @param self The tree to query
+     * @param value The current value
+     * @return _cursor The next value in sequence, or EMPTY if none exists
+     * @notice For nodes with multiple keys, returns same value until all keys are processed
+     * @notice Complexity: O(log n)
+     * Requirements:
+     * - Value must exist in the tree
+     * - Value cannot be zero
+     */
     function next(
         Tree storage self,
         uint value
@@ -123,6 +138,16 @@ library HitchensOrderStatisticsTreeLib {
         }
     }
 
+    /**
+     * @dev Returns the previous value in the ordered sequence
+     * @param self The tree to query
+     * @param value The current value
+     * @return _cursor The previous value in sequence, or EMPTY if none exists
+     * @notice Complexity: O(log n)
+     * Requirements:
+     * - Value must exist in the tree
+     * - Value cannot be zero
+     */
     function prev(
         Tree storage self,
         uint value
@@ -142,6 +167,14 @@ library HitchensOrderStatisticsTreeLib {
         }
     }
 
+    /**
+     * @dev Checks if a value exists in the tree
+     * @param self The tree to query
+     * @param value The value to check
+     * @return _exists True if the value exists, false otherwise
+     * @notice A value exists if it has a valid parent (unless root) and at least one key
+     * @notice Complexity: O(1)
+     */
     function exists(
         Tree storage self,
         uint value
@@ -157,34 +190,51 @@ library HitchensOrderStatisticsTreeLib {
         return true;
     }
 
+    /**
+     * @dev Returns the root node value of the tree
+     * @param self The tree to query
+     * @return The value of the root node
+     * @notice Complexity: O(1)
+     */
     function getRoot(Tree storage self) internal view returns (uint) {
         return self.root;
     }
 
-    function keyExists(
-        Tree storage self,
-        bytes32 key,
-        uint value
-    ) internal view returns (bool _exists) {
+    /**
+     * @dev Checks if a specific key exists for a given value in the tree
+     * @param self The tree to query
+     * @param key The key to check
+     * @param value The value to check against
+     * @return _exists True if the key exists for the value, false otherwise
+     * @notice Complexity: O(1)
+     */
+    function keyExists(Tree storage self, bytes32 key, uint value) internal view returns (bool _exists) {
         if (!exists(self, value)) return false;
         return self.nodes[value].keys[self.nodes[value].keyMap[key]] == key;
     }
 
-    function getNode(
-        Tree storage self,
-        uint value
-    )
-        internal
-        view
-        returns (
-            uint _parent,
-            uint _left,
-            uint _right,
-            bool _red,
-            uint keyCount,
-            uint _count
-        )
-    {
+    /**
+     * @dev Returns the node details for a given value
+     * @param self The tree to query
+     * @param value The value to get node details for
+     * @return _parent Parent node value
+     * @return _left Left child node value
+     * @return _right Right child node value
+     * @return _red Color of the node (true if red, false if black)
+     * @return keyCount Number of keys in the node
+     * @return _count Total count of nodes in this subtree
+     * @notice Complexity: O(1)
+     * Requirements:
+     * - Value must exist in the tree
+     */
+    function getNode(Tree storage self, uint value) internal view returns (
+        uint _parent,
+        uint _left,
+        uint _right,
+        bool _red,
+        uint keyCount,
+        uint _count
+    ) {
         require(
             exists(self, value),
             "OrderStatisticsTree(403) - Value does not exist."
@@ -200,10 +250,16 @@ library HitchensOrderStatisticsTreeLib {
         );
     }
 
-    function getNode2(
-        Tree storage self,
-        uint value
-    ) internal view returns (Node storage node) {
+    /**
+     * @dev Returns the node storage reference for a given value
+     * @param self The tree to query
+     * @param value The value to get node for
+     * @return node Reference to the node storage
+     * @notice Complexity: O(1)
+     * Requirements:
+     * - Value must exist in the tree
+     */
+    function getNode2(Tree storage self, uint value) internal view returns (Node storage node) {
         require(
             exists(self, value),
             "OrderStatisticsTree(403) - Value does not exist."
@@ -211,6 +267,14 @@ library HitchensOrderStatisticsTreeLib {
         node = self.nodes[value];
     }
 
+    /**
+     * @dev Recursively counts all nodes in a subtree
+     * @param self The tree to query
+     * @param value The root of the subtree to count
+     * @return Total count of nodes in the subtree
+     * @notice Includes the node itself and all its descendants
+     * @notice Complexity: O(n) where n is the size of the subtree
+     */
     function getNodeCount(Tree storage self, uint value) private view returns (uint) {
         if (value == EMPTY) return 0;
         Node storage node = self.nodes[value];
@@ -227,19 +291,30 @@ library HitchensOrderStatisticsTreeLib {
         return count_;
     }
 
-    function getNodeKeysLength(
-        Tree storage self,
-        uint value
-    ) internal view returns (uint _count) {
+    /**
+     * @dev Returns the number of keys stored in a specific node
+     * @param self The tree to query
+     * @param value The value of the node to check
+     * @return _count The number of keys in the node
+     * @notice Complexity: O(1)
+     */
+    function getNodeKeysLength(Tree storage self, uint value) internal view returns (uint _count) {
         self.nodes[value];
         return self.nodes[value].keys.length;
     }
 
-    function valueKeyAtIndex(
-        Tree storage self,
-        uint value,
-        uint index
-    ) internal view returns (bytes32 _key) {
+    /**
+     * @dev Returns the key at a specific index for a given value
+     * @param self The tree to query
+     * @param value The value to get the key from
+     * @param index The index of the key to retrieve
+     * @return _key The key at the specified index
+     * @notice Complexity: O(1)
+     * Requirements:
+     * - Value must exist in the tree
+     * - Index must be valid
+     */
+    function valueKeyAtIndex(Tree storage self, uint value, uint index) internal view returns (bytes32 _key) {
         require(
             exists(self, value),
             "OrderStatisticsTree(404) - Value does not exist."
@@ -247,6 +322,12 @@ library HitchensOrderStatisticsTreeLib {
         return self.nodes[value].keys[index];
     }
 
+    /**
+     * @dev Returns the total number of nodes in the tree
+     * @param self The tree to query
+     * @return The total count of nodes
+     * @notice Complexity: O(1) as count is maintained during tree operations
+     */
     function count(Tree storage self) internal view returns (uint) {
         if (self.root == EMPTY) {
             return 0;
@@ -254,99 +335,103 @@ library HitchensOrderStatisticsTreeLib {
         return self.nodes[self.root].count;
     }
 
+    function getTotalCount(Tree storage self) internal view returns (uint) {
+        return getNodeCount(self, self.root);
+    }
+
     /**
      * @dev Calculates the percentile of a given value in the tree (0-1000)
      * @param self The tree to query
      * @param value The value to find the percentile for
      * @return result The percentile of the value (0-1000)
+     * @notice Returns percentile on a scale of 0-1000 (e.g., 500 = 50th percentile)
+     * Requirements:
+     * - Value must exist in the tree
      */
     function percentile(Tree storage self, uint value) internal view returns (uint) {
         require(exists(self, value), "OrderStatisticsTree(407) - Value does not exist.");
+        
+        uint totalCount = getTotalCount(self);
+        if (totalCount == 0) return 0;
+        
         uint _rank = rank(self, value);
         
-        // Calculate percentile (0-1000 scale)
-        // For n items, we want:
-        // rank 1 → 200 (20%)
-        // rank 2 → 400 (40%)
-        // rank 3 → 600 (60%)
-        // rank 4 → 800 (80%)
-        return _rank * 200;
+        // Calculate percentile on scale of 0-1000
+        // Formula: (rank * 1000) / totalCount
+        // Example: rank 5 in a tree of 10 nodes = (5 * 1000) / 10 = 500 (50th percentile)
+        return (_rank * 1000) / totalCount;
     }
 
-    function permil(
-        Tree storage self,
-        uint value
-    ) internal view returns (uint _permil) {
-        uint denominator = count(self);
+    /**
+     * @dev Calculates the permil (per thousand) rank of a value
+     * @param self The tree to query
+    * @param value The value to calculate permil for
+     * @return _permil The permil rank (0-1000)
+     * @notice More precise than percentile, calculated as (rank * 1000) / total_count
+     */
+    function permil(Tree storage self, uint value) internal view returns (uint _permil) {
+        uint denominator = getTotalCount(self);
         uint numerator = rank(self, value);
         _permil =
             ((uint(10000) * numerator) / denominator + (uint(5))) /
             uint(10);
     }
 
-    function atPercentile(
-        Tree storage self,
-        uint _percentile
-    ) internal view returns (uint _value) {
-        uint findRank = (((_percentile * count(self)) / uint(10)) + uint(5)) /
+    /**
+     * @dev Finds the value at a given percentile
+     * @param self The tree to query
+     * @param _percentile The percentile to find (0-100)
+     * @return _value The value at the specified percentile
+     * @notice Percentile should be between 0 and 100
+     */
+    function atPercentile(Tree storage self, uint _percentile) internal view returns (uint _value) {
+        uint findRank = (((_percentile * getTotalCount(self)) / uint(10)) + uint(5)) /
             uint(10);
         return atRank(self, findRank);
     }
 
-    function atPermil(
-        Tree storage self,
-        uint _permil
-    ) internal view returns (uint _value) {
-        uint findRank = (((_permil * count(self)) / uint(100)) + uint(5)) /
+    /**
+     * @dev Finds the value at a given permil position
+     * @param self The tree to query
+     * @param _permil The permil to find (0-1000)
+     * @return _value The value at the specified permil
+     * @notice Permil should be between 0 and 1000
+     */
+    function atPermil(Tree storage self, uint _permil) internal view returns (uint _value) {
+        uint findRank = (((_permil * getTotalCount(self)) / uint(100)) + uint(5)) /
             uint(10);
         return atRank(self, findRank);
     }
 
+    /**
+     * @dev Returns the median value in the tree
+     * @param self The tree to query
+     * @return value The median value
+     * @notice Equivalent to calling atPercentile(self, 50)
+     */
     function median(Tree storage self) internal view returns (uint value) {
         return atPercentile(self, 50);
     }
 
-    function below(
-        Tree storage self,
-        uint value
-    ) internal view returns (uint _below) {
+    /**
+     * @dev Counts how many nodes are below a given value
+     * @param self The tree to query
+     * @param value The reference value
+     * @return _below Count of nodes with values less than the given value
+     */
+    function below(Tree storage self, uint value) internal view returns (uint _below) {
         if (count(self) > 0 && value > 0) _below = rank(self, value) - uint(1);
     }
 
-    function above(
-        Tree storage self,
-        uint value
-    ) internal view returns (uint _above) {
+    /**
+     * @dev Counts how many nodes are above a given value
+     * @param self The tree to query
+     * @param value The reference value
+     * @return _above Count of nodes with values greater than the given value
+     */
+    function above(Tree storage self, uint value) internal view returns (uint _above) {
         if (count(self) > 0) _above = count(self) - rank(self, value);
     }
-
-    // function keyAtGlobalIndex(
-    //     Tree storage self,
-    //     uint index
-    // ) internal view returns (bytes32 _key) {
-    //     bool finished;
-    //     uint cursor = self.root;
-    //     uint counted = 0;
-    //     while (!finished) {
-    //         if (cursor == EMPTY) {
-    //             revert("OrderStatisticsTree(409) - Index out of bounds");
-    //         }
-    //         Node storage c = self.nodes[cursor];
-    //         uint rightCount = getNodeCount(self, c.right);
-    //         uint keys = c.keys.length;
-    //         if (index < counted + rightCount + keys) {
-    //             if (index < counted + rightCount) {
-    //                 cursor = c.right;
-    //             } else {
-    //                 _key = c.keys[index - counted - rightCount];
-    //                 finished = true;
-    //             }
-    //         } else {
-    //             counted += rightCount + keys;
-    //             cursor = c.left;
-    //         }
-    //     }
-    // }
 
     /**
      * @dev Returns the rank of a value in the tree (1-based)
@@ -363,15 +448,10 @@ library HitchensOrderStatisticsTreeLib {
             Node storage currentNode = self.nodes[cursor];
             
             if (value == cursor) {
-                // If we're at root, return 1
-                if (cursor == self.root) {
-                    return 1;
-                }
-                // Otherwise, we've accumulated the correct rank
+                // We found our value - return rank of its first key
                 return _rank;
             } else if (value < cursor) {
                 // When going left, add all keys of current node
-                // (because these are higher values)
                 _rank += currentNode.keys.length;
                 cursor = currentNode.left;
             } else { // value > cursor
@@ -393,48 +473,48 @@ library HitchensOrderStatisticsTreeLib {
         return self.nodes[node].keys.length;
     }
 
-    function atRank(
-        Tree storage self,
-        uint _rank
-    ) internal view returns (uint _value) {
-        bool finished;
+
+    function atRank(Tree storage self, uint _rank) internal view returns (uint _value) {
+        require(_rank > 0 && _rank <= getTotalCount(self), "OrderStatisticsTree(409) - Rank out of bounds");
+        
         uint cursor = self.root;
-        Node storage c = self.nodes[cursor];
-        // Case when only one node exist
-        if (c.parent == 0 && c.left == 0 && c.right == 0) {
-            _value = cursor;
-            return _value;
-        }
-        uint smaller = getNodeCount(self, c.left);
-        while (!finished) {
-            _value = cursor;
-            c = self.nodes[cursor];
-            uint keyCount = c.keys.length;
-            if (smaller + 1 >= _rank && smaller + keyCount <= _rank) {
-                _value = cursor;
-                finished = true;
-            } else {
-                if (smaller + keyCount <= _rank) {
-                    cursor = c.right;
-                    c = self.nodes[cursor];
-                    smaller += keyCount + getNodeCount(self, c.left);
-                } else {
-                    cursor = c.left;
-                    c = self.nodes[cursor];
-                    if (smaller >= (keyCount + getNodeCount(self, c.right))) {
-                        smaller -= (keyCount + getNodeCount(self, c.right));
-                    } else {
-                        smaller = 0;
-                        finished = true;
-                    }
-                }
+        uint currentRank = 0;
+        
+        while (cursor != EMPTY) {
+            Node storage currentNode = self.nodes[cursor];
+            uint leftCount = currentNode.left != EMPTY ? getNodeCount(self, currentNode.left) : 0;
+            
+            // If rank is in left subtree
+            if (_rank <= currentRank + leftCount) {
+                cursor = currentNode.left;
+                continue;
             }
-            if (!exists(self, cursor)) {
-                finished = true;
+            
+            // If rank is in current node
+            currentRank += leftCount;
+            if (_rank <= currentRank + currentNode.keys.length) {
+                return cursor;
             }
+            
+            // Rank must be in right subtree
+            currentRank += currentNode.keys.length;
+            cursor = currentNode.right;
         }
+        
+        revert("OrderStatisticsTree(409) - Rank not found");
     }
 
+    /**
+     * @dev Inserts a new key-value pair into the tree
+     * @param self The tree to modify
+     * @param key The unique key for this insertion
+     * @param value The value to insert
+     * @notice Maintains red-black tree properties after insertion
+     * @notice If value exists, adds key to value's key list
+     * Requirements:
+     * - Value cannot be zero
+     * - Key must not already exist for this value
+     */
     function insert(Tree storage self, bytes32 key, uint value) internal {
         require(value != EMPTY, "OrderStatisticsTree(405) - Value to insert cannot be zero");
         require(!keyExists(self, key, value), "OrderStatisticsTree(406) - Value and Key pair exists. Cannot be inserted again.");
@@ -490,6 +570,17 @@ library HitchensOrderStatisticsTreeLib {
         insertFixup(self, value);
     }
 
+    /**
+     * @dev Removes a key-value pair from the tree
+     * @param self The tree to modify
+     * @param key The key to remove
+     * @param value The value associated with the key
+     * @notice If multiple keys exist for value, only removes specified key
+     * @notice Maintains red-black tree properties after removal
+     * Requirements:
+     * - Key-value pair must exist in tree
+     * - Value cannot be zero
+     */
     function remove(Tree storage self, bytes32 key, uint value) internal {
         require(value != EMPTY, "OrderStatisticsTree(407) - Value to delete cannot be zero");
         require(keyExists(self, key, value), "OrderStatisticsTree(408) - Value to delete does not exist.");
@@ -579,6 +670,13 @@ library HitchensOrderStatisticsTreeLib {
         return value;
     }
 
+    /**
+     * @dev Helper function to rotate a subtree left
+     * @param self The tree to modify
+     * @param value The root of the subtree to rotate
+     * @notice Updates parent/child relationships and node counts
+     * @notice Used in maintaining red-black tree properties
+     */
     function rotateLeft(Tree storage self, uint value) private {
         uint cursor = self.nodes[value].right;
         uint parent = self.nodes[value].parent;
@@ -607,6 +705,13 @@ library HitchensOrderStatisticsTreeLib {
             self.nodes[cursor].keys.length;
     }
 
+    /**
+     * @dev Helper function to rotate a subtree right
+     * @param self The tree to modify
+     * @param value The root of the subtree to rotate
+     * @notice Updates parent/child relationships and node counts
+     * @notice Used in maintaining red-black tree properties
+     */
     function rotateRight(Tree storage self, uint value) private {
         uint cursor = self.nodes[value].left;
         uint parent = self.nodes[value].parent;
@@ -635,6 +740,15 @@ library HitchensOrderStatisticsTreeLib {
             self.nodes[cursor].keys.length;
     }
 
+    /**
+     * @dev Fixes red-black tree violations after insertion
+     * @param self The tree to modify
+     * @param value The newly inserted value
+     * @notice Ensures tree maintains red-black properties:
+     * - Root is black
+     * - Red nodes have black children
+     * - All paths have same number of black nodes
+     */
     function insertFixup(Tree storage self, uint value) private {
         uint cursor;
         while (value != self.root && self.nodes[self.nodes[value].parent].red) {
@@ -764,19 +878,18 @@ library HitchensOrderStatisticsTreeLib {
         return node.keys[0];
     }
 
-    function updateNodeCounts(Tree storage self, uint value) private {
-        if (value == EMPTY) return;
-        
-        Node storage node = self.nodes[value];
-        uint leftCount = self.nodes[node.left].count;
-        uint rightCount = self.nodes[node.right].count;
-        
-        node.count = node.keys.length + leftCount + rightCount;
-    }
-
-    function keyAtGlobalRank(Tree storage self, uint targetRank) internal view returns (bytes32) {
+    /**
+     * @dev Returns the key at a specific global rank
+     * @param self The tree to query
+     * @param _rank The global rank to query (0-based)
+     * @return key The key at the specified rank
+     * @notice Global rank considers individual keys for duplicate values
+     * Requirements:
+     * - Rank must be valid (0 to total key count - 1)
+     */
+    function keyAtGlobalRank(Tree storage self, uint _rank) internal view returns (bytes32 key) {
         uint totalCount = getNodeCount(self, self.root);
-        require(targetRank < totalCount, "OrderStatisticsTree(406) - Rank out of bounds");
+        require(_rank < totalCount, "OrderStatisticsTree(406) - Rank out of bounds");
         
         uint cursor = self.root;
         // uint currentRank = 0;
@@ -787,14 +900,14 @@ library HitchensOrderStatisticsTreeLib {
             uint rightCount = getNodeCount(self, currentNode.right);
             
             // Calculate position considering right subtree first (for descending order)
-            if (targetRank < rightCount) {
+            if (_rank < rightCount) {
                 // Target is in right subtree (higher values)
                 cursor = currentNode.right;
                 continue;
             }
             
             // Adjust target rank to account for right subtree
-            uint adjustedRank = targetRank - rightCount;
+            uint adjustedRank = _rank - rightCount;
             
             // Check if target is in current node
             if (adjustedRank < currentNode.keys.length) {
@@ -862,10 +975,11 @@ library HitchensOrderStatisticsTreeLib {
             }
             
             // Target must be in left subtree
-            targetRank = adjustedRank - currentNode.keys.length;
+            _rank = adjustedRank - currentNode.keys.length;
             cursor = currentNode.left;
         }
         
         revert("OrderStatisticsTree(406) - Rank out of bounds");
     }
 }
+

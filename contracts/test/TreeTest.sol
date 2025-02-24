@@ -25,7 +25,7 @@ contract TreeTest {
         return tree.exists(value);
     }
     
-    function keyExists(bytes32 key, uint value) public view returns (bool) {
+    function keyExists(bytes32 key, uint256 value) public view returns (bool) {
         return tree.keyExists(key, value);
     }
     
@@ -51,6 +51,14 @@ contract TreeTest {
 
     function keyAtGlobalRank(uint targetRank) public view returns (bytes32) {
         return tree.keyAtGlobalRank(targetRank);
+    }
+
+    function getCurrentKey(uint value) public view returns (bytes32) {
+        return tree.getCurrentKey(value);
+    }
+
+    function getTotalCount() public view returns (uint) {
+        return tree.getTotalCount();
     }
     
     function count() public view returns (uint) {

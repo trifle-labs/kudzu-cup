@@ -659,5 +659,67 @@ describe('KudzuBurn Tests', function () {
     expect(await KudzuBurn.getPoints(lastRank)).to.equal(100);
   });
 
-  it('removes first place after round is over');
+  it('removes first place after round is over', async () => {
+    const accounts = await ethers.getSigners();
+    const [deployer, acct1, acct2] = accounts;
+    const { Kudzu, KudzuBurn, KudzuBurnController } = await deployKudzuAndBurn({
+      mock: true,
+    });
+    const recipients = [
+      {
+        address: acct1,
+        quantity: 1,
+        infected: [{ address: acct2.address, strainIndex: 0 }],
+      },
+    ];
+    const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
+
+    await Kudzu.connect(acct1).setApprovalForAll(
+      KudzuBurnController.target,
+      true
+    );
+    await Kudzu.connect(acct2).setApprovalForAll(
+      KudzuBurnController.target,
+      true
+    );
+
+    await KudzuBurnController.connect(acct2).burn(tokenIds[0], 1);
+
+    const rank = await KudzuBurn.getRank(0);
+    expect(rank).to.equal(acct2.address);
+
+    const points = await KudzuBurn.getPoints(acct2.address);
+    expect(points).to.equal(6);
+
+    await KudzuBurnController.connect(acct1).burn(tokenIds[0], 1);
+
+    const rank2 = await KudzuBurn.getRank(1);
+    expect(rank2).to.equal(acct1.address);
+
+    const points2 = await KudzuBurn.getPoints(acct1.address);
+    expect(points2).to.equal(6);
+
+    await KudzuBurnController.connect(acct1).burn(tokenIds[0], 1);
+
+    const rank3 = await KudzuBurn.getRank(0);
+    expect(rank3).to.equal(acct1.address);
+
+    const points3 = await KudzuBurn.getPoints(acct1.address);
+    expect(points3).to.equal(7);
+
+    await KudzuBurn.fundRound(0, { value: ethers.parseEther('1.0') });
+
+    const [order, endDate, payoutToRecipient] = await KudzuBurn.rounds(0);
+    expect(payoutToRecipient).to.equal(ethers.parseEther('1.0'));
+
+    await hre.network.provider.send('evm_setNextBlockTimestamp', [
+      parseInt(endDate) + 1,
+    ]);
+    await hre.network.provider.send('evm_mine');
+
+    await KudzuBurn.rewardWinner();
+
+    const rank4 = await KudzuBurn.getRank(0);
+    expect(rank4).to.equal(acct2.address);
+  });
 });

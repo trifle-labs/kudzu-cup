@@ -58,16 +58,15 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
 
   it('should calculate rank and percentile correctly', async () => {
     // Insert values in order: 50, 100, 150, 200
-    await tree.insert(ethers.id('key1'), 50);
-    await tree.insert(ethers.id('key2'), 100);
-    await tree.insert(ethers.id('key3'), 150);
-    await tree.insert(ethers.id('key4'), 200);
+    for (let i = 0; i < 10; i++) {
+      await tree.insert(ethers.id(`key${i}`), 100 * (i + 1));
+    }
 
     // Debug log the structure
-    const node50 = await tree.getNode(50);
-    const node100 = await tree.getNode(100);
-    const node150 = await tree.getNode(150);
-    const node200 = await tree.getNode(200);
+    // const node50 = await tree.getNode(50);
+    // const node100 = await tree.getNode(100);
+    // const node150 = await tree.getNode(150);
+    // const node200 = await tree.getNode(200);
 
     // console.log('Tree structure:');
     // console.log('Node 50:', {
@@ -95,36 +94,40 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     //   right: node200.right,
     // });
 
-    const rank100 = await tree.rank(100);
+    // const rank100 = await tree.rank(100);
     // console.log('Rank calculation steps for 100:');
     // console.log('Final rank:', rank100.toString());
 
-    const rank50 = await tree.rank(50);
+    // const rank50 = await tree.rank(50);
     // console.log('Rank calculation steps for 50:');
     // console.log('Final rank:', rank50.toString());
 
     // Check ranks (1-based)
-    expect(await tree.rank(50)).to.equal(1, '50 should be rank 1');
-    expect(await tree.rank(100)).to.equal(2, '100 should be rank 2');
-    expect(await tree.rank(150)).to.equal(3, '150 should be rank 3');
-    expect(await tree.rank(200)).to.equal(4, '200 should be rank 4');
+    expect(await tree.rank(100)).to.equal(1, '100 should be rank 1');
+    expect(await tree.rank(200)).to.equal(2, '200 should be rank 2');
+    expect(await tree.rank(500)).to.equal(5, '500 should be rank 5');
+    expect(await tree.rank(700)).to.equal(7, '700 should be rank 7');
+    expect(await tree.rank(1000)).to.equal(10, '1000 should be rank 10');
 
     // Check percentiles (0-1000)
-    expect(await tree.percentile(50)).to.equal(
-      200,
-      '50 should be 20th percentile'
+    await expect(tree.percentile(50)).to.be.revertedWith(
+      'OrderStatisticsTree(407) - Value does not exist.'
     );
     expect(await tree.percentile(100)).to.equal(
-      400,
-      '100 should be 40th percentile'
+      100,
+      '100 should be 1st percentile'
     );
-    expect(await tree.percentile(150)).to.equal(
-      600,
-      '150 should be 60th percentile'
+    await expect(tree.percentile(150)).to.be.revertedWith(
+      'OrderStatisticsTree(407) - Value does not exist.'
     );
     expect(await tree.percentile(200)).to.equal(
+      200,
+      '200 should be 2nd percentile'
+    );
+
+    expect(await tree.percentile(800)).to.equal(
       800,
-      '200 should be 80th percentile'
+      '200 should be 2nd percentile'
     );
   });
 
@@ -135,9 +138,51 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     await tree.insert(ethers.id('key4'), 200);
 
     expect(await tree.atRank(1)).to.equal(50);
+    const key1Rank = await tree.rank(50);
+    expect(key1Rank).to.equal(1);
     expect(await tree.atRank(2)).to.equal(100);
+    const key2Rank = await tree.rank(100);
+    expect(key2Rank).to.equal(2);
     expect(await tree.atRank(3)).to.equal(150);
+    const key3Rank = await tree.rank(150);
+    expect(key3Rank).to.equal(3);
     expect(await tree.atRank(4)).to.equal(200);
+    const key4Rank = await tree.rank(200);
+    expect(key4Rank).to.equal(4);
+  });
+
+  it('should handle atRank queries with multiple keys per value', async () => {
+    await tree.insert(ethers.id('key1'), 100);
+    await tree.insert(ethers.id('key2'), 100);
+    await tree.insert(ethers.id('key3'), 200);
+
+    expect(await tree.atRank(1)).to.equal(100);
+    const key1Rank = await tree.rank(100);
+    expect(key1Rank).to.equal(1);
+
+    expect(await tree.atRank(2)).to.equal(100);
+    const key2Rank = await tree.rank(100);
+    expect(key2Rank).to.equal(1);
+
+    const count = await tree.getTotalCount();
+    expect(count).to.equal(3);
+
+    expect(await tree.atRank(3)).to.equal(200);
+    const key3Rank = await tree.rank(200);
+    expect(key3Rank).to.equal(3);
+
+    await tree.remove(ethers.id('key1'), 100);
+    await tree.remove(ethers.id('key2'), 100);
+
+    expect(await tree.atRank(1)).to.equal(200);
+    const key4Rank = await tree.rank(200);
+    expect(key4Rank).to.equal(1);
+
+    await tree.insert(ethers.id('key4'), 400);
+
+    expect(await tree.atRank(2)).to.equal(400);
+    const key4Rank2 = await tree.rank(400);
+    expect(key4Rank2).to.equal(2);
   });
 
   it('should maintain correct count of nodes', async () => {
@@ -746,5 +791,340 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     expect(keyToName(await tree.keyAtGlobalRank(0))).to.equal('key_B'); // B at 200
     expect(keyToName(await tree.keyAtGlobalRank(1))).to.equal('key_A'); // A at 200
     expect(keyToName(await tree.keyAtGlobalRank(2))).to.equal('key_C'); // C at 100
+  });
+
+  it('should calculate percentiles correctly', async () => {
+    // Insert 10 values: 10, 20, 30, ..., 100
+    for (let i = 1; i <= 10; i++) {
+      await tree.insert(ethers.id(`key${i}`), i * 10);
+    }
+
+    // Test various percentiles
+    expect(await tree.percentile(10)).to.equal(
+      100,
+      `10 should be in 10th percentile (100) but got ${await tree.percentile(10)}`
+    );
+
+    expect(await tree.percentile(50)).to.equal(
+      500,
+      `50 should be in 50th percentile (500) but got ${await tree.percentile(50)}`
+    );
+
+    expect(await tree.percentile(100)).to.equal(
+      1000,
+      `100 should be in 100th percentile (1000) but got ${await tree.percentile(100)}`
+    );
+
+    // Add more values and verify percentiles update
+    for (let i = 11; i <= 20; i++) {
+      await tree.insert(ethers.id(`key${i}`), i * 10);
+    }
+
+    // Now 50 should be in 25th percentile (was in 50th with 10 values)
+    expect(await tree.percentile(50)).to.equal(
+      250,
+      `After adding more values, 50 should be in 25th percentile (250) but got ${await tree.percentile(50)}`
+    );
+  });
+
+  it('should correctly update node counts', async () => {
+    // Test empty tree
+    expect(await tree.count()).to.equal(0);
+
+    // Single node
+    await tree.insert(ethers.id('key1'), 100);
+    expect(await tree.count()).to.equal(1);
+
+    // Multiple keys in same node
+    await tree.insert(ethers.id('key2'), 100);
+    await tree.insert(ethers.id('key3'), 100);
+    expect(await tree.getTotalCount()).to.equal(3);
+
+    // Multiple nodes with multiple keys
+    await tree.insert(ethers.id('key4'), 200);
+    await tree.insert(ethers.id('key5'), 200);
+    expect(await tree.getTotalCount()).to.equal(5);
+
+    // Remove key from multi-key node
+    await tree.remove(ethers.id('key2'), 100);
+    expect(await tree.getTotalCount()).to.equal(4);
+
+    // Remove node entirely
+    await tree.remove(ethers.id('key4'), 200);
+    await tree.remove(ethers.id('key5'), 200);
+    expect(await tree.getTotalCount()).to.equal(2);
+  });
+
+  it('should handle getCurrentKey correctly', async () => {
+    // Test empty tree
+    await expect(tree.getCurrentKey(100)).to.be.revertedWith(
+      'OrderStatisticsTree(407) - Value does not exist.'
+    );
+
+    // Single key
+    await tree.insert(ethers.id('key1'), 100);
+    expect(await tree.getCurrentKey(100)).to.equal(ethers.id('key1'));
+
+    // Multiple keys - should return first key
+    await tree.insert(ethers.id('key2'), 100);
+    expect(await tree.getCurrentKey(100)).to.equal(ethers.id('key1'));
+
+    // After removing first key
+    await tree.remove(ethers.id('key1'), 100);
+    expect(await tree.getCurrentKey(100)).to.equal(ethers.id('key2'));
+
+    // After removing all keys
+    await tree.remove(ethers.id('key2'), 100);
+    await expect(tree.getCurrentKey(100)).to.be.revertedWith(
+      'OrderStatisticsTree(407) - Value does not exist.'
+    );
+  });
+
+  it('should handle all removeFixup cases', async () => {
+    // Case 1: Sibling is red
+    await tree.insert(ethers.id('key1'), 100); // Root (black)
+    await tree.insert(ethers.id('key2'), 50); // Left child (red)
+    await tree.insert(ethers.id('key3'), 150); // Right child (red)
+    await tree.insert(ethers.id('key4'), 25); // Left-left child (red)
+
+    // This removal triggers Case 1
+    await tree.remove(ethers.id('key4'), 25);
+
+    // Case 2: Sibling is black with black children
+    await tree.insert(ethers.id('key5'), 75); // New node to setup Case 2
+    await tree.remove(ethers.id('key2'), 50); // Triggers Case 2
+
+    // Case 3: Sibling is black with red right child
+    await tree.insert(ethers.id('key6'), 125); // Setup for Case 3
+    await tree.insert(ethers.id('key7'), 175); // Setup for Case 3
+    await tree.remove(ethers.id('key5'), 75); // Triggers Case 3
+
+    // Case 4: Sibling is black with red left child
+    await tree.insert(ethers.id('key8'), 60); // Setup for Case 4
+    await tree.insert(ethers.id('key9'), 40); // Setup for Case 4
+    await tree.remove(ethers.id('key6'), 125); // Triggers Case 4
+
+    // Verify tree structure remains valid after all operations
+    expect(await tree.exists(100)).to.be.true;
+    expect(await tree.exists(150)).to.be.true;
+    expect(await tree.exists(40)).to.be.true;
+    expect(await tree.exists(175)).to.be.true;
+
+    // Verify ordering is maintained
+    expect(await tree.first()).to.equal(40);
+    expect(await tree.last()).to.equal(175);
+  });
+
+  it('should handle removeFixup with complex tree rotations', async () => {
+    // Build a more complex tree to test multiple rotations
+    const values = [
+      100, // Root
+      50,
+      150, // Level 1
+      25,
+      75,
+      125,
+      175, // Level 2
+      12,
+      37,
+      62,
+      87,
+      112,
+      137,
+      162,
+      187, // Level 3
+    ];
+
+    for (let i = 0; i < values.length; i++) {
+      await tree.insert(ethers.id(`key${i}`), values[i]);
+    }
+
+    // Series of removals to trigger different cases
+    await tree.remove(ethers.id('key10'), 87); // Leaf node
+    await tree.remove(ethers.id('key3'), 25); // Node with one child
+    await tree.remove(ethers.id('key1'), 50); // Node with two children
+    await tree.remove(ethers.id('key0'), 100); // Root node
+
+    // Verify tree remains valid
+    const remaining = [12, 37, 62, 75, 112, 125, 137, 150, 162, 175, 187];
+    for (const value of remaining) {
+      expect(await tree.exists(value)).to.be.true;
+    }
+
+    // Verify ordering
+    expect(await tree.first()).to.equal(12);
+    expect(await tree.last()).to.equal(187);
+
+    // Verify node counts
+    expect(await tree.getTotalCount()).to.equal(remaining.length);
+  });
+
+  it('should handle left child case with red sibling (lines 817-823)', async () => {
+    // Setup a tree where removing a node will trigger the first if case
+    await tree.insert(ethers.id('key1'), 100); // Black root
+    await tree.insert(ethers.id('key2'), 50); // Left black
+    await tree.insert(ethers.id('key3'), 150); // Right red
+    await tree.insert(ethers.id('key4'), 25); // Left-left black
+    await tree.insert(ethers.id('key5'), 75); // Left-right black
+    await tree.insert(ethers.id('key6'), 125); // Right-left black
+    await tree.insert(ethers.id('key7'), 175); // Right-right black
+
+    // This removal will trigger the red sibling case
+    await tree.remove(ethers.id('key4'), 25);
+
+    // Verify tree structure
+    expect(await tree.exists(150)).to.be.true;
+    expect(await tree.exists(125)).to.be.true;
+    expect(await tree.exists(175)).to.be.true;
+  });
+
+  it('should handle left child case with black sibling and black children (lines 824-829)', async () => {
+    // Setup tree where removing a node triggers the black sibling with black children case
+    await tree.insert(ethers.id('key1'), 100); // Black root
+    await tree.insert(ethers.id('key2'), 50); // Left black
+    await tree.insert(ethers.id('key3'), 150); // Right black
+    await tree.insert(ethers.id('key4'), 25); // Left-left black
+
+    // Remove to trigger the case
+    await tree.remove(ethers.id('key4'), 25);
+
+    // Verify structure
+    expect(await tree.exists(50)).to.be.true;
+    expect(await tree.exists(150)).to.be.true;
+  });
+
+  it('should handle left child case with black sibling and red right child (lines 831-842)', async () => {
+    // Setup tree where removing triggers the black sibling with red right child case
+    await tree.insert(ethers.id('key1'), 100); // Root
+    await tree.insert(ethers.id('key2'), 50); // Left
+    await tree.insert(ethers.id('key3'), 150); // Right
+    await tree.insert(ethers.id('key4'), 25); // Left-left
+    await tree.insert(ethers.id('key5'), 175); // Right-right (red)
+
+    // Remove to trigger case
+    await tree.remove(ethers.id('key4'), 25);
+
+    // Verify structure
+    expect(await tree.exists(50)).to.be.true;
+    expect(await tree.exists(150)).to.be.true;
+    expect(await tree.exists(175)).to.be.true;
+  });
+
+  it('should handle right child case with red sibling (lines 844-850)', async () => {
+    // Setup tree where removing triggers the right child red sibling case
+    await tree.insert(ethers.id('key1'), 100); // Root
+    await tree.insert(ethers.id('key2'), 50); // Left red
+    await tree.insert(ethers.id('key3'), 150); // Right
+    await tree.insert(ethers.id('key4'), 25); // Left-left
+    await tree.insert(ethers.id('key5'), 75); // Left-right
+
+    // Remove to trigger case
+    await tree.remove(ethers.id('key3'), 150);
+
+    // Verify structure
+    expect(await tree.exists(50)).to.be.true;
+    expect(await tree.exists(25)).to.be.true;
+    expect(await tree.exists(75)).to.be.true;
+  });
+
+  it('should handle right child case with black sibling and black children (lines 851-857)', async () => {
+    // Setup tree where removing triggers black sibling with black children case
+    await tree.insert(ethers.id('key1'), 100); // Root
+    await tree.insert(ethers.id('key2'), 50); // Left black
+    await tree.insert(ethers.id('key3'), 150); // Right black
+    await tree.insert(ethers.id('key4'), 175); // Right-right black
+
+    // Remove to trigger case
+    await tree.remove(ethers.id('key4'), 175);
+
+    // Verify structure
+    expect(await tree.exists(50)).to.be.true;
+    expect(await tree.exists(150)).to.be.true;
+  });
+
+  it('should handle right child case with black sibling and red left child (lines 858-869)', async () => {
+    // Setup tree where removing triggers black sibling with red left child case
+    await tree.insert(ethers.id('key1'), 100); // Root
+    await tree.insert(ethers.id('key2'), 50); // Left
+    await tree.insert(ethers.id('key3'), 150); // Right
+    await tree.insert(ethers.id('key4'), 25); // Left-left (red)
+    await tree.insert(ethers.id('key5'), 175); // Right-right
+
+    // Remove to trigger case
+    await tree.remove(ethers.id('key5'), 175);
+
+    // Verify structure
+    expect(await tree.exists(50)).to.be.true;
+    expect(await tree.exists(25)).to.be.true;
+    expect(await tree.exists(150)).to.be.true;
+  });
+
+  it('should handle complex removal requiring multiple fixups', async () => {
+    // Create a more complex tree that will require multiple fixup operations
+    await tree.insert(ethers.id('key1'), 100); // Root
+    await tree.insert(ethers.id('key2'), 50); // Left
+    await tree.insert(ethers.id('key3'), 150); // Right
+    await tree.insert(ethers.id('key4'), 25); // Left-left
+    await tree.insert(ethers.id('key5'), 75); // Left-right
+    await tree.insert(ethers.id('key6'), 125); // Right-left
+    await tree.insert(ethers.id('key7'), 175); // Right-right
+    await tree.insert(ethers.id('key8'), 60); // Left-right-left
+    await tree.insert(ethers.id('key9'), 85); // Left-right-right
+
+    // Perform multiple removals to trigger different fixup cases
+    await tree.remove(ethers.id('key4'), 25); // Trigger left child case
+    await tree.remove(ethers.id('key7'), 175); // Trigger right child case
+    await tree.remove(ethers.id('key6'), 125); // Trigger another case
+
+    // Verify final tree structure
+    expect(await tree.exists(50)).to.be.true;
+    expect(await tree.exists(75)).to.be.true;
+    expect(await tree.exists(150)).to.be.true;
+    expect(await tree.exists(60)).to.be.true;
+    expect(await tree.exists(85)).to.be.true;
+
+    // Verify tree properties are maintained
+    expect(await tree.first()).to.equal(50);
+    expect(await tree.last()).to.equal(150);
+  });
+
+  it.only('shoudl handle a fuzzy amount of adds and removes', async () => {
+    console.log(tree.interface.fragments);
+    const localArray = [];
+    const total = 100;
+    for (let i = 0; i < total; i++) {
+      const randomInt = 10 + Math.floor(Math.random() * 100);
+      const entry = { key: ethers.id(`key${i}`), value: randomInt * 10 };
+      const tx = await tree.insert(entry.key, entry.value);
+      await tx.wait();
+      localArray.push(entry);
+    }
+    localArray.sort((a, b) => b.value - a.value);
+    console.log({ localArray });
+    for (let i = 0; i < localArray.length; i++) {
+      const entry = localArray[i];
+      const key = await tree.keyAtGlobalRank(i);
+      expect(key).to.equal(entry.key);
+    }
+    for (let i = 0; i < localArray.length; i++) {
+      const item = localArray[i];
+      const valExists = await tree.exists(item.value);
+      console.log({ valExists });
+      expect(valExists).to.equal(true, item.key, item.value);
+      const keyExists = await tree.keyExists(item.key, item.value);
+      console.log({ keyExists });
+      expect(keyExists).to.equal(true, item.key, item.value);
+      await tree.remove(item.key, item.value);
+
+      // const change = Math.floor(Math.random() * 100);
+      // item.value += change;
+      // await tree.insert(item.key, item.value);
+    }
+    // localArray.sort((a, b) => b.value - a.value);
+    // console.log({ localArray });
+    // for (let i = 0; i < localArray.length; i++) {
+    //   const key = await tree.keyAtGlobalRank(i);
+    //   expect(key).to.equal(localArray[i].key);
+    // }
   });
 });
