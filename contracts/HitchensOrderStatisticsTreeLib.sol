@@ -498,6 +498,7 @@ library HitchensOrderStatisticsTreeLib {
             keyExists(self, key, value),
             "OrderStatisticsTree(408) - Value to delete does not exist."
         );
+        
         Node storage nValue = self.nodes[value];
         uint rowToDelete = nValue.keyMap[key];
 
@@ -520,53 +521,72 @@ library HitchensOrderStatisticsTreeLib {
         // 5. Clean join time for deleted key
         delete nValue.joinTimes[key];
 
+        // FIX: Update count if we're just removing a key but keeping the node
+        if (nValue.keys.length > 0) {
+            fixCountRecurse(self, value);
+            return;
+        }
+
+        // If we reach here, we're removing the entire node
         uint probe;
         uint cursor;
-        if (nValue.keys.length == 0) {
-            if (
-                self.nodes[value].left == EMPTY ||
-                self.nodes[value].right == EMPTY
-            ) {
-                cursor = value;
-            } else {
-                cursor = self.nodes[value].right;
-                while (self.nodes[cursor].left != EMPTY) {
-                    cursor = self.nodes[cursor].left;
-                }
+        
+        if (self.nodes[value].left == EMPTY || self.nodes[value].right == EMPTY) {
+            cursor = value;
+        } else {
+            cursor = self.nodes[value].right;
+            while (self.nodes[cursor].left != EMPTY) {
+                cursor = self.nodes[cursor].left;
             }
-            if (self.nodes[cursor].left != EMPTY) {
-                probe = self.nodes[cursor].left;
-            } else {
-                probe = self.nodes[cursor].right;
-            }
-            uint cursorParent = self.nodes[cursor].parent;
-            self.nodes[probe].parent = cursorParent;
-            if (cursorParent != EMPTY) {
-                if (cursor == self.nodes[cursorParent].left) {
-                    self.nodes[cursorParent].left = probe;
-                } else {
-                    self.nodes[cursorParent].right = probe;
-                }
-            } else {
-                self.root = probe;
-            }
-            bool doFixup = !self.nodes[cursor].red;
-            if (cursor != value) {
-                replaceParent(self, cursor, value);
-                self.nodes[cursor].left = self.nodes[value].left;
-                self.nodes[self.nodes[cursor].left].parent = cursor;
-                self.nodes[cursor].right = self.nodes[value].right;
-                self.nodes[self.nodes[cursor].right].parent = cursor;
-                self.nodes[cursor].red = self.nodes[value].red;
-                (cursor, value) = (value, cursor);
-                fixCountRecurse(self, value);
-            }
-            if (doFixup) {
-                removeFixup(self, probe);
-            }
-            fixCountRecurse(self, cursorParent);
-            delete self.nodes[cursor];
         }
+        
+        if (self.nodes[cursor].left != EMPTY) {
+            probe = self.nodes[cursor].left;
+        } else {
+            probe = self.nodes[cursor].right;
+        }
+        
+        uint cursorParent = self.nodes[cursor].parent;
+        self.nodes[probe].parent = cursorParent;
+        
+        if (cursorParent != EMPTY) {
+            if (cursor == self.nodes[cursorParent].left) {
+                self.nodes[cursorParent].left = probe;
+            } else {
+                self.nodes[cursorParent].right = probe;
+            }
+        } else {
+            self.root = probe;
+        }
+        
+        bool doFixup = !self.nodes[cursor].red;
+        
+        if (cursor != value) {
+            replaceParent(self, cursor, value);
+            self.nodes[cursor].left = self.nodes[value].left;
+            self.nodes[self.nodes[cursor].left].parent = cursor;
+            self.nodes[cursor].right = self.nodes[value].right;
+            self.nodes[self.nodes[cursor].right].parent = cursor;
+            self.nodes[cursor].red = self.nodes[value].red;
+            
+            // FIX: Since cursor is taking value's place, update counts for cursor
+            self.nodes[cursor].count = 
+                getNodeCount(self, self.nodes[cursor].left) +
+                getNodeCount(self, self.nodes[cursor].right);
+                
+            (cursor, value) = (value, cursor);
+        }
+        
+        if (doFixup) {
+            removeFixup(self, probe);
+        }
+        
+        // FIX: We need to update counts starting from where the restructuring happened
+        // This should be either the probe's parent or cursorParent
+        uint updateStart = self.nodes[probe].parent != EMPTY ? self.nodes[probe].parent : cursorParent;
+        fixCountRecurse(self, updateStart);
+        
+        delete self.nodes[cursor];
     }
 
     function fixCountRecurse(Tree storage self, uint value) private {
