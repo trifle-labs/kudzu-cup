@@ -5,7 +5,6 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./HitchensOrderStatisticsTreeLib.sol";
 import "./Kudzu.sol";
-import "hardhat/console.sol";
 
 /*
 
@@ -184,12 +183,16 @@ contract KudzuBurn is Ownable {
         return burnerPoints[burner];
     }
 
-
     function getRank(uint targetRank) public view returns (address) {
-        (bytes32 key, ) = tree.keyAtGlobalRank(targetRank);
+        (bytes32 key, ,) = tree.keyAtGlobalIndex(targetRank);
         return address(uint160(uint256(key)));
     }
 
+    function kvAtGlobalIndex(uint targetIndex) public view returns (address player, uint val, uint nonce) {
+        bytes32 key;
+        (key, val, nonce) = tree.keyAtGlobalIndex(targetIndex);
+        return (address(uint160(uint256(key))), val, nonce);
+    }
 
     function adminReward(address burner, uint256 quantity, uint256 rewardId) public onlyOwner {
         updateTree(burner, quantity, true, rewardId);

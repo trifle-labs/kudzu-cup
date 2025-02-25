@@ -23,7 +23,6 @@ contract KudzuBurnController is Ownable {
     }
 
     receive() external payable {}
-
     // assumes that setApprovalForAll has already been called
     function burn(uint256 tokenId, uint256 quantity) public {
         if (kudzuBurn.isOver()) {
@@ -37,10 +36,6 @@ contract KudzuBurnController is Ownable {
             kudzuBurn.updateTreeOnlyController(msg.sender, newStrainBonus, true, tokenId); // bonus
         }
     }
-
-
-
-
     function updateBurnAddress(address burnAddress_) public onlyOwner {
         burnAddress = burnAddress_;
     }
@@ -57,6 +52,4 @@ contract KudzuBurnController is Ownable {
         (bool success, bytes memory data) = owner().call{value: amount}("");
         emit KudzuBurn.EthMoved(owner(), success, data, amount);
     }
-
-
 }

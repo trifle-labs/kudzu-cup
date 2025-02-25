@@ -1,29 +1,29 @@
-import { expect } from "chai";
-import { describe, it, before, afterEach } from "mocha";
-import { deployContracts, getParsedEventLogs } from "../scripts/utils.js";
+import { expect } from 'chai';
+import { describe, it, before, afterEach } from 'mocha';
+import { deployContracts, getParsedEventLogs } from '../scripts/utils.js';
 import {
   getEmoji,
   kudzuName,
   eyes,
   mouths,
-} from "../scripts/metadataUtils.mjs";
+} from '../scripts/metadataUtils.mjs';
 
-import hre from "hardhat";
+import hre from 'hardhat';
 const ethers = hre.ethers;
 
 let snapshot;
-describe.skip("ExternalMetadata Tests", function () {
+describe('ExternalMetadata Tests', function () {
   this.timeout(50000000);
 
   before(async function () {
-    snapshot = await hre.network.provider.send("evm_snapshot", []);
+    snapshot = await hre.network.provider.send('evm_snapshot', []);
   });
   afterEach(async function () {
-    await hre.network.provider.send("evm_revert", [snapshot]);
-    snapshot = await hre.network.provider.send("evm_snapshot", []);
+    await hre.network.provider.send('evm_revert', [snapshot]);
+    snapshot = await hre.network.provider.send('evm_snapshot', []);
   });
 
-  it("has same eyes and mouths as js", async () => {
+  it('has same eyes and mouths as js', async () => {
     const { ExternalMetadata } = await deployContracts();
 
     for (let i = 0; i < 32; i++) {
@@ -34,7 +34,7 @@ describe.skip("ExternalMetadata Tests", function () {
     }
   });
 
-  it("getPiecesOfTokenID works", async () => {
+  it('getPiecesOfTokenID works', async () => {
     const tokenId = 9897988;
     const expectedEyes = 0x8;
     const expectedMouth = 0x4;
@@ -47,12 +47,12 @@ describe.skip("ExternalMetadata Tests", function () {
     expect(mouth).to.equal(expectedMouth);
   });
 
-  it("calculates id, eyes and mouth correctly", async () => {
+  it('calculates id, eyes and mouth correctly', async () => {
     const { ExternalMetadata } = await deployContracts();
     const testTokenId = 20585226;
     const expectedId = 314;
-    const expectedEye = "big-eyes";
-    const expectedMouth = "little-mad";
+    const expectedEye = 'big-eyes';
+    const expectedMouth = 'little-mad';
 
     const [id, eye, mouth] =
       await ExternalMetadata.getPiecesOfTokenID(testTokenId);
@@ -66,14 +66,14 @@ describe.skip("ExternalMetadata Tests", function () {
     expect(mouths[indexMouth]).to.equal(expectedMouth);
   });
 
-  it("makes a large range of tokenIds", async () => {
+  it('makes a large range of tokenIds', async () => {
     const { Kudzu, ExternalMetadata } = await deployContracts();
     const [owner] = await ethers.getSigners();
     const startDate = await Kudzu.startDate();
-    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+    await hre.network.provider.send('evm_setNextBlockTimestamp', [
       parseInt(startDate),
     ]);
-    await hre.network.provider.send("evm_mine");
+    await hre.network.provider.send('evm_mine');
     const createPrice = await Kudzu.createPrice();
     const allTokenIds = [];
     for (let i = 0; i < 100; i++) {
@@ -82,7 +82,7 @@ describe.skip("ExternalMetadata Tests", function () {
       });
       const receipt = await tx.wait();
       const tokenIds = (
-        await getParsedEventLogs(receipt, Kudzu, "Created")
+        await getParsedEventLogs(receipt, Kudzu, 'Created')
       ).map((t) => t.pretty.tokenId);
       allTokenIds.push(...tokenIds);
     }
@@ -101,21 +101,21 @@ describe.skip("ExternalMetadata Tests", function () {
     expect(uniqueMouths).to.be.equal(32);
   });
 
-  it("has valid json", async function () {
+  it('has valid json', async function () {
     const [owner] = await ethers.getSigners();
 
     const { Kudzu, ExternalMetadata } = await deployContracts();
 
     const startDate = await Kudzu.startDate();
 
-    await hre.network.provider.send("evm_setNextBlockTimestamp", [
+    await hre.network.provider.send('evm_setNextBlockTimestamp', [
       parseInt(startDate),
     ]);
-    await hre.network.provider.send("evm_mine");
+    await hre.network.provider.send('evm_mine');
     const createPrice = await Kudzu.createPrice();
     const tx = await Kudzu.create(owner.address, 1, { value: createPrice });
     const receipt = await tx.wait();
-    let tokenId = (await getParsedEventLogs(receipt, Kudzu, "Created"))[0]
+    let tokenId = (await getParsedEventLogs(receipt, Kudzu, 'Created'))[0]
       .pretty.tokenId;
 
     // console.log({ tokenId });
@@ -129,16 +129,21 @@ describe.skip("ExternalMetadata Tests", function () {
     expect(base64Json1).to.equal(base64Json4);
 
     const utf8Json = Buffer.from(
-      base64Json1.replace("data:application/json;base64,", ""),
-      "base64"
-    ).toString("utf-8");
+      base64Json1.replace('data:application/json;base64,', ''),
+      'base64'
+    ).toString('utf-8');
     // console.dir({ utf8Json }, { depth: null });
     const json = JSON.parse(utf8Json);
     // console.dir({ json }, { depth: null })
 
     const { eye, mouth, id } = getEmoji(tokenId);
-    const expectedName = kudzuName(tokenId);
-
+    let expectedName = kudzuName(tokenId);
+    function isNumeric(n) {
+      return !isNaN(parseFloat(n)) && isFinite(n);
+    }
+    if (isNumeric(expectedName.split('-').pop())) {
+      expectedName = expectedName.split('-').slice(0, -1).join('-');
+    }
     // name
     const name = json.name;
     expect(name).to.equal(expectedName + ` #${id}`);
@@ -153,23 +158,23 @@ describe.skip("ExternalMetadata Tests", function () {
     const imageURI = json.image;
     const imageURI2 = json.image_url;
     expect(imageURI).to.equal(imageURI2);
-    expect(imageURI).to.equal("https://virus.folia.app/img/forma/" + tokenId);
+    expect(imageURI).to.equal('https://virus.folia.app/img/forma/' + tokenId);
 
     // attributes
 
     const mouthURI = json.attributes[0].value;
     const trait_type0 = json.attributes[0].trait_type;
-    expect(trait_type0).to.equal("mouth");
+    expect(trait_type0).to.equal('mouth');
     expect(mouthURI).to.equal(mouth);
 
     const eyeURI = json.attributes[1].value;
     const trait_type1 = json.attributes[1].trait_type;
-    expect(trait_type1).to.equal("eyes");
+    expect(trait_type1).to.equal('eyes');
     expect(eyeURI).to.equal(eye);
 
     const idURI = json.attributes[2].value;
     const trait_type2 = json.attributes[2].trait_type;
-    expect(trait_type2).to.equal("index");
+    expect(trait_type2).to.equal('index');
     expect(idURI).to.equal(id);
   });
 });

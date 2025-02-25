@@ -62,9 +62,9 @@ contract Kudzu is ERC1155, Ownable, ITokenMetadata, IERC1155MintablePayable {
     //
     // Variables
     ExternalMetadata public metadata;
-    uint256 public startDate = 1733853600; // Tue Dec 10 2024 18:00:00 GMT+0000
-    uint256 public endDate = 1735603200; // Tue Dec 31 2024 00:00:00 GMT+0000
-    uint256 public christmas = 1735171200; // Fri Dec 26 2024 00:00:00 GMT+0000
+    uint256 public startDate = 2733853600; // Tue Dec 10 2024 18:00:00 GMT+0000
+    uint256 public endDate = 2735603200; // Tue Dec 31 2024 00:00:00 GMT+0000
+    uint256 public christmas = 2735171200; // Fri Dec 26 2024 00:00:00 GMT+0000
     uint256 public claimDelay = 3 days; // Allow 3 days for additional prize contributions
     uint256 public forfeitClaim = 90 days; // Forfeit ability to claim prize after 90 days
 

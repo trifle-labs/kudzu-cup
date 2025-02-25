@@ -9,9 +9,7 @@ contract TreeTest {
     HitchensOrderStatisticsTreeLib.Tree public tree;
     
     
-    constructor() {
-        console.log('deploying tree');
-    }
+    constructor() {}
     
     function insert(bytes32 key, uint value) public {
         tree.insert(key, value);
@@ -49,35 +47,14 @@ contract TreeTest {
         return tree.rank(value);
     }
 
-    function kvAtGlobalRank(uint targetRank) public view returns (bytes32, uint) {
-        return tree.keyAtGlobalRank(targetRank);
+    function kvAtGlobalIndex(uint targetRank) public view returns (bytes32, uint, uint) {
+        return tree.keyAtGlobalIndex(targetRank);
     }
 
-    function keyAtGlobalRank(uint targetRank) public view returns (bytes32) {
-        (bytes32 key, ) = tree.keyAtGlobalRank(targetRank);
+    function keyAtGlobalIndex(uint targetRank) public view returns (bytes32) {
+        (bytes32 key, , ) = tree.keyAtGlobalIndex(targetRank);
         return key;
     }
-
-    function valueAtGlobalRank(uint targetRank) public view returns (uint) {
-        (, uint value) = tree.keyAtGlobalRank(targetRank);
-        return value;
-    }
-
-    // function keyAtGlobalIndex(uint targetIndex) public view returns (bytes32) {
-    //     (bytes32 key, ) = tree.keyAtGlobalIndex(targetIndex);
-    //     return key;
-    // }
-    // function kvAtGlobalIndex(uint targetIndex) public view returns (bytes32, uint) {
-    //     return tree.keyAtGlobalIndex(targetIndex);
-    // }
-
-    // function getCurrentKey(uint value) public view returns (bytes32) {
-    //     return tree.getCurrentKey(value);
-    // }
-
-    // function getTotalCount() public view returns (uint) {
-    //     return tree.getTotalCount();
-    // }
     
     function count() public view returns (uint) {
         return tree.count();
@@ -93,6 +70,10 @@ contract TreeTest {
     
     function atRank(uint _rank) public view returns (uint) {
         return tree.atRank(_rank);
+    }
+
+    function atIndex(uint _index) public view returns (uint) {
+        return tree.atIndex(_index);
     }
 
     function valueKeyAtIndex(uint value, uint index) public view returns (bytes32) {

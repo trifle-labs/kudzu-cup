@@ -688,6 +688,11 @@ describe('KudzuBurn Tests', function () {
     const rank = await KudzuBurn.getRank(0);
     expect(rank).to.equal(acct2.address);
 
+    const [player, value, nonce] = await KudzuBurn.kvAtGlobalIndex(0);
+    expect(player).to.equal(acct2.address);
+    expect(value).to.equal(6);
+    expect(nonce).to.equal(1);
+
     const points = await KudzuBurn.getPoints(acct2.address);
     expect(points).to.equal(6);
 
