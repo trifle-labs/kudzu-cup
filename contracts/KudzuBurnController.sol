@@ -29,7 +29,7 @@ contract KudzuBurnController is Ownable {
             kudzuBurn.rewardWinner();
         }
         kudzu.safeTransferFrom(msg.sender, burnAddress, tokenId, quantity, "");
-        kudzuBurn.updateTreeOnlyController(msg.sender, burnPoint, true, tokenId);
+        kudzuBurn.updateTreeOnlyController(msg.sender, quantity * burnPoint, true, tokenId);
 
         if (hasBurned[msg.sender][tokenId] == false) {
             hasBurned[msg.sender][tokenId] = true;

@@ -76,15 +76,15 @@ describe('KudzuBurnController Tests', function () {
       acct1.address,
       acct2.address,
       tokenIds[0],
-      1,
+      2,
       '0x'
     );
     expect(
       await Kudzu['balanceOf(address,uint256)'](acct1.address, tokenIds[0])
-    ).to.equal(9);
+    ).to.equal(8);
     expect(
       await Kudzu['balanceOf(address,uint256)'](acct2.address, tokenIds[0])
-    ).to.equal(2);
+    ).to.equal(3);
 
     // burn fails before approval is set
     await expect(KudzuBurnController.connect(acct1).burn(tokenIds[0], 1)).to.be
@@ -129,10 +129,10 @@ describe('KudzuBurnController Tests', function () {
     const getRank2 = await KudzuBurn.getRank(1);
     expect(getRank2).to.equal(acct2.address);
 
-    await KudzuBurnController.connect(acct2).burn(tokenIds[0], 1);
+    await KudzuBurnController.connect(acct2).burn(tokenIds[0], 2);
 
     const acct2Points2 = await KudzuBurn.getPoints(acct2.address);
-    expect(acct2Points2).to.equal(burnPoint * 2n + newStrainBonus);
+    expect(acct2Points2).to.equal(burnPoint * 3n + newStrainBonus);
 
     const winningAddress3 = await KudzuBurn.getWinningAddress();
     expect(winningAddress3).to.equal(acct2.address);

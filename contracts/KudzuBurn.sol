@@ -33,67 +33,67 @@ contract KudzuBurn is Ownable {
     Round[13] public rounds = [
         Round({
             order: 1,
-            endDate: 1745107200, // 4-20-25
+            endDate: 1745166000, // 4-20-25
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 2,
-            endDate: 1752969600, // 7-20-25
+            endDate: 1753028400, // 7-20-25
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 3,
-            endDate: 1760918400, // 10-20-25
+            endDate: 1760977200, // 10-20-25
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 4,
-            endDate: 1768870800, // 1-20-26
+            endDate: 1768929600, // 1-20-26
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 5,
-            endDate: 1776643200, // 4-20-26
+            endDate: 1776702000, // 4-20-26
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 6,
-            endDate: 1784505600, // 7-20-26
+            endDate: 1784564400, // 7-20-26
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 7,
-            endDate: 1792454400, // 10-20-26
+            endDate: 1792513200, // 10-20-26
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 8,
-            endDate: 1800406800, // 1-20-27
+            endDate: 1800465600, // 1-20-27
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 9,
-            endDate: 1808179200, // 4-20-27
+            endDate: 1808238000, // 4-20-27
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 10,
-            endDate: 1816041600, // 7-20-27
+            endDate: 1816100400, // 7-20-27
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 11,
-            endDate: 1823990400, // 10-20-27
+            endDate: 1824049200, // 10-20-27
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 12,
-            endDate: 1831942800, // 1-20-28
+            endDate: 1832001600, // 1-20-28
             payoutToRecipient: 0 ether
         }),
         Round({
             order: 13,
-            endDate: 1839801600, // 4-20-28
+            endDate: 1839860400, // 4-20-28
             payoutToRecipient: 0 ether
         })
     ];

@@ -1,4 +1,45 @@
 const hre = require('hardhat');
+const fs = require('fs');
+
+async function processAddressBatch(
+  KudzuBurn,
+  addresses,
+  quantities,
+  rewardIds,
+  retryCount = 0
+) {
+  const maxRetries = 3;
+  try {
+    const result = await KudzuBurn.adminMassReward(
+      addresses,
+      quantities,
+      rewardIds
+    );
+    await result.wait();
+    return true;
+  } catch (error) {
+    console.error(`Error processing batch (attempt ${retryCount + 1}):`, error);
+
+    if (retryCount < maxRetries) {
+      console.log(`Retrying batch in 5 seconds... (attempt ${retryCount + 2})`);
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds before retry
+      return processAddressBatch(
+        KudzuBurn,
+        addresses,
+        quantities,
+        rewardIds,
+        retryCount + 1
+      );
+    } else {
+      console.error('Max retries reached for batch:', {
+        addresses,
+        quantities,
+        rewardIds,
+      });
+      return false;
+    }
+  }
+}
 
 async function main() {
   const accounts = await hre.ethers.getSigners();
@@ -176,41 +217,65 @@ async function main() {
     return;
   }
 
-  const chunk = true;
-  if (chunk) {
-    // Split addresses into chunks of 100 to avoid gas limits
-    const chunkSize = 100;
-    for (let i = 0; i < addresses.length; i += chunkSize) {
-      const chunk = addresses.slice(i, i + chunkSize);
+  const batchSize = 100;
+  const failedBatches = [];
 
-      try {
-        console.log(
-          `Processing chunk ${i / chunkSize + 1}, addresses ${i} to ${i + chunk.length}`
+  for (let i = 0; i < addresses.length; i += batchSize) {
+    const batchAddresses = addresses.slice(i, i + batchSize);
+    const batchQuantities = addresses
+      .slice(i, i + batchSize)
+      .map((a) => a.points);
+    const batchRewardIds = addresses
+      .slice(i, i + batchSize)
+      .map((a) => (a.points == 15 ? 2 : 3));
+
+    console.log(
+      `Processing batch ${i / batchSize + 1} of ${Math.ceil(addresses.length / batchSize)}`
+    );
+
+    const success = await processAddressBatch(
+      KudzuBurn,
+      batchAddresses,
+      batchQuantities,
+      batchRewardIds
+    );
+
+    if (!success) {
+      failedBatches.push({
+        addresses: batchAddresses,
+        quantities: batchQuantities,
+        rewardIds: batchRewardIds,
+        startIndex: i,
+      });
+    }
+  }
+
+  // Handle any failed batches
+  if (failedBatches.length > 0) {
+    console.log('\nAttempting to process failed batches...');
+    for (const batch of failedBatches) {
+      console.log(`Retrying batch starting at index ${batch.startIndex}`);
+      const success = await processAddressBatch(
+        KudzuBurn,
+        batch.addresses,
+        batch.quantities,
+        batch.rewardIds
+      );
+      if (!success) {
+        console.error(
+          `Failed to process batch starting at index ${batch.startIndex} after all retries`
         );
-        // NOTE: rewardId 1 == remove round winner balance
-        // NOTE: rewardId 2 == mamo
-        // NOTE: rewardId 3 == retweet
-        // const tx = await KudzuBurn.adminMassPunish(
-        const tx = await KudzuBurn.adminMassReward(
-          chunk.map((a) => a.address),
-          chunk.map((a) => a.points),
-          chunk.map((a) => (a.points == 15 ? 2 : 3))
-        );
-        await tx.wait();
-        console.log(`Successfully processed chunk. TX: ${tx.hash}`);
-      } catch (e) {
-        console.error(`Error processing chunk starting at index ${i}:`, e);
-        // Decrease i to retry this chunk
-        i -= chunkSize;
-        continue;
+        // Could write failed batches to a file for manual processing later
+        fs.appendFileSync('failed_batches.json', JSON.stringify(batch) + '\n');
       }
     }
-  } else {
-    for (const address of addresses) {
-      const tx = await KudzuBurn.adminReward(address, 15);
-      await tx.wait();
-      console.log(`Successfully processed address ${address}. TX: ${tx.hash}`);
-    }
+  }
+
+  console.log('Finished processing all batches');
+  if (failedBatches.length > 0) {
+    console.log(
+      `${failedBatches.length} batches failed and were saved to failed_batches.json`
+    );
   }
 }
 
