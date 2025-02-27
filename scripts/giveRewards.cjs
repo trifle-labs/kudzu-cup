@@ -54,7 +54,93 @@ async function main() {
   // Initialize contracts
   const { initContracts } = await import('./utils.js');
   const { KudzuBurn } = await initContracts(['KudzuBurn']);
+  const addresses = await getSecondGroup();
+  console.log({ addresses });
 
+  const batchSize = 100;
+  const failedBatches = [];
+
+  for (let i = 0; i < addresses.length; i += batchSize) {
+    const batchAddresses = addresses
+      .slice(i, i + batchSize)
+      .map((a) => a.address);
+    const batchQuantities = addresses
+      .slice(i, i + batchSize)
+      .map((a) => a.points);
+    const batchRewardIds = addresses
+      .slice(i, i + batchSize)
+      .map((a) => a.rewardId);
+
+    console.log(
+      `Processing batch ${i / batchSize + 1} of ${Math.ceil(addresses.length / batchSize)}`
+    );
+
+    const success = await processAddressBatch(
+      KudzuBurn,
+      batchAddresses,
+      batchQuantities,
+      batchRewardIds
+    );
+
+    if (!success) {
+      failedBatches.push({
+        addresses: batchAddresses,
+        quantities: batchQuantities,
+        rewardIds: batchRewardIds,
+        startIndex: i,
+      });
+    }
+  }
+
+  // Handle any failed batches
+  if (failedBatches.length > 0) {
+    console.log('\nAttempting to process failed batches...');
+    for (const batch of failedBatches) {
+      console.log(`Retrying batch starting at index ${batch.startIndex}`);
+      const success = await processAddressBatch(
+        KudzuBurn,
+        batch.addresses,
+        batch.quantities,
+        batch.rewardIds
+      );
+      if (!success) {
+        console.error(
+          `Failed to process batch starting at index ${batch.startIndex} after all retries`
+        );
+        // Could write failed batches to a file for manual processing later
+        fs.appendFileSync('failed_batches.json', JSON.stringify(batch) + '\n');
+      }
+    }
+  }
+
+  console.log('Finished processing all batches');
+  if (failedBatches.length > 0) {
+    console.log(
+      `${failedBatches.length} batches failed and were saved to failed_batches.json`
+    );
+  }
+}
+
+// rewardID 4
+async function getSecondGroup() {
+  const url = `https://api.indexsupply.net/query?query=SELECT+%0A++t.from+as+%22burner%22%2C+t.value%0AFROM+%0A++transfersingle+as+t%0AWHERE%0A++address+%3D+0x18130De989d8883c18e0bdBBD3518b4ec1F28f7E%0AAND%0A++t.to+%3D+0x000000000000000000000000000000000000dEad%0AAND%0A++t.from+%21%3D+0x0000000000000000000000000000000000000000%0AAND%0A++t.block_num+%3C%3D+10211963%0AAND%0A++t.value+%3E+1%0A&event_signatures=TransferSingle%28address+indexed+operator%2C+address+indexed+from%2C+address+indexed+to%2C+uint256+id%2C+uint256+value%29&event_signatures=&chain=984122`;
+  const response = await fetch(url);
+  const data = await response.json();
+  const addresses = data.result[0]
+    .slice(1) // Skip the header row
+    .map((row) => {
+      return {
+        address: row[0],
+        points: row[1] - 1,
+        rewardId: 4,
+      };
+    });
+
+  return addresses;
+}
+
+// rewardID 2 and 3
+async function getFirstGroup() {
   const retweeters = [
     {
       address: '0xc5695857c34C7E2084e0580E53eA05A6637D4897',
@@ -194,7 +280,7 @@ async function main() {
   const data = await response.json();
 
   // Extract addresses from the response
-  const addresses = data.result[0]
+  let addresses = data.result[0]
     .slice(1) // Skip the header row
     .map((row) => {
       return { address: row[0], points: 15 };
@@ -207,8 +293,6 @@ async function main() {
       };
     })
   );
-  console.log({ addresses });
-
   const uniqueAddresses = [
     ...new Set(addresses.map((address) => address.address + address.points)),
   ];
@@ -217,66 +301,11 @@ async function main() {
     return;
   }
 
-  const batchSize = 100;
-  const failedBatches = [];
-
-  for (let i = 0; i < addresses.length; i += batchSize) {
-    const batchAddresses = addresses.slice(i, i + batchSize);
-    const batchQuantities = addresses
-      .slice(i, i + batchSize)
-      .map((a) => a.points);
-    const batchRewardIds = addresses
-      .slice(i, i + batchSize)
-      .map((a) => (a.points == 15 ? 2 : 3));
-
-    console.log(
-      `Processing batch ${i / batchSize + 1} of ${Math.ceil(addresses.length / batchSize)}`
-    );
-
-    const success = await processAddressBatch(
-      KudzuBurn,
-      batchAddresses,
-      batchQuantities,
-      batchRewardIds
-    );
-
-    if (!success) {
-      failedBatches.push({
-        addresses: batchAddresses,
-        quantities: batchQuantities,
-        rewardIds: batchRewardIds,
-        startIndex: i,
-      });
-    }
-  }
-
-  // Handle any failed batches
-  if (failedBatches.length > 0) {
-    console.log('\nAttempting to process failed batches...');
-    for (const batch of failedBatches) {
-      console.log(`Retrying batch starting at index ${batch.startIndex}`);
-      const success = await processAddressBatch(
-        KudzuBurn,
-        batch.addresses,
-        batch.quantities,
-        batch.rewardIds
-      );
-      if (!success) {
-        console.error(
-          `Failed to process batch starting at index ${batch.startIndex} after all retries`
-        );
-        // Could write failed batches to a file for manual processing later
-        fs.appendFileSync('failed_batches.json', JSON.stringify(batch) + '\n');
-      }
-    }
-  }
-
-  console.log('Finished processing all batches');
-  if (failedBatches.length > 0) {
-    console.log(
-      `${failedBatches.length} batches failed and were saved to failed_batches.json`
-    );
-  }
+  addresses = addresses.map((address) => {
+    address.rewardId = address.points == 15 ? 2 : 3;
+    return address;
+  });
+  return addresses;
 }
 
 main()
