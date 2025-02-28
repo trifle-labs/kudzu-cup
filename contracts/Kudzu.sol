@@ -9,7 +9,6 @@ import "./ITokenMetadata.sol";
 import "./IERC1155MintablePayable.sol";
 import {StateProofVerifier as Verifier} from "./StateProofVerifier.sol";
 import {RLPReader} from "solidity-rlp/contracts/RLPReader.sol";
-
 /*
 
 KUDZU CHRISTMAS CUP: AIRDROP TOURNAMENT

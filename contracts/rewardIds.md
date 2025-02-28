@@ -1,0 +1,33 @@
+# Reward rewardIds
+
+<!-- Table with the rewardIds and the corresponding rewards and description -->
+
+| Reward ID | Reward  | Description                                                                                                                                                                                           |
+| --------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1         | -?      | This is the rewardID used for when a winner has all of their points removed at the end of a round                                                                                                     |
+| 2         | 15      | This is the rewardID used for the Mamo holder bonus as of 2/23/25 at 4:20pm UTC                                                                                                                       |
+| 3         | 5       | This is the rewardID for twitter users that quote tweeted the announcement of the Kudzu burn                                                                                                          |
+| 4         | various | This is the rewardID used to make up for the incorrectly calculated burn points in the first [burnController contract](https://explorer.forma.art/address/0xE30cef8e99A6eEbE3CBF2862641337f57830FbeE) |
+| 5         | various | This is the rewardID used for bonus points during bonfires                                                                                                                                            |
+
+<!-- Table with bonfire start times and burn quantity multipliers -->
+
+# Bonfire Schedule
+
+For **60 minutes** after the start time of each bonfire, there are **bonus points** awarded when a user burns a number of Kudzu. For each bonfire, that number is different. To calculate the number of bonus points a user gets, use the following formula:
+
+```js
+const bonus = Math.floor(totalBurned / bonfireMultiplier);
+```
+
+> Example:  
+> If a user burns 15 kudzu during the bonfire on 2025-03-03 16:20 GMT when the bonfireMultiplier is 2, they would get 7 bonus points because 15 / 2 = 7.5, and Math.floor(7.5) = 7
+
+| Bonfire Start Time   | Burn X get 1 Free |
+| -------------------- | ----------------- |
+| 2025-03-03 16:20 GMT | 2                 |
+| 2025-03-11 16:20 PST | 3                 |
+| 2025-03-19 16:20 CST | 4                 |
+| 2025-03-27 16:20 GMT | 5                 |
+| 2025-04-04 16:20 PST | 6                 |
+| 2025-04-12 16:20 CST | 7                 |

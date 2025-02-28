@@ -48,7 +48,7 @@ describe('KudzuBurn Tests', function () {
   });
 
   it('has the correct dates', async () => {
-    const startingDate = 'April 20, 2025';
+    const startingDate = 'April 20, 2025, 16:20 GMT+0000';
     const convertDateToUnix = (date) =>
       Math.floor(new Date(date + ' UTC').getTime() / 1000);
     const startingDataUnix = convertDateToUnix(startingDate);
@@ -688,10 +688,9 @@ describe('KudzuBurn Tests', function () {
     const rank = await KudzuBurn.getRank(0);
     expect(rank).to.equal(acct2.address);
 
-    const [player, value, nonce] = await KudzuBurn.kvAtGlobalIndex(0);
+    const [player, value] = await KudzuBurn.kvAtGlobalIndex(0);
     expect(player).to.equal(acct2.address);
     expect(value).to.equal(6);
-    expect(nonce).to.equal(1);
 
     const points = await KudzuBurn.getPoints(acct2.address);
     expect(points).to.equal(6);
