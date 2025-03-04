@@ -53,9 +53,31 @@ async function main() {
 
   // Initialize contracts
   const { initContracts } = await import('./utils.js');
-  const { KudzuBurn } = await initContracts(['KudzuBurn']);
-  const addresses = await getSecondGroup();
+  const { Kudzu, KudzuBurn } = await initContracts(['Kudzu', 'KudzuBurn']);
+  const updateBlockNum = 999999999999; // TODO: Change this to the block number of the update
+
+  const isPaused = await KudzuBurn.paused();
+  if (isPaused) {
+    const tx = await KudzuBurn.updatePaused(false);
+    await tx.wait();
+  }
+
+  const addresses = await getThirdGroup(updateBlockNum, Kudzu.target, chainId);
+  // const addresses = await getSecondGroup();
+  // cosnt addresses = await getFirstGroup()
   console.log({ addresses });
+  if (updateBlockNum == 999999999999) {
+    if (chainId == 984122) {
+      throw new Error('This is using a test block number ' + updateBlockNum);
+    } else {
+      console.error(
+        'This is using a test block number ' +
+          updateBlockNum +
+          ' on chain ' +
+          chainId
+      );
+    }
+  }
 
   const batchSize = 100;
   const failedBatches = [];
@@ -119,6 +141,27 @@ async function main() {
       `${failedBatches.length} batches failed and were saved to failed_batches.json`
     );
   }
+}
+
+async function getThirdGroup(updateBlockNum, kudzuContract, chainId) {
+  const url = `https://api.indexsupply.net/query?query=SELECT+%0A++t.from+as+%22burner%22%2C+SUM%28t.value%29+as+%22total%22%0AFROM+%0A++transfersingle+as+t%0AWHERE%0A++address+%3D+${kudzuContract}%0AAND%0A++t.to+%3D+0x000000000000000000000000000000000000deAd%0AAND%0A++t.from+%21%3D+0x0000000000000000000000000000000000000000%0AAND%0A++t.block_num+%3C%3D+${updateBlockNum}%0AGROUP+BY+%22burner%22%0AORDER+BY+%22total%22+DESC%0A&event_signatures=TransferSingle%28address+indexed+operator%2C+address+indexed+from%2C+address+indexed+to%2C+uint256+id%2C+uint256+value%29&event_signatures=&chain=${chainId}`;
+  console.log({ url });
+  const response = await fetch(url);
+  const data = await response.json();
+  const quotient = 5;
+  const addresses = data.result[0]
+    .slice(1) // Skip the header row
+    .map((row) => {
+      console.log(
+        `${row[0]} gets ${Math.ceil(row[1] / quotient)} points for ${row[1]} total burns`
+      );
+      return {
+        address: row[0],
+        points: Math.ceil(row[1] / quotient), // This means early birds are rewarded even a bit more than those in normal bonfire
+        rewardId: 5, // rewardID 5 is for bonfire points
+      };
+    });
+  return addresses;
 }
 
 // rewardID 4
