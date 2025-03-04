@@ -9,6 +9,7 @@
 | 3         | 5       | This is the rewardID for twitter users that quote tweeted the announcement of the Kudzu burn                                                                                                          |
 | 4         | various | This is the rewardID used to make up for the incorrectly calculated burn points in the first [burnController contract](https://explorer.forma.art/address/0xE30cef8e99A6eEbE3CBF2862641337f57830FbeE) |
 | 5         | various | This is the rewardID used for bonus points during bonfires                                                                                                                                            |
+| 6         | migrate | This is the rewardID used for migrating the points from the previous [KudzuBurn contract](https://explorer.forma.art/address/0x0000000000000000000000000000000000000000)                              |
 
 <!-- Table with bonfire start times and burn quantity multipliers -->
 

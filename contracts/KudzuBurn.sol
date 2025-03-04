@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./HitchensOrderStatisticsTreeLib.sol";
 import "./Kudzu.sol";
+import "hardhat/console.sol";
 
 /*
 
@@ -18,6 +19,7 @@ contract KudzuBurn is Ownable {
 
     bool public paused = false;
     Kudzu public kudzu;
+    address payable public prevKudzuBurn;
     address public kudzuBurnController;
     uint256 public currentRound = 0;
 
@@ -111,8 +113,9 @@ contract KudzuBurn is Ownable {
         int256 points
     );
 
-    constructor(Kudzu kudzu_) {
+    constructor(Kudzu kudzu_, address payable prevKudzuBurn_) {
         kudzu = kudzu_;
+        prevKudzuBurn = prevKudzuBurn_;
     }
 
     modifier onlyController() {
@@ -134,9 +137,17 @@ contract KudzuBurn is Ownable {
         rounds[roundIndex].payoutToRecipient += msg.value;
     }
 
+    function migrateTree(uint256 index, uint256 count) public onlyOwner {
+        for (uint256 i = 0; i < count; i++) {
+            console.log("migrating", index + i);
+            (address burner, uint256 points ) = KudzuBurn(prevKudzuBurn).kvAtGlobalIndex(index + i);
+            console.log("points", points);
+            updateTree(burner, points, true, 6); // rewardId 6 == migrate
+        }
+    }
+
     function getWinningAddress() public view returns (address firstPlace) {
-        uint256 value = tree.last();
-        bytes32 key = tree.valueKeyAtIndex(value, 0);
+        (bytes32 key, ) = tree.keyAtGlobalIndex(0);
         return address(uint160(uint256(key)));
     }
 
@@ -175,6 +186,9 @@ contract KudzuBurn is Ownable {
             // add key with new value
             tree.insert(addressAsKey, newValue);
         }
+        // console.log("burner", burner);
+        // console.log('updatePoints', newValue);
+        // console.log("tokenId/rewardId", tokenId);
         burnerPoints[burner] = newValue;
         emit PointsRewarded(burner, tokenId, pointsChange);
     }
@@ -184,14 +198,14 @@ contract KudzuBurn is Ownable {
     }
 
     function getRank(uint targetRank) public view returns (address) {
-        (bytes32 key, ,) = tree.keyAtGlobalIndex(targetRank);
+        (bytes32 key, ) = tree.keyAtGlobalIndex(targetRank);
         return address(uint160(uint256(key)));
     }
 
-    function kvAtGlobalIndex(uint targetIndex) public view returns (address player, uint val, uint nonce) {
+    function kvAtGlobalIndex(uint targetIndex) public view returns (address player, uint val) {
         bytes32 key;
-        (key, val, nonce) = tree.keyAtGlobalIndex(targetIndex);
-        return (address(uint160(uint256(key))), val, nonce);
+        (key, val) = tree.keyAtGlobalIndex(targetIndex);
+        return (address(uint160(uint256(key))), val);
     }
 
     function adminReward(address burner, uint256 quantity, uint256 rewardId) public onlyOwner {

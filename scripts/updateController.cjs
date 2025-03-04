@@ -27,10 +27,12 @@ async function main() {
   };
 
   // update ExternalMetadata
-  await KudzuBurn.updateKudzuBurnController(burnController.target);
+  const tx = await KudzuBurn.updateKudzuBurnController(burnController.target);
   console.log(
     `KudzuBurnController address updated to ${burnController.target} in KudzuBurn ${KudzuBurn.target}`
   );
+  await tx.wait();
+  console.log(`Block number: ${tx.blockNumber}`);
 
   await copyABI('KudzuBurnController');
   const contract = returnObject.KudzuBurnController;

@@ -742,7 +742,7 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     //   console.log(`js: ${i}: ${a.key} ${a.value} ${a.i}`)
     // );
     // for (let i = 0; i < localArray.length; i++) {
-    //   const [key, value, nonce] = await tree.kvAtGlobalIndex(i);
+    //   const [key, value] = await tree.kvAtGlobalIndex(i);
     //   console.log(`sol: ${i}: ${key} ${value} ${nonce}`);
     // }
 
@@ -771,6 +771,272 @@ describe('HitchensOrderStatisticsTreeLib Tests', function () {
     for (let i = 0; i < localArray.length; i++) {
       const key = await tree.keyAtGlobalIndex(i);
       expect(key).to.equal(localArray[i].key, i);
+    }
+  });
+
+  it('should have valueKeyAtIndex(value,0) match keyAtGlobalIndex(0) for highest value', async () => {
+    // Insert values in non-sequential order with multiple keys per value
+    await tree.insert(ethers.id('key1'), 100);
+    await tree.insert(ethers.id('key2'), 100);
+    await tree.insert(ethers.id('key3'), 150);
+    await tree.insert(ethers.id('key4'), 150);
+    await tree.insert(ethers.id('key5'), 50);
+
+    // Get the highest value's first key using both methods
+    const highestValue = await tree.last(); // Should be 150
+    expect(highestValue).to.equal(150);
+    const valueFirstKey = await tree.valueKeyAtIndex(highestValue, 0);
+    const globalFirstKey = await tree.keyAtGlobalIndex(0);
+
+    // Verify they match
+    expect(valueFirstKey).to.equal(globalFirstKey);
+    expect(valueFirstKey).to.equal(ethers.id('key3'));
+
+    // Add a new highest value and verify again
+    await tree.insert(ethers.id('key6'), 200);
+
+    const newHighestValue = await tree.last(); // Should be 200
+    expect(newHighestValue).to.equal(200);
+    const newValueFirstKey = await tree.valueKeyAtIndex(newHighestValue, 0);
+    const newGlobalFirstKey = await tree.keyAtGlobalIndex(0);
+
+    expect(newValueFirstKey).to.equal(newGlobalFirstKey);
+    expect(newValueFirstKey).to.equal(ethers.id('key6'));
+  });
+
+  it('should maintain reasonable gas costs as tree grows', async () => {
+    const sampleSizes = [10, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    const results = {};
+    let treeValues = []; // Store all values for cleanup
+
+    for (const size of sampleSizes) {
+      results[size] = {
+        insertCosts: [],
+        removeCosts: [],
+        rankCosts: [],
+        atIndexCosts: [],
+      };
+
+      // Insert elements in random order
+      const values = Array.from({ length: size }, (_, i) => ({
+        key: ethers.id(`key${i}`),
+        value: Math.floor((Math.random() * size) / 3) + 1,
+      }));
+      treeValues = treeValues.concat(values); // Store for cleanup
+
+      // Measure insert costs
+      for (const { key, value } of values) {
+        const tx = await tree.insert(key, value);
+        const receipt = await tx.wait();
+        results[size].insertCosts.push(receipt.gasUsed);
+      }
+
+      // Measure rank lookup costs for random elements
+      for (let i = 0; i < Math.min(20, size); i++) {
+        const randomValue =
+          values[Math.floor(Math.random() * values.length)].value;
+        const gasUsed = await tree.rank.estimateGas(randomValue);
+        results[size].rankCosts.push(gasUsed);
+      }
+
+      // Measure atIndex costs for random indices
+      for (let i = 0; i < Math.min(20, size); i++) {
+        const randomIndex = Math.floor(Math.random() * size);
+        const gasUsed = await tree.atIndex.estimateGas(randomIndex);
+        results[size].atIndexCosts.push(gasUsed);
+      }
+
+      // Remove random elements and measure costs
+      const shuffled = [...values].sort(() => Math.random() - 0.5);
+      for (let i = 0; i < Math.min(50, size); i++) {
+        const { key, value } = shuffled[i];
+        const tx = await tree.remove(key, value);
+        const receipt = await tx.wait();
+        results[size].removeCosts.push(receipt.gasUsed);
+      }
+
+      // Calculate and log averages
+      const avgInsert = Math.floor(
+        parseInt(
+          results[size].insertCosts.reduce((a, b) => a + b, 0n) /
+            BigInt(results[size].insertCosts.length)
+        )
+      );
+      const avgRemove = Math.floor(
+        parseInt(
+          results[size].removeCosts.reduce((a, b) => a + b, 0n) /
+            BigInt(results[size].removeCosts.length)
+        )
+      );
+      const avgRank = Math.floor(
+        parseInt(
+          results[size].rankCosts.reduce((a, b) => a + b, 0n) /
+            BigInt(results[size].rankCosts.length)
+        )
+      );
+      const avgAtIndex = Math.floor(
+        parseInt(
+          results[size].atIndexCosts.reduce((a, b) => a + b, 0n) /
+            BigInt(results[size].atIndexCosts.length)
+        )
+      );
+
+      const maxInsert = Math.max(...results[size].insertCosts);
+      const maxRemove = Math.max(...results[size].removeCosts);
+      const maxRank = Math.max(...results[size].rankCosts);
+      const maxAtIndex = Math.max(...results[size].atIndexCosts);
+
+      const minInsert = Math.min(...results[size].insertCosts);
+      const minRemove = Math.min(...results[size].removeCosts);
+      const minRank = Math.min(...results[size].rankCosts);
+      const minAtIndex = Math.min(...results[size].atIndexCosts);
+
+      console.log(`\nTree size: ${size}`);
+      console.log(`Average insert gas: ${avgInsert}`);
+      console.log(`Average remove gas: ${avgRemove}`);
+      console.log(`Average rank lookup gas: ${avgRank}`);
+      console.log(`Average atIndex lookup gas: ${avgAtIndex}`);
+      console.log(`Max insert gas: ${maxInsert}`);
+      console.log(`Max remove gas: ${maxRemove}`);
+      console.log(`Max rank lookup gas: ${maxRank}`);
+      console.log(`Max atIndex lookup gas: ${maxAtIndex}`);
+      console.log(`Min insert gas: ${minInsert}`);
+      console.log(`Min remove gas: ${minRemove}`);
+      console.log(`Min rank lookup gas: ${minRank}`);
+      console.log(`Min atIndex lookup gas: ${minAtIndex}`);
+
+      // Verify gas costs grow logarithmically
+      if (size > sampleSizes[0]) {
+        const prevSize = sampleSizes[sampleSizes.indexOf(size) - 1];
+        const ratio = BigInt(avgInsert) / results[prevSize].insertCosts[0];
+        // For a balanced tree, we expect the ratio to be less than 2
+        // when the size doubles (logarithmic growth)
+        expect(ratio).to.be.lte(
+          2,
+          `Gas cost ratio (${ratio}) for size ${size} vs ${prevSize} is higher than expected`
+        );
+      }
+    }
+
+    // Clear the tree
+    for (const { key, value } of treeValues) {
+      try {
+        await tree.remove(key, value);
+      } catch (e) {
+        // Ignore errors for already removed values
+      }
+    }
+
+    // Test complex sorting scenarios
+    console.log('\nTesting complex sorting scenarios...');
+
+    // Test scenario 1: Insert many duplicate values
+    console.log('Scenario 1: Multiple keys with same value');
+    const tx1Start = await tree.insert(ethers.id('start'), 100);
+    const receipt1Start = await tx1Start.wait();
+    const gasStart = receipt1Start.gasUsed;
+
+    for (let i = 0; i < 20; i++) {
+      const tx = await tree.insert(ethers.id(`dup${i}`), 100);
+      const receipt = await tx.wait();
+      console.log(`Insert duplicate ${i} gas: ${receipt.gasUsed}`);
+      // Gas cost for inserting duplicates should be relatively constant
+      expect(receipt.gasUsed).to.be.lessThan(
+        Math.floor(parseInt(gasStart) * 1.5)
+      );
+    }
+
+    // Test scenario 2: Alternating high/low values to force rotations
+    console.log('\nScenario 2: Alternating high/low values');
+    for (let i = 0; i < 20; i++) {
+      const value = i % 2 === 0 ? i * 1000 : i;
+      if (value == 0) continue;
+      const tx = await tree.insert(ethers.id(`alt${i}`), value);
+      const receipt = await tx.wait();
+      console.log(`Insert alternating ${i} (${value}) gas: ${receipt.gasUsed}`);
+    }
+
+    // Test scenario 3: Rapid insert/remove operations
+    console.log('\nScenario 3: Rapid insert/remove operations');
+    const rapidValues = [];
+    for (let i = 0; i < 20; i++) {
+      const value = Math.floor(Math.random() * 1000) + 1;
+      rapidValues.push({ index: i, key: ethers.id(`rapid${i}`), value });
+      const tx1 = await tree.insert(ethers.id(`rapid${i}`), value);
+      const receipt1 = await tx1.wait();
+      console.log(`Rapid insert ${i}:${value} gas: ${receipt1.gasUsed}`);
+      if (i > 0) {
+        const {
+          index,
+          key: removeKey,
+          value: removeValue,
+        } = rapidValues[Math.floor(Math.random() * rapidValues.length)];
+        try {
+          const tx2 = await tree.remove(removeKey, removeValue);
+          const receipt2 = await tx2.wait();
+          console.log(
+            `Rapid insert/remove key:${index}'s gas - Insert: ${receipt1.gasUsed}, Remove: ${receipt2.gasUsed}`
+          );
+          const rapidIndex = rapidValues.findIndex((v) => v.index == index);
+          rapidValues.splice(rapidIndex, 1);
+        } catch (e) {
+          console.error(`${index} key and  ${removeValue} value did not exist`);
+        }
+      }
+    }
+  });
+
+  it.only('should repeat the burns from mainnet and check whether theres an error', async () => {
+    const url = `https://api.indexsupply.net/query?query=SELECT+%0A+%22to%22%2C+tokenid%2C+points%2C+block_num%2C+log_idx%0AFROM+%0A++pointsrewarded%0AWHERE%0A++address+%3D+0x3CF554831E309Be39A541080b82bD81b6409C012%0AORDER+BY+block_num+ASC%2C+log_idx+ASC%0A&event_signatures=PointsRewarded%28address+indexed+to%2Cuint256+indexed+tokenId%2Cint256+points%29&chain=984122`;
+    const response = await fetch(url);
+    const data = await response.json();
+    const allPoints = data.result[0].splice(1);
+    const players = {};
+    const addressToBytes32 = (address) => {
+      return ethers.zeroPadValue(ethers.getAddress(address), 32);
+    };
+    const bytes32ToAddress = (bytes32) => {
+      // Take the last 40 characters (20 bytes) of the bytes32 value
+      const addressHex = bytes32.slice(-40);
+      return ('0x' + addressHex).toLowerCase();
+    };
+    for (let i = 0; i < allPoints.length; i++) {
+      const point = allPoints[i];
+      const [to, tokenid, points, block_num, log_idx] = point;
+      const toKey = addressToBytes32(to);
+      if (!players[to]) {
+        players[to] = {
+          points,
+          lastUpdated: i,
+        };
+      } else {
+        const previousPoints = players[to].points;
+        await tree.remove(toKey, previousPoints);
+        players[to].points = parseInt(players[to].points) + parseInt(points);
+        players[to].lastUpdated = i;
+      }
+      const currentPoints = players[to].points;
+      console.log(`${to} - ${i}/${allPoints.length} - ${currentPoints}`);
+      await tree.insert(toKey, currentPoints);
+      if (i > 164 && i % 1000 == 0) {
+        await tree.kvAtGlobalIndex(164);
+      }
+    }
+    const playerCount = Object.keys(players).length;
+    for (let i = 0; i < playerCount; i++) {
+      try {
+        const [playerAsBytes32, value] = await tree.kvAtGlobalIndex(i);
+        const player = bytes32ToAddress(playerAsBytes32);
+        const foundPlayer = players[player];
+        if (!foundPlayer) {
+          console.log(`player not found ${player} with value ${value}`);
+          throw new Error('not found');
+        }
+        expect(foundPlayer.points).to.equal(value);
+      } catch (e) {
+        console.log(`error at index ${i}`);
+        console.log(e);
+      }
     }
   });
 });

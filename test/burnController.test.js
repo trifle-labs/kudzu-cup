@@ -704,4 +704,214 @@ describe('KudzuBurnController Tests', function () {
       }
     }
   });
+
+  it('simulates complete tournament lifecycle with 15 players across all rounds', async () => {
+    // Setup accounts and contracts
+    const accounts = await ethers.getSigners();
+    const players = accounts.slice(1, 16); // 15 players
+    const { Kudzu, KudzuBurn, KudzuBurnController } = await deployKudzuAndBurn({
+      mock: true,
+    });
+
+    // Fund all rounds with prize money
+    for (let round = 0; round < 13; round++) {
+      await KudzuBurn.fundRound(round, {
+        value: ethers.parseEther(`${round + 1}`),
+      });
+    }
+
+    // Setup tokens - each player gets 3 different token types with 10 tokens each
+    const tokenIdsByPlayer = [];
+    for (let i = 0; i < players.length; i++) {
+      const player = players[i];
+      const recipients = [
+        {
+          address: player,
+          quantity: 30, // 3 token types
+          infected: [],
+        },
+      ];
+      const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
+      tokenIdsByPlayer.push(tokenIds);
+
+      // Approve burn controller for all players
+      await Kudzu.connect(player).setApprovalForAll(
+        KudzuBurnController.target,
+        true
+      );
+    }
+
+    console.log('Tournament starting with 15 players');
+
+    // Run through all 13 rounds
+    for (let round = 0; round < 13; round++) {
+      console.log(`\n--- ROUND ${round + 1} ---`);
+
+      // Get round end date
+      const [, endDate] = await KudzuBurn.rounds(round);
+      const roundDuration = 7776000; // ~3 months in seconds
+      const roundStart = Number(endDate) - roundDuration;
+
+      // Find the next bonfire that occurs during this round
+      const firstBonfireStart = await KudzuBurnController.firstBonfireStart();
+      const bonfireDelay = await KudzuBurnController.bonfireDelay();
+      let bonfirePhase = 0;
+      let nextBonfireTime = firstBonfireStart;
+
+      // Find the first bonfire that occurs during this round
+      while (Number(nextBonfireTime) < roundStart) {
+        bonfirePhase++;
+        nextBonfireTime =
+          firstBonfireStart + BigInt(bonfirePhase) * bonfireDelay;
+      }
+
+      const now = (await hre.ethers.provider.getBlock('latest')).timestamp;
+
+      // Define three phase timestamps: before, during, and after bonfire
+      const phases = [
+        roundStart + roundDuration / 10, // Phase 1: Early in round
+        Number(nextBonfireTime) + 100, // Phase 2: During bonfire
+        Number(endDate) - roundDuration / 10, // Phase 3: Late in round
+      ].map((t, i) => {
+        const nnow = now + ((i + 1) * roundDuration) / 10;
+        return t < nnow ? nnow : t;
+      });
+
+      // Run each phase
+      for (let phaseIndex = 0; phaseIndex < phases.length; phaseIndex++) {
+        const phaseTimestamp = phases[phaseIndex];
+        console.log(
+          `Phase ${phaseIndex + 1} - ${new Date(phaseTimestamp * 1000).toDateString()}`
+        );
+
+        // Set timestamp to current phase
+        await hre.network.provider.send('evm_setNextBlockTimestamp', [
+          phaseTimestamp,
+        ]);
+        await hre.network.provider.send('evm_mine');
+
+        // Check if we're in a bonfire period
+        const isBonfireActive =
+          await KudzuBurnController.isBonfireActive(phaseTimestamp);
+        if (isBonfireActive) {
+          const quotient =
+            await KudzuBurnController.getQuotient(phaseTimestamp);
+          console.log(`🔥 BONFIRE ACTIVE! Quotient: ${quotient}`);
+        }
+
+        // Each player burns some tokens
+        for (let i = 0; i < players.length; i++) {
+          const randomlySkip = Math.random() < 0.5;
+          if (randomlySkip) {
+            continue;
+          }
+          const playerRank = await getPlayerRank(KudzuBurn, players[i].address);
+
+          // Burn more tokens during bonfire phases
+          let burnAmount;
+          if (isBonfireActive) {
+            burnAmount = playerRank < 5 ? 5 : playerRank < 10 ? 3 : 2;
+          } else {
+            burnAmount = playerRank < 5 ? 3 : playerRank < 10 ? 2 : 1;
+          }
+
+          // Burn tokens if player has any left
+          for (let j = 0; j < tokenIdsByPlayer[i].length; j++) {
+            const tokenId = tokenIdsByPlayer[i][j];
+            const balance = await Kudzu['balanceOf(address,uint256)'](
+              players[i].address,
+              tokenId
+            );
+
+            if (balance > 0) {
+              const amountToBurn = Math.min(Number(balance), burnAmount);
+              if (amountToBurn > 0) {
+                await KudzuBurnController.connect(players[i]).burn(
+                  tokenId,
+                  amountToBurn
+                );
+              }
+            }
+          }
+        }
+
+        // Display current leaderboard
+        await displayLeaderboard(KudzuBurn, 15);
+      }
+
+      // End of round - set timestamp to just after round end
+      await hre.network.provider.send('evm_setNextBlockTimestamp', [
+        Number(endDate) + 1,
+      ]);
+      await hre.network.provider.send('evm_mine');
+
+      // Check if round is over
+      const isOver = await KudzuBurn.isOver();
+      expect(isOver).to.be.true;
+
+      // Get winner before rewarding
+      const winner = await KudzuBurn.getWinningAddress();
+      const winnerPoints = await KudzuBurn.getPoints(winner);
+      console.log(
+        `Round ${round + 1} winner: ${winner} with ${winnerPoints} points`
+      );
+
+      // Reward winner
+      const prizeAmount = await KudzuBurn.rounds(round).then(
+        (r) => r.payoutToRecipient
+      );
+      const initialBalance = await ethers.provider.getBalance(winner);
+
+      await KudzuBurn.rewardWinner();
+
+      // Verify winner received prize and points were reset
+      const finalBalance = await ethers.provider.getBalance(winner);
+      expect(finalBalance).to.equal(initialBalance + prizeAmount);
+      expect(await KudzuBurn.getPoints(winner)).to.equal(0);
+
+      console.log(`Winner received ${ethers.formatEther(prizeAmount)} ETH`);
+      console.log(`Current round: ${await KudzuBurn.currentRound()}`);
+    }
+
+    // Verify all rounds are complete
+    expect(await KudzuBurn.currentRound()).to.equal(13);
+    await expect(KudzuBurn.isOver()).to.be.revertedWith('All rounds are over');
+
+    console.log('\nTournament complete! All 13 rounds finished successfully.');
+  });
+
+  // Helper function to get a player's rank
+  async function getPlayerRank(KudzuBurn, playerAddress) {
+    try {
+      const points = await KudzuBurn.getPoints(playerAddress);
+      if (points === 0n) return 999; // Not ranked
+
+      let rank = 0;
+      while (true) {
+        try {
+          const addressAtRank = await KudzuBurn.getRank(rank);
+          if (addressAtRank === playerAddress) return rank;
+          rank++;
+        } catch (e) {
+          return 999; // Not found in rankings
+        }
+      }
+    } catch (e) {
+      return 999;
+    }
+  }
+
+  // Helper function to display current leaderboard
+  async function displayLeaderboard(KudzuBurn, count) {
+    console.log('\nCurrent Leaderboard:');
+    for (let i = 0; i < count; i++) {
+      try {
+        const address = await KudzuBurn.getRank(i);
+        const points = await KudzuBurn.getPoints(address);
+        console.log(`#${i + 1}: ${address} - ${points} points`);
+      } catch (e) {
+        break; // No more ranked players
+      }
+    }
+  }
 });

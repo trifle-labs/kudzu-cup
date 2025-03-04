@@ -94,7 +94,8 @@ contract KudzuBurnController is Ownable {
         if (timestamp < firstBonfireStart) return bonfireQuotient;
         uint256 timeSinceFirstBonfire = timestamp - firstBonfireStart;
         uint256 moduloBonfireDelay = timeSinceFirstBonfire % bonfireDelay;
-        uint256 phase =(timeSinceFirstBonfire - moduloBonfireDelay) / bonfireDelay;
+        uint256 maxPhase = 11;
+        uint256 phase = ((timeSinceFirstBonfire - moduloBonfireDelay) / bonfireDelay) % maxPhase;
         bonus = bonfireQuotient + phase;
     }
 

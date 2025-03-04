@@ -38,6 +38,8 @@ https://github.com/bokkypoobah/BokkyPooBahsRedBlackTreeLibrary
 THIS SOFTWARE IS NOT TESTED OR AUDITED. DO NOT USE FOR PRODUCTION.
 */
 
+import "hardhat/console.sol";
+
 
 library HitchensOrderStatisticsTreeLib {
     uint private constant EMPTY = 0;
@@ -278,7 +280,7 @@ library HitchensOrderStatisticsTreeLib {
     function keyAtGlobalIndex(
         Tree storage self,
         uint targetRank
-    ) internal view returns (bytes32 _key, uint cursor, uint nonce) {
+    ) internal view returns (bytes32 _key, uint cursor) {
         uint adjusted = targetRank;
         bool finished;
         cursor = self.root;
@@ -294,43 +296,23 @@ library HitchensOrderStatisticsTreeLib {
             uint keys = c.keys.length;
             
             if (adjusted < counted + rightCount + keys) {
+                console.log('a');
                 if (adjusted < counted + rightCount) {
+                    console.log('b');
                     cursor = c.right;
                 } else {
-                    // Need to find the key with the lowest nonce (earliest insertion)
+                    console.log('c');
+                    // Keys are already in order, just return the correct index
                     uint keyIndex = adjusted - counted - rightCount;
-                    if (keys == 1) {
-                        // If there's only one key, just return it
-                        _key = c.keys[0];
+                    if (keyIndex < keys) {
+                        _key = c.keys[keyIndex];
+                        finished = true;
                     } else {
-                        // Find the key with the lowest nonce at specified position
-                        bytes32[] memory sortedKeys = new bytes32[](keys);
-                        for (uint i = 0; i < keys; i++) {
-                            sortedKeys[i] = c.keys[i];
-                        }
-                        
-                        // Sort keys by nonce (bubble sort for simplicity)
-                        for (uint i = 0; i < keys; i++) {
-                            for (uint j = 0; j < keys - i - 1; j++) {
-                                if (c.joinNonces[sortedKeys[j]] > c.joinNonces[sortedKeys[j + 1]]) {
-                                    bytes32 temp = sortedKeys[j];
-                                    sortedKeys[j] = sortedKeys[j + 1];
-                                    sortedKeys[j + 1] = temp;
-                                }
-                            }
-                        }
-                        
-                        // Return the key at the specified index in the FIFO-ordered array
-                        if (keyIndex < keys) {
-                            _key = sortedKeys[keyIndex];
-                        } else {
-                            revert("OrderStatisticsTree(411) - Invalid key index");
-                        }
+                        revert("OrderStatisticsTree(411) - Invalid key index");
                     }
-                    nonce = c.joinNonces[_key];
-                    finished = true;
                 }
             } else {
+                console.log('l');
                 counted += rightCount + keys;
                 cursor = c.left;
             }
@@ -454,8 +436,6 @@ library HitchensOrderStatisticsTreeLib {
                 self.nodes[probe].keyMap[key] =
                     self.nodes[probe].keys.length -
                     uint256(1);
-                // Add nonce for FIFO ordering instead of timestamp
-                self.nodes[probe].joinNonces[key] = getNextNonce(self);
                 return;
             }
             self.nodes[cursor].count++;
@@ -467,8 +447,6 @@ library HitchensOrderStatisticsTreeLib {
         nValue.red = true;
         nValue.keys.push(key);
         nValue.keyMap[key] = nValue.keys.length - uint256(1);
-        // Add nonce for FIFO ordering instead of timestamp
-        nValue.joinNonces[key] = getNextNonce(self);
         if (cursor == EMPTY) {
             self.root = value;
         } else if (value < cursor) {
@@ -492,24 +470,14 @@ library HitchensOrderStatisticsTreeLib {
         Node storage nValue = self.nodes[value];
         uint rowToDelete = nValue.keyMap[key];
 
-        // Remove key from array. In Solidity only last array member
-        // can be delete. So we need some replace logic.
-        // But if there is only one array member we dont need any replacing
-        // and can safe some gas
-        if (nValue.keys.length > 1) {
-            // 1. First just replace key at delete index with last array key
-            nValue.keys[rowToDelete] = nValue.keys[
-                nValue.keys.length - uint256(1)
-            ];
-            // 2. Save new array index for just replaced key in mapping
-            nValue.keyMap[nValue.keys[rowToDelete]] = rowToDelete;
+        // Instead of swapping with last element, shift all elements after rowToDelete left by one
+        for (uint i = rowToDelete; i < nValue.keys.length - 1; i++) {
+            console.log('i is', i);
+            nValue.keys[i] = nValue.keys[i + 1];
+            nValue.keyMap[nValue.keys[i]] = i;  // Update mapping for shifted keys
         }
-        // 3. Remove last array key
         nValue.keys.pop();
-        // 4. Clean mapping for deleted key
         delete nValue.keyMap[key];
-        // 5. Clean nonce for deleted key
-        delete nValue.joinNonces[key];
 
         // FIX: Update count if we're just removing a key but keeping the node
         if (nValue.keys.length > 0) {

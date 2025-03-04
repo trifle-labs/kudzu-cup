@@ -47,12 +47,12 @@ contract TreeTest {
         return tree.rank(value);
     }
 
-    function kvAtGlobalIndex(uint targetRank) public view returns (bytes32, uint, uint) {
+    function kvAtGlobalIndex(uint targetRank) public view returns (bytes32, uint) {
         return tree.keyAtGlobalIndex(targetRank);
     }
 
     function keyAtGlobalIndex(uint targetRank) public view returns (bytes32) {
-        (bytes32 key, , ) = tree.keyAtGlobalIndex(targetRank);
+        (bytes32 key, ) = tree.keyAtGlobalIndex(targetRank);
         return key;
     }
     

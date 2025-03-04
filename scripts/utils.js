@@ -212,8 +212,10 @@ const deployBurnContract = async (returnObject) => {
 
   log('Deploying KudzuBurn contract');
 
+  const zeroAddress = '0x0000000000000000000000000000000000000000';
+
   const KudzuBurn = await hre.ethers.getContractFactory('KudzuBurn');
-  const burn = await KudzuBurn.deploy(returnObject.Kudzu.target);
+  const burn = await KudzuBurn.deploy(returnObject.Kudzu.target, zeroAddress);
   await burn.deploymentTransaction().wait();
   returnObject['KudzuBurn'] = burn;
   log(`KudzuBurn Deployed at ${burn.target} `);

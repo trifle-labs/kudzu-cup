@@ -726,4 +726,117 @@ describe('KudzuBurn Tests', function () {
     const rank4 = await KudzuBurn.getRank(0);
     expect(rank4).to.equal(acct2.address);
   });
+
+  it('ensures getWinningAddress matches getRank(0)', async () => {
+    const [deployer, acct1, acct2, acct3] = await ethers.getSigners();
+    const { KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+
+    console.log({
+      acct1: acct1.address,
+      acct2: acct2.address,
+      acct3: acct3.address,
+    });
+    // Add some points to create different rankings
+    await KudzuBurn.adminReward(acct1.address, 10, 0);
+    await KudzuBurn.adminReward(acct2.address, 10, 0);
+    await KudzuBurn.adminReward(acct3.address, 10, 0);
+
+    // Verify getWinningAddress matches getRank(0)
+    expect(await KudzuBurn.getWinningAddress()).to.equal(
+      await KudzuBurn.getRank(0)
+    );
+    expect(await KudzuBurn.getWinningAddress()).to.equal(acct1.address);
+
+    // Change rankings and verify again
+    await KudzuBurn.adminReward(acct1.address, 15, 0);
+    expect(await KudzuBurn.getWinningAddress()).to.equal(
+      await KudzuBurn.getRank(0)
+    );
+    expect(await KudzuBurn.getWinningAddress()).to.equal(acct1.address);
+
+    // Remove points and verify
+    await KudzuBurn.adminPunish(acct1.address, 20, 0);
+    expect(await KudzuBurn.getWinningAddress()).to.equal(
+      await KudzuBurn.getRank(0)
+    );
+    expect(await KudzuBurn.getWinningAddress()).to.equal(acct2.address);
+  });
+
+  it.only('tests migration with many addresses', async () => {
+    const {
+      Kudzu,
+      KudzuBurn: originalKudzuBurn,
+      KudzuBurnController,
+    } = await deployKudzuAndBurn({ mock: true });
+
+    const groupSize = 9636;
+    const chunksize = 100;
+
+    const indexToAddress = (index) => {
+      const id = ethers.id(index + '').slice(0, 42);
+      return ethers.getAddress(id);
+    };
+
+    const allPoints = {};
+
+    // Add 90 addresses with various scores
+    for (let i = 0; i < groupSize; i++) {
+      const points = Math.floor(Math.random() * 1000) + 1; // Random points between 1-1000
+      const address = indexToAddress(i);
+      allPoints[address] = points;
+      await originalKudzuBurn.adminReward(address, points, 0);
+    }
+
+    // Deploy new KudzuBurn and update controller
+    const KudzuBurnFactory = await ethers.getContractFactory('KudzuBurn');
+    const newKudzuBurn = await KudzuBurnFactory.deploy(
+      Kudzu.target,
+      originalKudzuBurn.target
+    );
+    await newKudzuBurn.deploymentTransaction().wait();
+    await KudzuBurnController.updateBurnAddress(newKudzuBurn.target);
+
+    // Get original tree count
+
+    // Test migration in chunks to measure gas
+    const totalChunks = Math.ceil(groupSize / chunksize);
+    const lastChunkSize = groupSize % chunksize;
+    let totalGasUsed = 0n;
+    for (let i = 0; i < totalChunks; i++) {
+      const startIndex = i * chunksize;
+      const chunk =
+        i == totalChunks - 1 && lastChunkSize > 0 ? lastChunkSize : chunksize;
+      const tx = await newKudzuBurn.migrateTree(startIndex, chunk);
+      const receipt = await tx.wait();
+      console.log(`Chunk ${i + 1}/${totalChunks} gas used: ${receipt.gasUsed}`);
+      totalGasUsed += receipt.gasUsed;
+      // Check gas used is under 20M
+      expect(receipt.gasUsed).to.be.lt(25000000);
+    }
+    console.log(`Total gas used: ${totalGasUsed}`);
+    const gasPrice = 18n * 10n ** 6n;
+    const totalTiaUsed = BigInt(totalGasUsed) * gasPrice;
+    const totalTiaUsedFormatted = totalTiaUsed / 10n ** 18n;
+    console.log(
+      `Total TIA used: ${totalTiaUsedFormatted}.${totalTiaUsed % 10n ** 18n}`
+    );
+
+    // Verify migration was successful
+    for (let i = 0; i < groupSize; i++) {
+      const address = indexToAddress(i);
+      const originalPoints = await originalKudzuBurn.getPoints(address);
+      expect(originalPoints).to.equal(allPoints[address]);
+
+      const newPoints = await newKudzuBurn.getPoints(address);
+
+      expect(newPoints).to.equal(originalPoints);
+    }
+
+    // Verify rankings maintained
+    for (let i = 0; i < groupSize; i++) {
+      const originalRank = await originalKudzuBurn.getRank(i);
+      const newRank = await newKudzuBurn.getRank(i);
+      expect(newRank).to.equal(originalRank);
+    }
+  });
 });
