@@ -94,8 +94,8 @@ contract TreeTest {
             node.left,
             node.right,
             node.red,
-            node.keys.length,
-            node.count + node.keys.length
+            node.keyTree._count,
+            node.count + node.keyTree._count
         );
     }
 

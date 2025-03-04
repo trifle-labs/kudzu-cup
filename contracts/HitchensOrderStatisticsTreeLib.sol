@@ -52,21 +52,24 @@ library HitchensOrderStatisticsTreeLib {
         uint left;
         uint right;
         bool red;
-        bytes32[] keys;
-        mapping(bytes32 => uint) keyMap;
-        mapping(bytes32 => uint) joinNonces; // Changed from joinTimes to joinNonces
+        Tree keyTree;  // Secondary tree to store keys ordered by nonce
+        mapping(bytes32 => uint) keyToNonce;  // Map keys to their nonces for removal
         uint count;
+        bytes32 singleKey; // Single key for when node is part of a keyTree
     }
     
     struct Tree {
         uint root;
         mapping(uint => Node) nodes;
-        // We'll track the next nonce at the tree level
-        uint nextNonce;
+        uint nextNonce;  // Track next nonce at tree level
+        uint _count;
     }
 
     // Helper function to get the next nonce value
-    function getNextNonce(Tree storage self) private returns (uint) {
+    function getNextNonce(Tree storage self) internal returns (uint) {
+        if (self.nextNonce == 0) {
+            self.nextNonce = 1;
+        }
         uint nonce = self.nextNonce;
         self.nextNonce += 1;
         return nonce;
@@ -142,7 +145,7 @@ library HitchensOrderStatisticsTreeLib {
         uint value
     ) internal view returns (bool _exists) {
         if (!exists(self, value)) return false;
-        return self.nodes[value].keys[self.nodes[value].keyMap[key]] == key;
+        return self.nodes[value].keyToNonce[key] != 0;
     }
 
     function getNode(
@@ -170,8 +173,8 @@ library HitchensOrderStatisticsTreeLib {
             gn.left,
             gn.right,
             gn.red,
-            gn.keys.length,
-            gn.keys.length + gn.count
+            gn.keyTree._count,
+            gn.keyTree._count + gn.count // TODO: I don't understand this
         );
     }
 
@@ -191,15 +194,14 @@ library HitchensOrderStatisticsTreeLib {
         uint value
     ) internal view returns (uint _count) {
         Node storage gn = self.nodes[value];
-        return gn.keys.length + gn.count;
+        return gn.keyTree._count + gn.count;
     }
 
     function getNodeKeysLength(
         Tree storage self,
         uint value
     ) internal view returns (uint _count) {
-        self.nodes[value];
-        return self.nodes[value].keys.length;
+        return self.nodes[value].keyTree._count;
     }
 
     function valueKeyAtIndex(
@@ -211,11 +213,15 @@ library HitchensOrderStatisticsTreeLib {
             exists(self, value),
             "OrderStatisticsTree(404) - Value does not exist."
         );
-        return self.nodes[value].keys[index];
+        if (self.nodes[value].singleKey != bytes32(0)) {
+            return self.nodes[value].singleKey;
+        }
+        (_key,) = HitchensOrderStatisticsTreeLib.keyAtGlobalIndex(self.nodes[value].keyTree, index); // TODO: check this works
+        return _key;
     }
 
     function count(Tree storage self) internal view returns (uint _count) {
-        return getNodeCount(self, self.root);
+        return self._count;
     }
 
     function percentile(
@@ -276,47 +282,71 @@ library HitchensOrderStatisticsTreeLib {
         if (count(self) > 0) _above = count(self) - rank(self, value);
     }
 
-    // New method for FIFO order access - returns key at global rank with FIFO ordering
-    function keyAtGlobalIndex(
-        Tree storage self,
-        uint targetRank
-    ) internal view returns (bytes32 _key, uint cursor) {
-        uint adjusted = targetRank;
-        bool finished;
-        cursor = self.root;
+    // Helper function to find the node and index within that node for a global rank
+    function findNodeAndIndex(Tree storage self, uint targetRank) internal view 
+        returns (uint nodeValue, uint localIndex) 
+    {
+        uint cursor = self.root;
         uint counted = 0;
         
-        while (!finished) {
-            if (cursor == EMPTY) {
-                revert("OrderStatisticsTree(409) - Index out of bounds");
-            }
+        while (cursor != EMPTY) {
+            Node storage current = self.nodes[cursor];
+            uint leftCount = getNodeCount(self, current.left);
+            uint rightCount = getNodeCount(self, current.right);
+            uint currentCount = count(current.keyTree);
             
-            Node storage c = self.nodes[cursor];
-            uint rightCount = getNodeCount(self, c.right);
-            uint keys = c.keys.length;
-            
-            if (adjusted < counted + rightCount + keys) {
-                console.log('a');
-                if (adjusted < counted + rightCount) {
-                    console.log('b');
-                    cursor = c.right;
-                } else {
-                    console.log('c');
-                    // Keys are already in order, just return the correct index
-                    uint keyIndex = adjusted - counted - rightCount;
-                    if (keyIndex < keys) {
-                        _key = c.keys[keyIndex];
-                        finished = true;
-                    } else {
-                        revert("OrderStatisticsTree(411) - Invalid key index");
-                    }
-                }
+            if (targetRank < counted + leftCount) {
+                cursor = current.left;
+            } else if (targetRank < counted + leftCount + currentCount) {
+                // Found the node, calculate local index
+                nodeValue = cursor;
+                localIndex = targetRank - counted - leftCount;
+                return (nodeValue, localIndex);
             } else {
-                console.log('l');
-                counted += rightCount + keys;
-                cursor = c.left;
+                counted += leftCount + currentCount;
+                cursor = current.right;
             }
         }
+        
+        revert("Index out of bounds");
+    }
+
+    function keyAtGlobalIndex(Tree storage self, uint targetRank) internal view 
+        returns (bytes32 key, uint value) 
+    {
+        (uint nodeValue, uint localIndex) = findNodeAndIndex(self, targetRank);
+        console.log("nodeValue", nodeValue);
+        console.log("localIndex", localIndex);
+        // Get the key at localIndex from the node's keyTree
+        bytes32 foundKey;
+        uint foundValue;
+        (foundKey, foundValue) = HitchensOrderStatisticsTreeLib.atRankInKeyTree(self.nodes[nodeValue].keyTree, localIndex + 1);
+        
+        return (foundKey, nodeValue);
+    }
+
+    // Helper function to get key at rank in the key tree
+    function atRankInKeyTree(Tree storage keyTree, uint _rank) internal view 
+        returns (bytes32 key, uint value) 
+    {
+        uint cursor = keyTree.root;
+        uint counted = 0;
+        
+        while (cursor != EMPTY) {
+            Node storage current = keyTree.nodes[cursor];
+            uint leftCount = getNodeCount(keyTree, current.left);
+            
+            if (_rank <= counted + leftCount) {
+                cursor = current.left;
+            } else if (_rank == counted + leftCount + 1) {
+                return (current.singleKey, cursor);
+            } else {
+                counted += leftCount + 1;
+                cursor = current.right;
+            }
+        }
+        
+        revert("Rank out of bounds in key tree");
     }
 
     function rank(
@@ -334,7 +364,7 @@ library HitchensOrderStatisticsTreeLib {
             Node storage c = self.nodes[cursor];
             uint smaller = getNodeCount(self, c.left);
             while (!finished) {
-                uint keyCount = c.keys.length;
+                uint keyCount = c.singleKey != bytes32(0) ? 1 : c.keyTree._count;
                 if (cursor == value) {
                     finished = true;
                 } else {
@@ -388,7 +418,7 @@ library HitchensOrderStatisticsTreeLib {
         while (!finished) {
             _value = cursor;
             c = self.nodes[cursor];
-            uint keyCount = c.keys.length;
+            uint keyCount = c.singleKey != bytes32(0) ? 1 : c.keyTree._count;
             
             // If rank falls within current node's range
             if (smaller < int(_rank) && smaller + int(keyCount) >= int(_rank)) {
@@ -415,6 +445,10 @@ library HitchensOrderStatisticsTreeLib {
     }
 
     function insert(Tree storage self, bytes32 key, uint value) internal {
+        HitchensOrderStatisticsTreeLib.insert(self, key, value, false);
+    }
+
+    function insert(Tree storage self, bytes32 key, uint value, bool singleKey) internal {
         require(
             value != EMPTY,
             "OrderStatisticsTree(405) - Value to insert cannot be zero"
@@ -425,6 +459,7 @@ library HitchensOrderStatisticsTreeLib {
         );
         uint cursor;
         uint probe = self.root;
+        uint keyNonce;
         while (probe != EMPTY) {
             cursor = probe;
             if (value < probe) {
@@ -432,21 +467,37 @@ library HitchensOrderStatisticsTreeLib {
             } else if (value > probe) {
                 probe = self.nodes[probe].right;
             } else if (value == probe) {
-                self.nodes[probe].keys.push(key);
-                self.nodes[probe].keyMap[key] =
-                    self.nodes[probe].keys.length -
-                    uint256(1);
+                // This is an insert when the value already exists
+                if (singleKey) {
+                    self.nodes[probe].singleKey = key;
+                } else {
+                    // When adding to existing value, insert into the key tree
+                    keyNonce = HitchensOrderStatisticsTreeLib.getNextNonce(self.nodes[probe].keyTree);
+                    console.log("keyNonce", keyNonce);
+                    self.nodes[probe].keyToNonce[key] = keyNonce;
+                    HitchensOrderStatisticsTreeLib.insert(self.nodes[probe].keyTree, key, keyNonce, true);
+                }
                 return;
             }
             self.nodes[cursor].count++;
         }
+        // This is an insert when the value does not exist
         Node storage nValue = self.nodes[value];
         nValue.parent = cursor;
         nValue.left = EMPTY;
         nValue.right = EMPTY;
         nValue.red = true;
-        nValue.keys.push(key);
-        nValue.keyMap[key] = nValue.keys.length - uint256(1);
+
+        if (singleKey) {
+            nValue.singleKey = key;
+        } else {
+            // Initialize first key in the new node's keyTree
+            keyNonce = HitchensOrderStatisticsTreeLib.getNextNonce(nValue.keyTree);
+            console.log("keyNonce", keyNonce);
+            console.log("value", value);
+            nValue.keyToNonce[key] = keyNonce;
+            HitchensOrderStatisticsTreeLib.insert(nValue.keyTree, key, keyNonce, true);
+        }
         if (cursor == EMPTY) {
             self.root = value;
         } else if (value < cursor) {
@@ -455,9 +506,14 @@ library HitchensOrderStatisticsTreeLib {
             self.nodes[cursor].right = value;
         }
         insertFixup(self, value);
+        self._count++;
     }
 
     function remove(Tree storage self, bytes32 key, uint value) internal {
+        HitchensOrderStatisticsTreeLib.remove(self, key, value, false);
+    }
+
+    function remove(Tree storage self, bytes32 key, uint value, bool singleKey) internal {
         require(
             value != EMPTY,
             "OrderStatisticsTree(407) - Value to delete cannot be zero"
@@ -468,19 +524,20 @@ library HitchensOrderStatisticsTreeLib {
         );
         
         Node storage nValue = self.nodes[value];
-        uint rowToDelete = nValue.keyMap[key];
-
-        // Instead of swapping with last element, shift all elements after rowToDelete left by one
-        for (uint i = rowToDelete; i < nValue.keys.length - 1; i++) {
-            console.log('i is', i);
-            nValue.keys[i] = nValue.keys[i + 1];
-            nValue.keyMap[nValue.keys[i]] = i;  // Update mapping for shifted keys
+        bool needsToDelete = false;
+        if (singleKey) {
+            // If the node is part of a keyTree, just remove it
+            delete nValue.singleKey;
+            needsToDelete = true;
+        } else {
+            uint nonce = nValue.keyToNonce[key];
+            // Remove key from the keyTree
+            HitchensOrderStatisticsTreeLib.remove(nValue.keyTree, key, nonce, true);
+            delete nValue.keyToNonce[key];
+            needsToDelete = nValue.keyTree._count == 0;
         }
-        nValue.keys.pop();
-        delete nValue.keyMap[key];
-
         // FIX: Update count if we're just removing a key but keeping the node
-        if (nValue.keys.length > 0) {
+        if (!needsToDelete)  {
             fixCountRecurse(self, value);
             return;
         }
@@ -491,7 +548,7 @@ library HitchensOrderStatisticsTreeLib {
         
         if (self.nodes[value].left == EMPTY || self.nodes[value].right == EMPTY) {
             cursor = value;
-        } else {
+        } else {            
             cursor = self.nodes[value].right;
             while (self.nodes[cursor].left != EMPTY) {
                 cursor = self.nodes[cursor].left;
@@ -516,7 +573,7 @@ library HitchensOrderStatisticsTreeLib {
         } else {
             self.root = probe;
         }
-        
+
         bool doFixup = !self.nodes[cursor].red;
         
         if (cursor != value) {
@@ -543,8 +600,9 @@ library HitchensOrderStatisticsTreeLib {
         // This should be either the probe's parent or cursorParent
         uint updateStart = self.nodes[probe].parent != EMPTY ? self.nodes[probe].parent : cursorParent;
         fixCountRecurse(self, updateStart);
-        
+
         delete self.nodes[cursor];
+        self._count--;
     }
 
     function fixCountRecurse(Tree storage self, uint value) private {
@@ -754,27 +812,17 @@ library HitchensOrderStatisticsTreeLib {
     function getEarliestKey(Tree storage self, uint value) internal view returns (bytes32) {
         require(exists(self, value), "OrderStatisticsTree(407) - Value does not exist.");
         Node storage node = self.nodes[value];
-        require(node.keys.length > 0, "OrderStatisticsTree(412) - Node has no keys");
-        
-        bytes32 earliestKey = node.keys[0];
-        uint earliestNonce = node.joinNonces[earliestKey];
-        
-        for (uint i = 1; i < node.keys.length; i++) {
-            bytes32 currentKey = node.keys[i];
-            uint currentNonce = node.joinNonces[currentKey];
-            
-            if (currentNonce < earliestNonce) {
-                earliestNonce = currentNonce;
-                earliestKey = currentKey;
-            }
+        require(node.keyTree._count > 0, "OrderStatisticsTree(412) - Node has no keys");
+        if (node.singleKey != bytes32(0)) {
+            return node.singleKey;
         }
-        
-        return earliestKey;
+        (bytes32 _key,) = HitchensOrderStatisticsTreeLib.keyAtGlobalIndex(node.keyTree, 0);
+        return _key;
     }
     
     // Helper function to get the nonce for a specific key
     function getKeyJoinNonce(Tree storage self, bytes32 key, uint value) internal view returns (uint) {
         require(keyExists(self, key, value), "OrderStatisticsTree(413) - Key does not exist.");
-        return self.nodes[value].joinNonces[key];
+        return self.nodes[value].keyToNonce[key];
     }
 }
