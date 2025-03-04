@@ -54,7 +54,7 @@ async function main() {
   // Initialize contracts
   const { initContracts } = await import('./utils.js');
   const { Kudzu, KudzuBurn } = await initContracts(['Kudzu', 'KudzuBurn']);
-  const updateBlockNum = 999999999999; // TODO: Change this to the block number of the update
+  const updateBlockNum = 10421839; // TODO: Change this to the block number of the update
 
   const isPaused = await KudzuBurn.paused();
   if (isPaused) {
@@ -65,7 +65,7 @@ async function main() {
   const addresses = await getThirdGroup(updateBlockNum, Kudzu.target, chainId);
   // const addresses = await getSecondGroup();
   // cosnt addresses = await getFirstGroup()
-  console.log({ addresses });
+  // console.log({ addresses });
   if (updateBlockNum == 999999999999) {
     if (chainId == 984122) {
       throw new Error('This is using a test block number ' + updateBlockNum);
