@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./HitchensOrderStatisticsTreeLib.sol";
+import "./TrifleTreeLib.sol";
 import "./Kudzu.sol";
 import "hardhat/console.sol";
 
@@ -14,8 +14,8 @@ KUDZU BURN
 */
 
 contract KudzuBurn is Ownable {
-    using HitchensOrderStatisticsTreeLib for HitchensOrderStatisticsTreeLib.Tree;
-    HitchensOrderStatisticsTreeLib.Tree public tree;
+    using TrifleTreeLib for TrifleTreeLib.Tree;
+    TrifleTreeLib.Tree public tree;
 
     bool public paused = false;
     Kudzu public kudzu;
@@ -147,7 +147,7 @@ contract KudzuBurn is Ownable {
     }
 
     function getWinningAddress() public view returns (address firstPlace) {
-        (bytes32 key, ) = tree.keyAtGlobalIndex(0);
+        (bytes32 key, ) = tree.findKeyValueByIndex(0, false);
         return address(uint160(uint256(key)));
     }
 
@@ -198,13 +198,13 @@ contract KudzuBurn is Ownable {
     }
 
     function getRank(uint targetRank) public view returns (address) {
-        (bytes32 key, ) = tree.keyAtGlobalIndex(targetRank);
+        (bytes32 key, ) = tree.findKeyValueByIndex(targetRank, false);
         return address(uint160(uint256(key)));
     }
 
     function kvAtGlobalIndex(uint targetIndex) public view returns (address player, uint val) {
         bytes32 key;
-        (key, val) = tree.keyAtGlobalIndex(targetIndex);
+        (key, val) = tree.findKeyValueByIndex(targetIndex, false);
         return (address(uint160(uint256(key))), val);
     }
 

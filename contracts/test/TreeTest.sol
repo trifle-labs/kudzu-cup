@@ -1,15 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "../HitchensOrderStatisticsTreeLib.sol";
+import "../TrifleTreeLib.sol";
 import "hardhat/console.sol";
 
 contract TreeTest {
-    using HitchensOrderStatisticsTreeLib for HitchensOrderStatisticsTreeLib.Tree;
-    HitchensOrderStatisticsTreeLib.Tree public tree;
+    using TrifleTreeLib for TrifleTreeLib.Tree;
+    TrifleTreeLib.Tree public tree;
     
     
     constructor() {}
+
+    function getNodeKeysLength(uint value) public view returns (uint) {
+        return tree.getNodeKeysLength(value);
+    }
+
+    function visualizeTree() public view {
+        tree.visualizeTree();
+    }
     
     function insert(bytes32 key, uint value) public {
         tree.insert(key, value);
@@ -43,18 +51,34 @@ contract TreeTest {
         return tree.prev(value);
     }
     
-    function rank(uint value) public view returns (uint) {
-        return tree.rank(value);
+    // function rank(uint value) public view returns (uint) {
+    //     return tree.rank(value);
+    // }
+
+    function findKeyValueByIndex(uint index) public view returns (bytes32, uint) {
+        return tree.findKeyValueByIndex(index, false);
     }
 
-    function kvAtGlobalIndex(uint targetRank) public view returns (bytes32, uint) {
-        return tree.keyAtGlobalIndex(targetRank);
+    function findKeyByIndex(uint index) public view returns (bytes32) {
+        return tree.findKeyByIndex(index);
     }
 
-    function keyAtGlobalIndex(uint targetRank) public view returns (bytes32) {
-        (bytes32 key, ) = tree.keyAtGlobalIndex(targetRank);
-        return key;
+    function findValueByIndex(uint index) public view returns (uint) {
+        return tree.findValueByIndex(index, false);
     }
+
+    function findIndexByValue(uint value) public view returns (uint) {
+        return tree.findIndexByValue(value);
+    }
+
+    // function kvAtGlobalIndex(uint targetRank) public view returns (bytes32, uint) {
+    //     return tree.keyAtGlobalIndex(targetRank);
+    // }
+
+    // function keyAtGlobalIndex(uint targetRank) public view returns (bytes32) {
+    //     (bytes32 key, ) = tree.keyAtGlobalIndex(targetRank);
+    //     return key;
+    // }
     
     function count() public view returns (uint) {
         return tree.count();
@@ -68,13 +92,13 @@ contract TreeTest {
         return tree.percentile(value);
     }
     
-    function atRank(uint _rank) public view returns (uint) {
-        return tree.atRank(_rank);
-    }
+    // function atRank(uint _rank) public view returns (uint) {
+    //     return tree.atRank(_rank);
+    // }
 
-    function atIndex(uint _index) public view returns (uint) {
-        return tree.atIndex(_index);
-    }
+    // function atIndex(uint _index) public view returns (uint) {
+    //     return tree.atIndex(_index);
+    // }
 
     function valueKeyAtIndex(uint value, uint index) public view returns (bytes32) {
         return tree.valueKeyAtIndex(value, index);
@@ -88,7 +112,7 @@ contract TreeTest {
         uint keyCount,
         uint nodeCount
     ) {
-        HitchensOrderStatisticsTreeLib.Node storage node = tree.nodes[value];
+        TrifleTreeLib.Node storage node = tree.nodes[value];
         return (
             node.parent,
             node.left,
