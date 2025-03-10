@@ -10,6 +10,12 @@ async function main() {
   // Get the currently deployed Kudzu contract
   const { Kudzu, KudzuBurn } = await initContracts(['Kudzu', 'KudzuBurn']);
 
+  const paused = await KudzuBurn.paused();
+  if (!paused) {
+    await KudzuBurn.updatePaused(true);
+    console.log(`KudzuBurn is paused`);
+  }
+
   const KudzuBurnController = await hre.ethers.getContractFactory(
     'KudzuBurnController'
   );
@@ -31,8 +37,9 @@ async function main() {
   console.log(
     `KudzuBurnController address updated to ${burnController.target} in KudzuBurn ${KudzuBurn.target}`
   );
-  await tx.wait();
-  console.log(`Block number: ${tx.blockNumber}`);
+
+  const receipt = await tx.wait();
+  console.log(`Block number: ${receipt.blockNumber}`);
 
   await copyABI('KudzuBurnController');
   const contract = returnObject.KudzuBurnController;
