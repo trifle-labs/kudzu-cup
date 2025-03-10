@@ -67,7 +67,6 @@
     "@nomicfoundation/hardhat-verify": "^2.0.8",
     "@nomiclabs/hardhat-ganache": "*",
     "@openzeppelin/contracts": "^4.6.0",
-    "OrderStatisticsTree": "https://github.com/rob-Hitchens/OrderStatisticsTree.git",
     "base64-sol": "^1.1.0",
     "chai": "^4.2.0",
     "dotenv": "^16.0.1",

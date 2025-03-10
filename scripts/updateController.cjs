@@ -37,6 +37,7 @@ async function main() {
   console.log(
     `KudzuBurnController address updated to ${burnController.target} in KudzuBurn ${KudzuBurn.target}`
   );
+
   const receipt = await tx.wait();
   console.log(`Block number: ${receipt.blockNumber}`);
 

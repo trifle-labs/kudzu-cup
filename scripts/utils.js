@@ -9,6 +9,29 @@ BigInt.prototype.toJSON = function () {
   return this.toString() + 'n';
 };
 
+export const printTree = async (leaderboard) => {
+  console.log('----printTree---');
+  const depth = await leaderboard.maxDepth();
+  for (let i = 0; i < depth; i++) {
+    const [level, players, scores, colors] = await leaderboard.printDepth(i);
+    let line = '';
+    const totalLevels = parseInt(depth);
+    const spacingFactor = 2 ** (totalLevels - i + 1); // Controls spacing
+
+    for (let j = 0; j < players.length; j++) {
+      // Customize content display (currently using '00' as placeholder)
+      const content = `${players[j].slice(2, 4)}(${scores[j].toString().padStart(3)})${colors[j] === 0 ? 'R' : 'B'}`;
+      // Calculate padding: Larger for top levels, smaller for bottom levels
+      const leftPadding = '-'.repeat(spacingFactor - content.length / 2);
+      const rightPadding = '-'.repeat(spacingFactor - content.length / 2);
+
+      line += `${leftPadding}${content}${rightPadding}`;
+    }
+
+    console.log(line);
+  }
+};
+
 const testJson = (tJson) => {
   try {
     JSON.parse(tJson);
@@ -212,8 +235,10 @@ const deployBurnContract = async (returnObject) => {
 
   log('Deploying KudzuBurn contract');
 
+  const zeroAddress = '0x0000000000000000000000000000000000000000';
+
   const KudzuBurn = await hre.ethers.getContractFactory('KudzuBurn');
-  const burn = await KudzuBurn.deploy(returnObject.Kudzu.target);
+  const burn = await KudzuBurn.deploy(returnObject.Kudzu.target, zeroAddress);
   await burn.deploymentTransaction().wait();
   returnObject['KudzuBurn'] = burn;
   log(`KudzuBurn Deployed at ${burn.target} `);

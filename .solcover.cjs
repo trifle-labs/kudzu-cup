@@ -5,7 +5,6 @@ module.exports = {
     'KudzuMock.sol',
     'MerklePatriciaProofVerifier.sol',
     'StateProofVerifier.sol',
-    'test/TreeTest.sol',
   ],
   istanbulFolder: './docs',
 };
