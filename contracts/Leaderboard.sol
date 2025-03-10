@@ -12,7 +12,6 @@ contract Leaderboard {
     struct Node {
         address player;
         uint256 score;
-        uint256 timestamp; // For FIFO ordering
         uint256 size; // Augmented subtree size
         Color color;
         uint256 left;
@@ -23,7 +22,7 @@ contract Leaderboard {
     uint256 public root; // Root index
 
     mapping(address => uint256) public playerIndex; // Player to node index
-    mapping(address => uint256) public playerTimestamp; // Player to timestamp
+    mapping(address => uint256) public playerNonce;
 
     constructor() {
         nodes.push(); // Placeholder for 1-based indexing
@@ -32,8 +31,8 @@ contract Leaderboard {
     function insert(uint256 score, address player) public {
         require(player != address(0), "Invalid player");
         require(playerIndex[player] == 0, "Player already exists");
-        uint256 timestamp = block.timestamp;
-        root = insertNode(root, player, score, timestamp);
+        uint256 newIdx = nodes.length;
+        root = insertNode(root, player, score, newIdx);
         nodes[root].color = Color.BLACK; // Root must always be black
     }
 
@@ -41,29 +40,29 @@ contract Leaderboard {
         uint256 nodeIdx,
         address player,
         uint256 score,
-        uint256 timestamp
+        uint256 playerIdx
     ) internal returns (uint256) {
         if (nodeIdx == 0) {
-            nodes.push(Node(player, score, timestamp, 1, Color.RED, 0, 0));
-            uint256 newIdx = nodes.length - 1;
-            playerIndex[player] = newIdx; // Store unique node index
-            playerTimestamp[player] = timestamp;
-            return newIdx;
+            nodes.push(Node(player, score, 1, Color.RED, 0, 0));
+            // console.log("storing player at playerIdx", playerIdx);
+            // console.log("player has score of ", score);
+            playerIndex[player] = playerIdx; // Store unique node index
+            playerNonce[player] = playerIdx;
+            return playerIdx;
         }
-
+        // console.log("player is", player);
+        // console.log("inserting node with value", score);
+        // console.log("playerIdx is", playerIdx);
         Node storage node = nodes[nodeIdx];
-
+        uint256 nodeNonce = playerNonce[node.player];
+        // console.log("looking at node with score", node.score);
         // Unique ordering based on (score, timestamp, player address)
         if (
-            score < node.score ||
-            (score == node.score && timestamp < node.timestamp) ||
-            (score == node.score &&
-                timestamp == node.timestamp &&
-                player < node.player)
+            score < node.score || (score == node.score && playerIdx < nodeNonce)
         ) {
-            node.left = insertNode(node.left, player, score, timestamp);
+            node.left = insertNode(node.left, player, score, playerIdx);
         } else {
-            node.right = insertNode(node.right, player, score, timestamp);
+            node.right = insertNode(node.right, player, score, playerIdx);
         }
 
         // Rebalancing operations
@@ -126,9 +125,7 @@ contract Leaderboard {
             nodes[nodes[nodeIdx].right].size;
     }
 
-    function findByIndex(
-        uint256 index
-    ) public view returns (address, uint256, uint256) {
+    function findByIndex(uint256 index) public view returns (address, uint256) {
         require(index < nodes[root].size, "Index out of bounds");
 
         uint256 currentIdx = root;
@@ -143,11 +140,7 @@ contract Leaderboard {
                 index = index - leftSize - 1; // Adjust index
                 currentIdx = currentNode.right; // Move right
             } else {
-                return (
-                    currentNode.player,
-                    currentNode.score,
-                    currentNode.timestamp
-                ); // Found
+                return (currentNode.player, currentNode.score); // Found
             }
         }
 
@@ -160,21 +153,28 @@ contract Leaderboard {
     ) public view returns (uint256) {
         uint256 index = 0;
         uint256 currentIdx = root;
-        uint256 timestamp = playerTimestamp[player];
+        // console.log("player", player);
+        uint256 playerIdx = playerNonce[player];
+        // console.log("playerIdx", playerIdx);
 
         while (currentIdx != 0) {
             Node storage node = nodes[currentIdx];
+            uint256 nodeNonce = playerNonce[node.player];
             uint256 leftSize = nodes[node.left].size;
+            // console.log("searching for score", score);
+            // console.log("leftSize", leftSize);
+            // console.log("node.score", node.score);
+            // console.log("currentIdx", currentIdx);
 
             if (
                 score < node.score ||
-                (score == node.score && timestamp < node.timestamp)
+                (score == node.score && playerIdx < nodeNonce)
             ) {
                 // Move left
                 currentIdx = node.left;
             } else if (
                 score > node.score ||
-                (score == node.score && timestamp > node.timestamp)
+                (score == node.score && playerIdx > nodeNonce)
             ) {
                 // Add left subtree size + 1 (including this node) and move right
                 index += leftSize + 1;
@@ -190,40 +190,30 @@ contract Leaderboard {
 
     function remove(uint256 score, address player) public {
         require(playerIndex[player] != 0, "Player not found");
-        uint256 timestamp = playerTimestamp[player];
-        root = removeNode(root, score, timestamp, player);
+        root = removeNode(root, score, player, playerNonce[player]);
         if (root != 0) nodes[root].color = Color.BLACK;
         delete playerIndex[player];
-        delete playerTimestamp[player];
+        delete playerNonce[player];
     }
 
     function removeNode(
         uint256 nodeIdx,
         uint256 score,
-        uint256 timestamp,
-        address player
+        address player,
+        uint256 pNonce
     ) internal returns (uint256) {
         if (nodeIdx == 0) return 0; // Base case: Empty tree
 
         Node storage node = nodes[nodeIdx];
+        uint256 nodeNonce = playerNonce[node.player];
 
         // Compare by score first
-        if (
-            score < node.score ||
-            (score == node.score && timestamp < node.timestamp) ||
-            (score == node.score &&
-                timestamp == node.timestamp &&
-                player < node.player)
-        ) {
-            node.left = removeNode(node.left, score, timestamp, player);
+        if (score < node.score || (score == node.score && pNonce < nodeNonce)) {
+            node.left = removeNode(node.left, score, player, pNonce);
         } else if (
-            score > node.score ||
-            (score == node.score && timestamp > node.timestamp) ||
-            (score == node.score &&
-                timestamp == node.timestamp &&
-                player > node.player)
+            score > node.score || (score == node.score && pNonce > nodeNonce)
         ) {
-            node.right = removeNode(node.right, score, timestamp, player);
+            node.right = removeNode(node.right, score, player, pNonce);
         } else {
             // **Node found! Remove it**
             if (node.right == 0) return node.left;
@@ -236,7 +226,6 @@ contract Leaderboard {
             // **Copy successor's data into current node**
             node.player = successor.player;
             node.score = successor.score;
-            node.timestamp = successor.timestamp;
 
             // **Delete successor node from right subtree**
             node.right = removeMin(node.right);

@@ -29,11 +29,10 @@ const fifoSort = (ar) => {
 };
 
 const printTree = async (leaderboard) => {
+  console.log('----printTree---');
   const depth = await leaderboard.maxDepth();
-  console.log({ depth });
   for (let i = 0; i < depth; i++) {
     const [level, players, scores, colors] = await leaderboard.printDepth(i);
-
     let line = '';
     const totalLevels = parseInt(depth);
     const spacingFactor = 2 ** (totalLevels - i + 1); // Controls spacing
@@ -166,7 +165,7 @@ describe('Leaderboard Tests', function () {
 
   it.only('should maintain correct indices across operations with array comparison', async () => {
     const batchSizes = [10, 20, 50, 100, 200, 500, 1000, 2000];
-    const seed = Math.floor(Math.random() * 1000000);
+    const seed = 411865; //Math.floor(Math.random() * 1000000);
     const random = new DeterministicRandom(seed);
     try {
       for (const size of batchSizes) {
@@ -188,7 +187,7 @@ describe('Leaderboard Tests', function () {
 
         // Sort array using FIFO logic
         sortedArray = fifoSort(sortedArray);
-
+        // await printTree(leaderboard);
         // Verify indices match for all elements
         for (let i = 0; i < sortedArray.length; i++) {
           const treeIndex = await leaderboard.indexOf(
@@ -224,6 +223,8 @@ describe('Leaderboard Tests', function () {
 
         // Verify remaining indices still match
         for (let i = 0; i < sortedArray.length; i++) {
+          // await printTree(leaderboard);
+
           const treeIndex = await leaderboard.indexOf(
             sortedArray[i].value,
             sortedArray[i].address
