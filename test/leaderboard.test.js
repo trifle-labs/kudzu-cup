@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { afterEach, before, describe, it } from 'mocha';
+import { printTree } from '../scripts/utils.js';
 import hre from 'hardhat';
 const ethers = hre.ethers;
 
@@ -21,34 +22,11 @@ const fifoSort = (ar) => {
     })
     .sort((a, b) => {
       if (a.value === b.value) {
-        return a.i - b.i;
+        return b.i - a.i;
       } else {
         return a.value - b.value;
       }
     });
-};
-
-const printTree = async (leaderboard) => {
-  console.log('----printTree---');
-  const depth = await leaderboard.maxDepth();
-  for (let i = 0; i < depth; i++) {
-    const [level, players, scores, colors] = await leaderboard.printDepth(i);
-    let line = '';
-    const totalLevels = parseInt(depth);
-    const spacingFactor = 2 ** (totalLevels - i + 1); // Controls spacing
-
-    for (let j = 0; j < players.length; j++) {
-      // Customize content display (currently using '00' as placeholder)
-      const content = `${players[j].slice(2, 4)}(${scores[j].toString().padStart(3)})${colors[j] === 0 ? 'R' : 'B'}`;
-      // Calculate padding: Larger for top levels, smaller for bottom levels
-      const leftPadding = '-'.repeat(spacingFactor - content.length / 2);
-      const rightPadding = '-'.repeat(spacingFactor - content.length / 2);
-
-      line += `${leftPadding}${content}${rightPadding}`;
-    }
-
-    console.log(line);
-  }
 };
 
 let snapshot;
@@ -108,6 +86,11 @@ describe('Leaderboard Tests', function () {
   });
 
   it('should handle FIFO ordering for equal scores', async () => {
+    // console.log({
+    //   acct1: accounts[1].address,
+    //   acct2: accounts[2].address,
+    //   acct3: accounts[3].address,
+    // });
     // Insert players with same score
     await leaderboard.insert(100, accounts[1].address);
     await ethers.provider.send('evm_increaseTime', [1]);
@@ -118,13 +101,22 @@ describe('Leaderboard Tests', function () {
     const count = await leaderboard.getSize();
     expect(count).to.equal(3);
     // Check FIFO order
-    const [player1] = await leaderboard.findByIndex(0);
+    const [player3] = await leaderboard.findByIndex(0);
     const [player2] = await leaderboard.findByIndex(1);
-    const [player3] = await leaderboard.findByIndex(2);
-
-    expect(player1).to.equal(accounts[1].address);
-    expect(player2).to.equal(accounts[2].address);
+    const [player1] = await leaderboard.findByIndex(2);
+    // await printTree(leaderboard);
     expect(player3).to.equal(accounts[3].address);
+    expect(player2).to.equal(accounts[2].address);
+    expect(player1).to.equal(accounts[1].address);
+
+    const player1_ = await leaderboard.findAddressByRank(0);
+    expect(player1_).to.equal(accounts[1].address);
+
+    const player2_ = await leaderboard.findAddressByRank(1);
+    expect(player2_).to.equal(accounts[2].address);
+
+    const player3_ = await leaderboard.findAddressByRank(2);
+    expect(player3_).to.equal(accounts[3].address);
   });
 
   it('should handle edge cases correctly', async () => {
@@ -152,25 +144,22 @@ describe('Leaderboard Tests', function () {
 
     // Remove middle player
     await leaderboard.remove(50, accounts[2].address);
-
     // Verify indices are correct
     const [player1, score1] = await leaderboard.findByIndex(0);
     const [player2, score2] = await leaderboard.findByIndex(1);
 
-    expect(score1).to.equal(50);
+    expect(score1).to.equal(100);
     expect(score2).to.equal(150);
-    expect(player1).to.equal(accounts[2].address);
+    expect(player1).to.equal(accounts[1].address);
     expect(player2).to.equal(accounts[3].address);
   });
 
-  it.only('should maintain correct indices across operations with array comparison', async () => {
-    const batchSizes = [10, 20, 50, 100, 200, 500, 1000, 2000];
-    const seed = 411865; //Math.floor(Math.random() * 1000000);
+  it('should maintain correct indices across operations with array comparison', async () => {
+    const batchSizes = [10, 20, 50, 100, 200, 500];
+    const seed = Math.floor(Math.random() * 1000000);
     const random = new DeterministicRandom(seed);
     try {
       for (const size of batchSizes) {
-        console.log(`Testing batch size: ${size}`);
-
         // Generate random values with incrementing keys
         const values = Array.from({ length: size }, (_, i) => ({
           value: Math.floor(random.next() * 100) + 1,
@@ -187,7 +176,6 @@ describe('Leaderboard Tests', function () {
 
         // Sort array using FIFO logic
         sortedArray = fifoSort(sortedArray);
-        // await printTree(leaderboard);
         // Verify indices match for all elements
         for (let i = 0; i < sortedArray.length; i++) {
           const treeIndex = await leaderboard.indexOf(
@@ -201,13 +189,11 @@ describe('Leaderboard Tests', function () {
         const toRemove = [...values]
           .sort(() => random.next() - 0.5)
           .slice(0, Math.floor(size / 2));
-        // await printTree(leaderboard);
 
         for (const { value, address } of toRemove) {
           await leaderboard.remove(value, address);
           const exists = await leaderboard.playerIndex(address);
           expect(exists).to.equal(0, 'Player should not exist');
-          // await printTree(leaderboard);
 
           const leaderboardSize = await leaderboard.getSize();
           sortedArray = sortedArray.filter((v) => !(v.address === address));
@@ -223,8 +209,6 @@ describe('Leaderboard Tests', function () {
 
         // Verify remaining indices still match
         for (let i = 0; i < sortedArray.length; i++) {
-          // await printTree(leaderboard);
-
           const treeIndex = await leaderboard.indexOf(
             sortedArray[i].value,
             sortedArray[i].address

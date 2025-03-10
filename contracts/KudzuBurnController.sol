@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
@@ -16,9 +15,9 @@ contract KudzuBurnController is Ownable {
     uint256 public newStrainBonus = 5;
     mapping(address => mapping(uint256 => bool)) public hasBurned;
 
-    constructor(Kudzu _kudzu, KudzuBurn _kudzuBurn){
-      kudzu = _kudzu;
-      kudzuBurn = _kudzuBurn;
+    constructor(Kudzu _kudzu, KudzuBurn _kudzuBurn) {
+        kudzu = _kudzu;
+        kudzuBurn = _kudzuBurn;
     }
 
     uint256 public bonfireDelay = 200 * 60 * 60;
@@ -30,17 +29,28 @@ contract KudzuBurnController is Ownable {
     mapping(address => uint256) public bonfireCounts;
 
     receive() external payable {}
+
     // assumes that setApprovalForAll has already been called
     function burn(uint256 tokenId, uint256 quantity) public {
         if (kudzuBurn.isOver()) {
             kudzuBurn.rewardWinner();
         }
         kudzu.safeTransferFrom(msg.sender, burnAddress, tokenId, quantity, "");
-        kudzuBurn.updateTreeOnlyController(msg.sender, quantity * burnPoint, true, tokenId);
+        kudzuBurn.updateTreeOnlyController(
+            msg.sender,
+            quantity * burnPoint,
+            true,
+            tokenId
+        );
 
         if (hasBurned[msg.sender][tokenId] == false) {
             hasBurned[msg.sender][tokenId] = true;
-            kudzuBurn.updateTreeOnlyController(msg.sender, newStrainBonus, true, tokenId); // bonus
+            kudzuBurn.updateTreeOnlyController(
+                msg.sender,
+                newStrainBonus,
+                true,
+                tokenId
+            ); // bonus
         }
 
         if (isBonfireActive(block.timestamp)) {
@@ -53,19 +63,41 @@ contract KudzuBurnController is Ownable {
         }
     }
 
-    function batchBurn(uint256[] memory tokenIds, uint256[] memory quantities) public {
-        require(tokenIds.length == quantities.length, "tokenIds and quantities must have the same length");
+    function batchBurn(
+        uint256[] memory tokenIds,
+        uint256[] memory quantities
+    ) public {
+        require(
+            tokenIds.length == quantities.length,
+            "tokenIds and quantities must have the same length"
+        );
         if (kudzuBurn.isOver()) {
             kudzuBurn.rewardWinner();
         }
         uint256 totalQuantity = 0;
-        kudzu.safeBatchTransferFrom(msg.sender, burnAddress, tokenIds, quantities, "");
+        kudzu.safeBatchTransferFrom(
+            msg.sender,
+            burnAddress,
+            tokenIds,
+            quantities,
+            ""
+        );
         for (uint256 i = 0; i < tokenIds.length; i++) {
             totalQuantity += quantities[i];
-            kudzuBurn.updateTreeOnlyController(msg.sender, quantities[i] * burnPoint, true, tokenIds[i]);
+            kudzuBurn.updateTreeOnlyController(
+                msg.sender,
+                quantities[i] * burnPoint,
+                true,
+                tokenIds[i]
+            );
             if (!hasBurned[msg.sender][tokenIds[i]]) {
                 hasBurned[msg.sender][tokenIds[i]] = true;
-                kudzuBurn.updateTreeOnlyController(msg.sender, newStrainBonus, true, tokenIds[i]); // bonus
+                kudzuBurn.updateTreeOnlyController(
+                    msg.sender,
+                    newStrainBonus,
+                    true,
+                    tokenIds[i]
+                ); // bonus
             }
         }
 
@@ -86,17 +118,26 @@ contract KudzuBurnController is Ownable {
         return moduloBonfireDelay < bonfireDuration;
     }
 
-    function getBonfirePhase(uint256 phase) public view returns (uint256 startTime) {
+    function getBonfirePhase(
+        uint256 phase
+    ) public view returns (uint256 startTime) {
         return firstBonfireStart + phase * bonfireDelay;
     }
 
-    function getQuotient(uint256 timestamp) public view returns (uint256 bonus) {
+    function getQuotient(
+        uint256 timestamp
+    ) public view returns (uint256 bonus) {
         if (timestamp < firstBonfireStart) return bonfireQuotient;
         uint256 timeSinceFirstBonfire = timestamp - firstBonfireStart;
         uint256 moduloBonfireDelay = timeSinceFirstBonfire % bonfireDelay;
         uint256 maxPhase = 11;
-        uint256 phase = ((timeSinceFirstBonfire - moduloBonfireDelay) / bonfireDelay) % maxPhase;
+        uint256 phase = ((timeSinceFirstBonfire - moduloBonfireDelay) /
+            bonfireDelay) % maxPhase;
         bonus = bonfireQuotient + phase;
+    }
+
+    function updateBonfireTime(uint256 timestamp) public onlyOwner {
+        firstBonfireStart = timestamp;
     }
 
     function updateBurnAddress(address burnAddress_) public onlyOwner {

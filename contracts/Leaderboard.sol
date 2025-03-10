@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "hardhat/console.sol";
-
 contract Leaderboard {
     enum Color {
         RED,
@@ -20,9 +18,8 @@ contract Leaderboard {
 
     Node[] public nodes; // The tree nodes (0 index is unused)
     uint256 public root; // Root index
-
+    address public constant ZERO_ADDR = address(0);
     mapping(address => uint256) public playerIndex; // Player to node index
-    mapping(address => uint256) public playerNonce;
 
     constructor() {
         nodes.push(); // Placeholder for 1-based indexing
@@ -44,21 +41,14 @@ contract Leaderboard {
     ) internal returns (uint256) {
         if (nodeIdx == 0) {
             nodes.push(Node(player, score, 1, Color.RED, 0, 0));
-            // console.log("storing player at playerIdx", playerIdx);
-            // console.log("player has score of ", score);
             playerIndex[player] = playerIdx; // Store unique node index
-            playerNonce[player] = playerIdx;
             return playerIdx;
         }
-        // console.log("player is", player);
-        // console.log("inserting node with value", score);
-        // console.log("playerIdx is", playerIdx);
         Node storage node = nodes[nodeIdx];
-        uint256 nodeNonce = playerNonce[node.player];
-        // console.log("looking at node with score", node.score);
+        uint256 nodeNonce = playerIndex[node.player];
         // Unique ordering based on (score, timestamp, player address)
         if (
-            score < node.score || (score == node.score && playerIdx < nodeNonce)
+            score < node.score || (score == node.score && playerIdx > nodeNonce)
         ) {
             node.left = insertNode(node.left, player, score, playerIdx);
         } else {
@@ -125,6 +115,13 @@ contract Leaderboard {
             nodes[nodes[nodeIdx].right].size;
     }
 
+    function findAddressByRank(
+        uint256 rank
+    ) public view returns (address player) {
+        require(rank < nodes[root].size, "Rank out of bounds");
+        (player, ) = findByIndex(nodes[root].size - rank - 1);
+    }
+
     function findByIndex(uint256 index) public view returns (address, uint256) {
         require(index < nodes[root].size, "Index out of bounds");
 
@@ -147,34 +144,36 @@ contract Leaderboard {
         revert("Index not found");
     }
 
+    function absoluteIndexOf(
+        uint256 score
+    ) public view returns (uint256 index) {
+        return indexOf(score, ZERO_ADDR);
+    }
+
     function indexOf(
         uint256 score,
         address player
     ) public view returns (uint256) {
         uint256 index = 0;
         uint256 currentIdx = root;
-        // console.log("player", player);
-        uint256 playerIdx = playerNonce[player];
-        // console.log("playerIdx", playerIdx);
+        uint256 playerIdx = playerIndex[player];
 
         while (currentIdx != 0) {
             Node storage node = nodes[currentIdx];
-            uint256 nodeNonce = playerNonce[node.player];
+            uint256 nodeNonce = playerIndex[node.player];
             uint256 leftSize = nodes[node.left].size;
-            // console.log("searching for score", score);
-            // console.log("leftSize", leftSize);
-            // console.log("node.score", node.score);
-            // console.log("currentIdx", currentIdx);
 
             if (
                 score < node.score ||
-                (score == node.score && playerIdx < nodeNonce)
+                ((score == node.score && playerIdx > nodeNonce) &&
+                    (player != ZERO_ADDR))
             ) {
                 // Move left
                 currentIdx = node.left;
             } else if (
                 score > node.score ||
-                (score == node.score && playerIdx > nodeNonce)
+                ((score == node.score && playerIdx < nodeNonce) &&
+                    (player != ZERO_ADDR))
             ) {
                 // Add left subtree size + 1 (including this node) and move right
                 index += leftSize + 1;
@@ -190,10 +189,9 @@ contract Leaderboard {
 
     function remove(uint256 score, address player) public {
         require(playerIndex[player] != 0, "Player not found");
-        root = removeNode(root, score, player, playerNonce[player]);
+        root = removeNode(root, score, player, playerIndex[player]);
         if (root != 0) nodes[root].color = Color.BLACK;
         delete playerIndex[player];
-        delete playerNonce[player];
     }
 
     function removeNode(
@@ -205,13 +203,13 @@ contract Leaderboard {
         if (nodeIdx == 0) return 0; // Base case: Empty tree
 
         Node storage node = nodes[nodeIdx];
-        uint256 nodeNonce = playerNonce[node.player];
+        uint256 nodeNonce = playerIndex[node.player];
 
         // Compare by score first
-        if (score < node.score || (score == node.score && pNonce < nodeNonce)) {
+        if (score < node.score || (score == node.score && pNonce > nodeNonce)) {
             node.left = removeNode(node.left, score, player, pNonce);
         } else if (
-            score > node.score || (score == node.score && pNonce > nodeNonce)
+            score > node.score || (score == node.score && pNonce < nodeNonce)
         ) {
             node.right = removeNode(node.right, score, player, pNonce);
         } else {

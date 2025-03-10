@@ -10,10 +10,55 @@ import {
   prepareKudzuForTests,
 } from '../scripts/utils.js';
 
-let snapshot;
+let snapshot, KudzuMock, KudzuBurnMock, KudzuBurnControllerMock;
 describe('KudzuBurnController Tests', function () {
+  const bonfireTimes = [
+    { date: 'Wednesday, March 5, 2025 16:20:00 GMT', quotient: 5 }, // W
+    { date: 'Friday, March 14, 2025 00:20:00 GMT', quotient: 6 }, // F
+    { date: 'Saturday, March 22, 2025 08:20:00 GMT', quotient: 7 }, // S
+    { date: 'Sunday, March 30, 2025 16:20:00 GMT', quotient: 8 }, // S
+    { date: 'Tuesday, April 8, 2025 00:20:00 GMT', quotient: 9 }, // T
+    { date: 'Wednesday, April 16, 2025 08:20:00 GMT', quotient: 10 }, //W
+    // { date: 'April 20, 2025 16:20:00 GMT', quotient: 999999999 },
+  ].map((bonfire) => {
+    const dateObj = new Date(bonfire.date);
+    return {
+      ...bonfire,
+      timestamp: Math.floor(dateObj.getTime() / 1000),
+    };
+  });
+
+  let mockBonfireTimes;
+
   this.timeout(50000000);
   before(async function () {
+    ({
+      Kudzu: KudzuMock,
+      KudzuBurn: KudzuBurnMock,
+      KudzuBurnController: KudzuBurnControllerMock,
+    } = await deployKudzuAndBurn({
+      mock: true,
+    }));
+    mockBonfireTimes = JSON.parse(JSON.stringify(bonfireTimes));
+    const currentTime = (await hre.ethers.provider.getBlock('latest'))
+      .timestamp;
+    const bonfireTime = currentTime + 14 * 24 * 60 * 60;
+    const bonfireDelay = await KudzuBurnControllerMock.bonfireDelay();
+    await KudzuBurnControllerMock.updateBonfireTime(bonfireTime);
+    await KudzuBurnControllerMock.updateEnd;
+    for (let i = 0; i < mockBonfireTimes.length; i++) {
+      const bonfireUnix = bonfireTime + i * parseInt(bonfireDelay);
+      mockBonfireTimes[i].date = new Date(bonfireUnix * 1000).toUTCString();
+      mockBonfireTimes[i].timestamp = bonfireUnix;
+    }
+    const totalRounds = 13;
+    const threeMonths = 7776000;
+    const lastBonfireTime =
+      mockBonfireTimes[mockBonfireTimes.length - 1].timestamp;
+    const firstEndDate = lastBonfireTime + parseInt(bonfireDelay);
+    for (let i = 0; i < totalRounds; i++) {
+      await KudzuBurnMock.updateEndDate(i, firstEndDate + i * threeMonths);
+    }
     snapshot = await hre.network.provider.send('evm_snapshot', []);
   });
   afterEach(async function () {
@@ -123,10 +168,10 @@ describe('KudzuBurnController Tests', function () {
     const acct2Points = await KudzuBurn.getPoints(acct2.address);
     expect(acct2Points).to.equal(burnPoint + newStrainBonus);
 
-    const getRank1 = await KudzuBurn.getRank(0);
+    const getRank1 = await KudzuBurn.findAddressByRank(0);
     expect(getRank1).to.equal(acct1.address);
 
-    const getRank2 = await KudzuBurn.getRank(1);
+    const getRank2 = await KudzuBurn.findAddressByRank(1);
     expect(getRank2).to.equal(acct2.address);
 
     await KudzuBurnController.connect(acct2).burn(tokenIds[0], 2);
@@ -137,10 +182,10 @@ describe('KudzuBurnController Tests', function () {
     const winningAddress3 = await KudzuBurn.getWinningAddress();
     expect(winningAddress3).to.equal(acct2.address);
 
-    const getRank3 = await KudzuBurn.getRank(0);
+    const getRank3 = await KudzuBurn.findAddressByRank(0);
     expect(getRank3).to.equal(acct2.address);
 
-    const getRank4 = await KudzuBurn.getRank(1);
+    const getRank4 = await KudzuBurn.findAddressByRank(1);
     expect(getRank4).to.equal(acct1.address);
   });
 
@@ -245,10 +290,10 @@ describe('KudzuBurnController Tests', function () {
     );
 
     await KudzuBurnController.connect(acct1).burn(tokenIds[0], 1);
-    expect(await KudzuBurn.getRank(0)).to.equal(acct1.address);
+    expect(await KudzuBurn.findAddressByRank(0)).to.equal(acct1.address);
 
     await KudzuBurnController.connect(acct2).burn(tokenIds[1], 1);
-    expect(await KudzuBurn.getRank(1)).to.equal(acct2.address);
+    expect(await KudzuBurn.findAddressByRank(1)).to.equal(acct2.address);
 
     // Fund the round
     await deployer.sendTransaction({
@@ -326,22 +371,6 @@ describe('KudzuBurnController Tests', function () {
     expect(ethMovedEvents[0].args.to).to.equal(deployer.address);
     expect(ethMovedEvents[0].args.success).to.be.true;
     expect(ethMovedEvents[0].args.amount).to.equal(ethers.parseEther('1.0'));
-  });
-
-  const bonfireTimes = [
-    { date: 'Wednesday, March 5, 2025 16:20:00 GMT', quotient: 5 }, // W
-    { date: 'Friday, March 14, 2025 00:20:00 GMT', quotient: 6 }, // F
-    { date: 'Saturday, March 22, 2025 08:20:00 GMT', quotient: 7 }, // S
-    { date: 'Sunday, March 30, 2025 16:20:00 GMT', quotient: 8 }, // S
-    { date: 'Tuesday, April 8, 2025 00:20:00 GMT', quotient: 9 }, // T
-    { date: 'Wednesday, April 16, 2025 08:20:00 GMT', quotient: 10 }, //W
-    // { date: 'April 20, 2025 16:20:00 GMT', quotient: 999999999 },
-  ].map((bonfire) => {
-    const dateObj = new Date(bonfire.date);
-    return {
-      ...bonfire,
-      timestamp: Math.floor(dateObj.getTime() / 1000),
-    };
   });
 
   it('correctly sets bonfureDelay and bonfureDuration', async () => {
@@ -442,9 +471,11 @@ describe('KudzuBurnController Tests', function () {
 
   it('batchBurn works correctly', async () => {
     const [, acct1, acct2] = await ethers.getSigners();
-    const { Kudzu, KudzuBurn, KudzuBurnController } = await deployKudzuAndBurn({
-      mock: true,
-    });
+    const {
+      KudzuMock: Kudzu,
+      KudzuBurnMock: KudzuBurn,
+      KudzuBurnControllerMock: KudzuBurnController,
+    } = { KudzuBurnMock, KudzuMock, KudzuBurnControllerMock };
 
     const burnPoint = await KudzuBurnController.burnPoint();
     const newStrainBonus = await KudzuBurnController.newStrainBonus();
@@ -465,6 +496,13 @@ describe('KudzuBurnController Tests', function () {
       KudzuBurnController.target,
       true
     );
+
+    const firstBonfireStart = await KudzuBurnController.firstBonfireStart();
+    const currentTime = (await hre.ethers.provider.getBlock('latest'))
+      .timestamp;
+    const isBonfireActive =
+      await KudzuBurnController.isBonfireActive(currentTime);
+    expect(isBonfireActive).to.be.true;
 
     // Test batch burn without bonfire active
     const quantities = [2, 3, 1];
@@ -488,6 +526,8 @@ describe('KudzuBurnController Tests', function () {
       'PointsRewarded'
     );
 
+    expect(events1.length).to.equal(7); // 3 base points, 3 new strain bonuses, 1 pre-bonfire bonus
+
     // Should have base points for each token
     for (let i = 0; i < tokenIds.length; i++) {
       const index = i * 2;
@@ -506,7 +546,6 @@ describe('KudzuBurnController Tests', function () {
       expect(bonusEvent.pretty.tokenId).to.equal(tokenIds[i]);
     }
 
-    const firstBonfireStart = await KudzuBurnController.firstBonfireStart();
     const quotient = await KudzuBurnController.getQuotient(
       firstBonfireStart + 100n
     );
@@ -584,9 +623,11 @@ describe('KudzuBurnController Tests', function () {
 
   it('correctly handles bonfire bonus phases and remainders across multiple burns', async () => {
     const [, acct1] = await ethers.getSigners();
-    const { Kudzu, KudzuBurn, KudzuBurnController } = await deployKudzuAndBurn({
-      mock: true,
-    });
+    const {
+      KudzuMock: Kudzu,
+      KudzuBurnMock: KudzuBurn,
+      KudzuBurnControllerMock: KudzuBurnController,
+    } = { KudzuBurnMock, KudzuMock, KudzuBurnControllerMock };
 
     // Setup tokens with 6 strains, 10 tokens each (60 total)
     const recipients = [
@@ -639,8 +680,8 @@ describe('KudzuBurnController Tests', function () {
 
     let runningRemainder = 0;
     // Test each bonfire phase
-    for (let i = 0; i < bonfireTimes.length; i++) {
-      const bonfireTime = bonfireTimes[i].timestamp;
+    for (let i = 0; i < mockBonfireTimes.length; i++) {
+      const bonfireTime = mockBonfireTimes[i].timestamp;
       const quotient = bonfireTimes[i].quotient;
 
       // Set time to middle of bonfire period
@@ -706,13 +747,29 @@ describe('KudzuBurnController Tests', function () {
   });
 
   it('simulates complete tournament lifecycle with 15 players across all rounds', async () => {
+    const debug = false;
     // Setup accounts and contracts
     const accounts = await ethers.getSigners();
     const players = accounts.slice(1, 16); // 15 players
-    const { Kudzu, KudzuBurn, KudzuBurnController } = await deployKudzuAndBurn({
-      mock: true,
-    });
+    const {
+      KudzuMock: Kudzu,
+      KudzuBurnMock: KudzuBurn,
+      KudzuBurnControllerMock: KudzuBurnController,
+    } = { KudzuBurnMock, KudzuMock, KudzuBurnControllerMock };
 
+    // Helper function to display current leaderboard
+    async function displayLeaderboard(KudzuBurn, count) {
+      debug && console.log('\nCurrent Leaderboard:');
+      for (let i = 0; i < count; i++) {
+        try {
+          const address = await KudzuBurn.findAddressByRank(i);
+          const points = await KudzuBurn.getPoints(address);
+          debug && console.log(`#${i + 1}: ${address} - ${points} points`);
+        } catch (e) {
+          break; // No more ranked players
+        }
+      }
+    }
     // Fund all rounds with prize money
     for (let round = 0; round < 13; round++) {
       await KudzuBurn.fundRound(round, {
@@ -741,11 +798,11 @@ describe('KudzuBurnController Tests', function () {
       );
     }
 
-    console.log('Tournament starting with 15 players');
+    debug && console.log('Tournament starting with 15 players');
 
     // Run through all 13 rounds
     for (let round = 0; round < 13; round++) {
-      console.log(`\n--- ROUND ${round + 1} ---`);
+      debug && console.log(`\n--- ROUND ${round + 1} ---`);
 
       // Get round end date
       const [, endDate] = await KudzuBurn.rounds(round);
@@ -780,9 +837,10 @@ describe('KudzuBurnController Tests', function () {
       // Run each phase
       for (let phaseIndex = 0; phaseIndex < phases.length; phaseIndex++) {
         const phaseTimestamp = phases[phaseIndex];
-        console.log(
-          `Phase ${phaseIndex + 1} - ${new Date(phaseTimestamp * 1000).toDateString()}`
-        );
+        debug &&
+          console.log(
+            `Phase ${phaseIndex + 1} - ${new Date(phaseTimestamp * 1000).toDateString()}`
+          );
 
         // Set timestamp to current phase
         await hre.network.provider.send('evm_setNextBlockTimestamp', [
@@ -796,7 +854,7 @@ describe('KudzuBurnController Tests', function () {
         if (isBonfireActive) {
           const quotient =
             await KudzuBurnController.getQuotient(phaseTimestamp);
-          console.log(`🔥 BONFIRE ACTIVE! Quotient: ${quotient}`);
+          debug && console.log(`🔥 BONFIRE ACTIVE! Quotient: ${quotient}`);
         }
 
         // Each player burns some tokens
@@ -852,9 +910,10 @@ describe('KudzuBurnController Tests', function () {
       // Get winner before rewarding
       const winner = await KudzuBurn.getWinningAddress();
       const winnerPoints = await KudzuBurn.getPoints(winner);
-      console.log(
-        `Round ${round + 1} winner: ${winner} with ${winnerPoints} points`
-      );
+      debug &&
+        console.log(
+          `Round ${round + 1} winner: ${winner} with ${winnerPoints} points`
+        );
 
       // Reward winner
       const prizeAmount = await KudzuBurn.rounds(round).then(
@@ -869,15 +928,19 @@ describe('KudzuBurnController Tests', function () {
       expect(finalBalance).to.equal(initialBalance + prizeAmount);
       expect(await KudzuBurn.getPoints(winner)).to.equal(0);
 
-      console.log(`Winner received ${ethers.formatEther(prizeAmount)} ETH`);
-      console.log(`Current round: ${await KudzuBurn.currentRound()}`);
+      debug &&
+        console.log(`Winner received ${ethers.formatEther(prizeAmount)} ETH`);
+      debug && console.log(`Current round: ${await KudzuBurn.currentRound()}`);
     }
 
     // Verify all rounds are complete
     expect(await KudzuBurn.currentRound()).to.equal(13);
     await expect(KudzuBurn.isOver()).to.be.revertedWith('All rounds are over');
 
-    console.log('\nTournament complete! All 13 rounds finished successfully.');
+    debug &&
+      console.log(
+        '\nTournament complete! All 13 rounds finished successfully.'
+      );
   });
 
   // Helper function to get a player's rank
@@ -889,7 +952,7 @@ describe('KudzuBurnController Tests', function () {
       let rank = 0;
       while (true) {
         try {
-          const addressAtRank = await KudzuBurn.getRank(rank);
+          const addressAtRank = await KudzuBurn.findAddressByRank(rank);
           if (addressAtRank === playerAddress) return rank;
           rank++;
         } catch (e) {
@@ -898,20 +961,6 @@ describe('KudzuBurnController Tests', function () {
       }
     } catch (e) {
       return 999;
-    }
-  }
-
-  // Helper function to display current leaderboard
-  async function displayLeaderboard(KudzuBurn, count) {
-    console.log('\nCurrent Leaderboard:');
-    for (let i = 0; i < count; i++) {
-      try {
-        const address = await KudzuBurn.getRank(i);
-        const points = await KudzuBurn.getPoints(address);
-        console.log(`#${i + 1}: ${address} - ${points} points`);
-      } catch (e) {
-        break; // No more ranked players
-      }
     }
   }
 });
