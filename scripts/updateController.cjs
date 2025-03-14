@@ -10,6 +10,12 @@ async function main() {
   // Get the currently deployed Kudzu contract
   const { Kudzu, KudzuBurn } = await initContracts(['Kudzu', 'KudzuBurn']);
 
+  const paused = await KudzuBurn.paused();
+  if (!paused) {
+    await KudzuBurn.updatePaused(true);
+    console.log(`KudzuBurn is paused`);
+  }
+
   const KudzuBurnController = await hre.ethers.getContractFactory(
     'KudzuBurnController'
   );
