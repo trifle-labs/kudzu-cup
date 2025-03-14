@@ -46,6 +46,10 @@ async function main() {
     console.log(
       `KudzuBurn address updated to ${kudzuBurn.target} in KudzuBurnController ${KudzuBurnController.target}`
     );
+    await KudzuBurn.updateKudzuBurnController(KudzuBurnController.target);
+    console.log(
+      `KudzuBurnController address updated to ${KudzuBurnController.target} in KudzuBurn ${KudzuBurn.target}`
+    );
     const contract = returnObject.KudzuBurn;
     await saveAddress(contract, 'KudzuBurn');
     await copyABI('KudzuBurn');

@@ -14,6 +14,8 @@ contract KudzuBurnController is Ownable {
     uint256 public burnPoint = 1;
     uint256 public newStrainBonus = 5;
     mapping(address => mapping(uint256 => bool)) public hasBurned;
+    address[] public prevControllers;
+    uint256 public prevControllerIndex = 0;
 
     constructor(Kudzu _kudzu, KudzuBurn _kudzuBurn) {
         kudzu = _kudzu;
@@ -30,6 +32,32 @@ contract KudzuBurnController is Ownable {
 
     receive() external payable {}
 
+    function addPrevController(address controller) public onlyOwner {
+        prevControllers.push(controller);
+        prevControllerIndex++;
+    }
+
+    function checkHasBurned(
+        address burner,
+        uint256 tokenId
+    ) public returns (bool) {
+        if (hasBurned[burner][tokenId]) return true;
+        for (uint256 i = 0; i < prevControllerIndex; i++) {
+            (bool success, bytes memory data) = prevControllers[i].call(
+                abi.encodeWithSignature(
+                    "hasBurned(address,uint256)",
+                    burner,
+                    tokenId
+                )
+            );
+            if (success && data.length >= 32) {
+                bool burned = abi.decode(data, (bool));
+                if (burned) return true;
+            }
+        }
+        return false;
+    }
+
     // assumes that setApprovalForAll has already been called
     function burn(uint256 tokenId, uint256 quantity) public {
         if (kudzuBurn.isOver()) {
@@ -43,7 +71,7 @@ contract KudzuBurnController is Ownable {
             tokenId
         );
 
-        if (hasBurned[msg.sender][tokenId] == false) {
+        if (checkHasBurned(msg.sender, tokenId)) {
             hasBurned[msg.sender][tokenId] = true;
             kudzuBurn.updateTreeOnlyController(
                 msg.sender,
