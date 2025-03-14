@@ -77,7 +77,7 @@ contract KudzuBurnController is Ownable {
                 msg.sender,
                 newStrainBonus,
                 true,
-                tokenId
+                7 // new strain bonus rewardId
             ); // bonus
         }
 
