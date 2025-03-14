@@ -9,6 +9,7 @@ async function main() {
 
   const test = false;
   const redo = false;
+  const migrate = false;
 
   let block_num = 99999999999999;
   // Get the currently deployed Kudzu contract
@@ -59,46 +60,51 @@ async function main() {
     console.log({ returnObject });
     await verifyContracts(returnObject);
   }
-
-  const networkInfo = await ethers.provider.getNetwork();
-  const chainId = test ? 984122 : networkInfo.chainId;
-  const url = `https://api.indexsupply.net/query?query=SELECT+%0A++"to"%2C+SUM%28"points"%29+as+"sum"%0AFROM+%0A++pointsrewarded%0AWHERE%0A++address+%3D+${oldKudzuBurnContract}%0AAND%0A++block_num+<%3D+${block_num}%0AGROUP+BY+"to"%0AORDER+BY+"sum"+DESC%0A&event_signatures=PointsRewarded%28address+indexed+to%2Cuint256+indexed+tokenId%2Cint256+points%29&chain=${chainId}`;
-  console.log(url);
-  const response = await fetch(url);
-  const data = await response.json();
-  // console.log({ data: data.result[0].slice(1) });
-  const records = data.result[0].slice(1);
-  const count = records.length;
-  console.log(`Count of points rewarded: ${count}`);
-  const chunksize = 100;
-  const totalChunks = Math.ceil(count / chunksize);
-  console.log(`Total chunks: ${totalChunks}`);
-  const lastChunkSize = count % chunksize;
-  console.log(lastChunkSize);
-  let totalGasUsed = 0n;
-  for (let i = 0; i < totalChunks; i++) {
-    const startIndex = i * chunksize;
-    const chunk =
-      i == totalChunks - 1 && lastChunkSize > 0 ? lastChunkSize : chunksize;
-    const burners = [];
-    const quantities = [];
-    for (let j = 0; j < chunk; j++) {
-      const [address, quantity] = records[startIndex + j];
-      burners.push(address);
-      quantities.push(quantity);
+  if (migrate) {
+    const networkInfo = await ethers.provider.getNetwork();
+    const chainId = test ? 984122 : networkInfo.chainId;
+    const url = `https://api.indexsupply.net/query?query=SELECT+%0A++"to"%2C+SUM%28"points"%29+as+"sum"%0AFROM+%0A++pointsrewarded%0AWHERE%0A++address+%3D+${oldKudzuBurnContract}%0AAND%0A++block_num+<%3D+${block_num}%0AGROUP+BY+"to"%0AORDER+BY+"sum"+DESC%0A&event_signatures=PointsRewarded%28address+indexed+to%2Cuint256+indexed+tokenId%2Cint256+points%29&chain=${chainId}`;
+    console.log(url);
+    const response = await fetch(url);
+    const data = await response.json();
+    // console.log({ data: data.result[0].slice(1) });
+    const records = data.result[0].slice(1);
+    const count = records.length;
+    console.log(`Count of points rewarded: ${count}`);
+    const chunksize = 100;
+    const totalChunks = Math.ceil(count / chunksize);
+    console.log(`Total chunks: ${totalChunks}`);
+    const lastChunkSize = count % chunksize;
+    console.log(lastChunkSize);
+    let totalGasUsed = 0n;
+    for (let i = 0; i < totalChunks; i++) {
+      const startIndex = i * chunksize;
+      const chunk =
+        i == totalChunks - 1 && lastChunkSize > 0 ? lastChunkSize : chunksize;
+      const burners = [];
+      const quantities = [];
+      for (let j = 0; j < chunk; j++) {
+        const [address, quantity] = records[startIndex + j];
+        burners.push(address);
+        quantities.push(quantity);
+      }
+      const tx = await kudzuBurn.adminMassRewardSingleID(
+        burners,
+        quantities,
+        6
+      ); // 6 is the rewardId for migrating points from the old contract
+      const receipt = await tx.wait();
+      console.log(`Chunk ${i + 1}/${totalChunks} gas used: ${receipt.gasUsed}`);
+      totalGasUsed += receipt.gasUsed;
     }
-    const tx = await kudzuBurn.adminMassRewardSingleID(burners, quantities, 6); // 6 is the rewardId for migrating points from the old contract
-    const receipt = await tx.wait();
-    console.log(`Chunk ${i + 1}/${totalChunks} gas used: ${receipt.gasUsed}`);
-    totalGasUsed += receipt.gasUsed;
+    console.log(`Total gas used: ${totalGasUsed}`);
+    const gasPrice = 18n * 10n ** 6n;
+    const totalTiaUsed = BigInt(totalGasUsed) * gasPrice;
+    const totalTiaUsedFormatted = totalTiaUsed / 10n ** 18n;
+    console.log(
+      `Total TIA used: ${totalTiaUsedFormatted}.${totalTiaUsed % 10n ** 18n}`
+    );
   }
-  console.log(`Total gas used: ${totalGasUsed}`);
-  const gasPrice = 18n * 10n ** 6n;
-  const totalTiaUsed = BigInt(totalGasUsed) * gasPrice;
-  const totalTiaUsedFormatted = totalTiaUsed / 10n ** 18n;
-  console.log(
-    `Total TIA used: ${totalTiaUsedFormatted}.${totalTiaUsed % 10n ** 18n}`
-  );
 }
 
 main()

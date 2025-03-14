@@ -178,11 +178,11 @@ contract KudzuBurn is Ownable, Leaderboard {
 
         // if key exists, remove it
         if (prevValue != 0) {
-            remove(prevValue, burner);
+            // remove(prevValue, burner);
         }
         if (newValue != 0) {
             // add key with new value
-            insert(newValue, burner);
+            // insert(newValue, burner);
         }
         // console.log("burner", burner);
         // console.log('updatePoints', newValue);
