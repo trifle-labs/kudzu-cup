@@ -71,7 +71,7 @@ contract KudzuBurnController is Ownable {
             tokenId
         );
 
-        if (checkHasBurned(msg.sender, tokenId)) {
+        if (!checkHasBurned(msg.sender, tokenId)) {
             hasBurned[msg.sender][tokenId] = true;
             kudzuBurn.updateTreeOnlyController(
                 msg.sender,
