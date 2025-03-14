@@ -148,8 +148,8 @@ contract KudzuBurnController is Ownable {
         firstBonfireStart = timestamp;
     }
 
-    function updateBurnAddress(address burnAddress_) public onlyOwner {
-        burnAddress = burnAddress_;
+    function updateBurnAddress(KudzuBurn kudzuBurn_) public onlyOwner {
+        kudzuBurn = kudzuBurn_;
     }
 
     function updateBurnPoint(uint256 burnPoint_) public onlyOwner {
