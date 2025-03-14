@@ -211,6 +211,30 @@ contract KudzuBurn is Ownable, Leaderboard {
         updateTree(burner, quantity, false, rewardId);
     }
 
+    function adminMassRewardSingleQuantity(
+        address[] memory burners,
+        uint256 quantity,
+        uint256 rewardId
+    ) public onlyOwner {
+        for (uint256 i = 0; i < burners.length; i++) {
+            adminReward(burners[i], quantity, rewardId);
+        }
+    }
+
+    function adminMassRewardSingleID(
+        address[] memory burners,
+        uint256[] memory quantities,
+        uint256 rewardId
+    ) public onlyOwner {
+        require(
+            burners.length == quantities.length,
+            "Arrays must be same length"
+        );
+        for (uint256 i = 0; i < burners.length; i++) {
+            adminReward(burners[i], quantities[i], rewardId);
+        }
+    }
+
     function adminMassReward(
         address[] memory burners,
         uint256[] memory quantities,
@@ -226,6 +250,30 @@ contract KudzuBurn is Ownable, Leaderboard {
         );
         for (uint256 i = 0; i < burners.length; i++) {
             adminReward(burners[i], quantities[i], rewardIds[i]);
+        }
+    }
+
+    function adminMassPunishSingleQuantity(
+        address[] memory burners,
+        uint256 quantity,
+        uint256 rewardId
+    ) public onlyOwner {
+        for (uint256 i = 0; i < burners.length; i++) {
+            adminPunish(burners[i], quantity, rewardId);
+        }
+    }
+
+    function adminMassPunishSingleID(
+        address[] memory burners,
+        uint256[] memory quantities,
+        uint256 rewardId
+    ) public onlyOwner {
+        require(
+            burners.length == quantities.length,
+            "Arrays must be same length"
+        );
+        for (uint256 i = 0; i < burners.length; i++) {
+            adminPunish(burners[i], quantities[i], rewardId);
         }
     }
 

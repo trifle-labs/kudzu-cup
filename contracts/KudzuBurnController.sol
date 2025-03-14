@@ -111,10 +111,18 @@ contract KudzuBurnController is Ownable {
         }
     }
 
+    function isSpecialBurn(uint256 timestamp) public view returns (bool) {
+        uint256 specialBurnStart = 1741998000;
+        return
+            timestamp >= specialBurnStart &&
+            timestamp < specialBurnStart + bonfireDuration;
+    }
+
     function isBonfireActive(uint256 timestamp) public view returns (bool) {
         if (timestamp < firstBonfireStart) return true;
         uint256 timeSinceFirstBonfire = timestamp - firstBonfireStart;
         uint256 moduloBonfireDelay = timeSinceFirstBonfire % bonfireDelay;
+        if (isSpecialBurn(timestamp)) return true;
         return moduloBonfireDelay < bonfireDuration;
     }
 

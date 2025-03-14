@@ -963,4 +963,62 @@ describe('KudzuBurnController Tests', function () {
       return 999;
     }
   }
+
+  it('correctly identifies special burn period', async () => {
+    const { KudzuBurnController } = await deployKudzuAndBurn();
+
+    // Special burn time: Sat Mar 15 2025 00:20:00 GMT+0000
+    const specialBurnTime = 1741998000;
+
+    // Verify the timestamp matches the expected date
+    const specialBurnDate = new Date(specialBurnTime * 1000);
+    expect(
+      specialBurnDate.toUTCString(),
+      'Unix timestamp should match Sat Mar 15 2025 00:20:00 GMT'
+    ).to.equal('Sat, 15 Mar 2025 00:20:00 GMT');
+
+    const bonfireDuration = await KudzuBurnController.bonfireDuration();
+
+    // Test just before special burn
+    expect(
+      await KudzuBurnController.isSpecialBurn(specialBurnTime - 1),
+      'Should not be active before special burn time'
+    ).to.be.false;
+
+    // Test at start of special burn
+    expect(
+      await KudzuBurnController.isSpecialBurn(specialBurnTime),
+      'Should be active at special burn time'
+    ).to.be.true;
+
+    // Test middle of special burn period
+    expect(
+      await KudzuBurnController.isSpecialBurn(
+        specialBurnTime + parseInt(bonfireDuration) / 2
+      ),
+      'Should be active during special burn period'
+    ).to.be.true;
+
+    // Test at end of special burn period
+    expect(
+      await KudzuBurnController.isSpecialBurn(
+        specialBurnTime + parseInt(bonfireDuration) - 1
+      ),
+      'Should be active at end of special burn period'
+    ).to.be.true;
+
+    // Test just after special burn period
+    expect(
+      await KudzuBurnController.isSpecialBurn(
+        specialBurnTime + parseInt(bonfireDuration)
+      ),
+      'Should not be active after special burn period'
+    ).to.be.false;
+
+    // Verify the special burn affects isBonfireActive
+    expect(
+      await KudzuBurnController.isBonfireActive(specialBurnTime + 100),
+      'Special burn should count as bonfire active'
+    ).to.be.true;
+  });
 });

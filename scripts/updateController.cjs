@@ -31,8 +31,8 @@ async function main() {
   console.log(
     `KudzuBurnController address updated to ${burnController.target} in KudzuBurn ${KudzuBurn.target}`
   );
-  await tx.wait();
-  console.log(`Block number: ${tx.blockNumber}`);
+  const receipt = await tx.wait();
+  console.log(`Block number: ${receipt.blockNumber}`);
 
   await copyABI('KudzuBurnController');
   const contract = returnObject.KudzuBurnController;

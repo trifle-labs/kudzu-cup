@@ -2,14 +2,14 @@
 
 <!-- Table with the rewardIds and the corresponding rewards and description -->
 
-| Reward ID | Reward  | Description                                                                                                                                                                                           |
-| --------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1         | -?      | This is the rewardID used for when a winner has all of their points removed at the end of a round                                                                                                     |
-| 2         | 15      | This is the rewardID used for the Mamo holder bonus as of 2/23/25 at 4:20pm UTC                                                                                                                       |
-| 3         | 5       | This is the rewardID for twitter users that quote tweeted the announcement of the Kudzu burn                                                                                                          |
-| 4         | various | This is the rewardID used to make up for the incorrectly calculated burn points in the first [burnController contract](https://explorer.forma.art/address/0xE30cef8e99A6eEbE3CBF2862641337f57830FbeE) |
-| 5         | various | This is the rewardID used for bonus points during bonfires                                                                                                                                            |
-| 6         | migrate | This is the rewardID used for migrating the points from the previous [KudzuBurn contract](https://explorer.forma.art/address/0x0000000000000000000000000000000000000000)                              |
+| Reward ID | Reward  | Description                                                                                                                                                                                                           |
+| --------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1         | -?      | This is the rewardID used for when a winner has all of their points removed at the end of a round                                                                                                                     |
+| 2         | 15      | This is the rewardID used for the Mamo holder bonus as of 2/23/25 at 4:20pm UTC                                                                                                                                       |
+| 3         | 5       | This is the rewardID for twitter users that quote tweeted the announcement of the Kudzu burn                                                                                                                          |
+| 4         | various | This is the rewardID used to make up for the incorrectly calculated burn points in the first [burnController contract](https://explorer.forma.art/address/0xE30cef8e99A6eEbE3CBF2862641337f57830FbeE)                 |
+| 5         | various | This is the rewardID used for bonus points during bonfires                                                                                                                                                            |
+| 6         | migrate | This is the rewardID used for migrating the points from the previous [KudzuBurn contract](https://explorer.forma.art/address/0x0000000000000000000000000000000000000000) (should be ignored in frontend points graph) |
 
 <!-- Table with bonfire start times and burn quantity multipliers -->
 
