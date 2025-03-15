@@ -9,6 +9,17 @@ BigInt.prototype.toJSON = function () {
   return this.toString() + 'n';
 };
 
+export class DeterministicRandom {
+  constructor(seed) {
+    this.seed = seed;
+  }
+
+  next() {
+    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
+    return this.seed / 0x7fffffff;
+  }
+}
+
 export const printTree = async (leaderboard) => {
   console.log('----printTree---');
   const depth = await leaderboard.maxDepth();
@@ -491,6 +502,19 @@ async function writedata(path, data) {
     console.error('Failed to write file' + path, { e });
   }
 }
+
+export const fifoSort = (ar) => {
+  const withNewIndexes = ar.map((a, i) => {
+    return { ...a, i };
+  });
+  return withNewIndexes.sort((a, b) => {
+    if (a.value === b.value) {
+      return a.i - b.i;
+    } else {
+      return a.value - b.value;
+    }
+  });
+};
 
 const prepareKudzuForTests = async (Kudzu, recipients = []) => {
   const currentTime = (await hre.ethers.provider.getBlock('latest')).timestamp;

@@ -1,33 +1,8 @@
 import { expect } from 'chai';
 import { afterEach, before, describe, it } from 'mocha';
-import { printTree } from '../scripts/utils.js';
+import { printTree, fifoSort, DeterministicRandom } from '../scripts/utils.js';
 import hre from 'hardhat';
 const ethers = hre.ethers;
-
-class DeterministicRandom {
-  constructor(seed) {
-    this.seed = seed;
-  }
-
-  next() {
-    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
-    return this.seed / 0x7fffffff;
-  }
-}
-
-const fifoSort = (ar) => {
-  return ar
-    .map((a, i) => {
-      return { ...a, i };
-    })
-    .sort((a, b) => {
-      if (a.value === b.value) {
-        return b.i - a.i;
-      } else {
-        return a.value - b.value;
-      }
-    });
-};
 
 let snapshot;
 describe('Leaderboard Tests', function () {
