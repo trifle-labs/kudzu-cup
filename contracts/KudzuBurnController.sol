@@ -60,35 +60,50 @@ contract KudzuBurnController is Ownable {
 
     // assumes that setApprovalForAll has already been called
     function burn(uint256 tokenId, uint256 quantity) public {
-        if (kudzuBurn.isOver()) {
-            kudzuBurn.rewardWinner();
-        }
+        kudzuBurn.rewardWinner();
         kudzu.safeTransferFrom(msg.sender, burnAddress, tokenId, quantity, "");
-        kudzuBurn.updateTreeOnlyController(
-            msg.sender,
-            quantity * burnPoint,
-            true,
-            tokenId
-        );
-
+        uint256[3] memory quantities;
+        uint256[3] memory rewardIds;
+        uint256 index = 0;
+        quantities[index] = quantity * burnPoint;
+        rewardIds[index] = tokenId;
+        index++;
+        // kudzuBurn.updateTreeOnlyController(
+        //     msg.sender,
+        //     quantity * burnPoint,
+        //     true,
+        //     tokenId
+        // );
         if (!checkHasBurned(msg.sender, tokenId)) {
             hasBurned[msg.sender][tokenId] = true;
-            kudzuBurn.updateTreeOnlyController(
-                msg.sender,
-                newStrainBonus,
-                true,
-                7 // new strain bonus rewardId
-            ); // bonus
+            quantities[index] = newStrainBonus;
+            rewardIds[index] = 7;
+            index++;
+            // kudzuBurn.updateTreeOnlyController(
+            //     msg.sender,
+            //     newStrainBonus,
+            //     true,
+            //     7 // new strain bonus rewardId
+            // ); // bonus
         }
-
         if (isBonfireActive(block.timestamp)) {
             uint256 remainder = bonfireCounts[msg.sender];
             uint256 divider = getQuotient(block.timestamp);
             uint256 bonus = (quantity + remainder) / divider;
             uint256 newRemainder = (quantity + remainder) % divider;
             bonfireCounts[msg.sender] = newRemainder;
-            kudzuBurn.updateTreeOnlyController(msg.sender, bonus, true, 5); // bonusId 5 for bonfire
+            if (bonus > 0) {
+                quantities[index] = bonus;
+                rewardIds[index] = 5; // bonfire rewardId
+            }
+            // kudzuBurn.updateTreeOnlyController(msg.sender, bonus, true, 5); // bonusId 5 for bonfire
         }
+        kudzuBurn.batchUpdateTreeOnlyController(
+            msg.sender,
+            quantities,
+            true,
+            rewardIds
+        );
     }
 
     function batchBurn(

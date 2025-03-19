@@ -21,6 +21,7 @@ contract KudzuBurn is Ownable, Leaderboard {
     uint256 public currentRound = 0;
 
     mapping(address => uint256) public burnerPoints;
+    uint256 trackingTopGroupOf = 10;
 
     struct Round {
         uint256 order;
@@ -140,14 +141,42 @@ contract KudzuBurn is Ownable, Leaderboard {
         (firstPlace, ) = findByIndex(getSize() - 1);
     }
 
+    function batchUpdateTreeOnlyController(
+        address burner,
+        uint256[3] memory quantities,
+        bool add,
+        uint256[3] memory rewardIds
+    ) public onlyController {
+        uint256 total = 0;
+        for (uint256 i = 0; i < 3; i++) {
+            total += quantities[i];
+            emit PointsRewarded(burner, rewardIds[i], int256(quantities[i]));
+        }
+        updateTree(burner, total, add, 0, false);
+    }
+
     function updateTreeOnlyController(
         address burner,
         uint256 quantity,
         bool add,
         uint256 tokenId
     ) public onlyController {
-        updateTree(burner, quantity, add, tokenId);
+        updateTree(burner, quantity, add, tokenId, true);
     }
+
+    // function remove(
+    //     uint256 prevValue,
+    //     address burner
+    // ) public override onlyOwner {
+    //     remove(prevValue, burner);
+    // }
+
+    // function insert(
+    //     uint256 newValue,
+    //     address burner
+    // ) public override onlyOwner {
+    //     insert(newValue, burner);
+    // }
 
     // NOTE: tokenId when a token is involved, rewardId when it is not
     // NOTE: rewardId 1 == remove round winner balance
@@ -157,7 +186,8 @@ contract KudzuBurn is Ownable, Leaderboard {
         address burner,
         uint256 quantity,
         bool add,
-        uint256 tokenId
+        uint256 tokenId,
+        bool emitEvents
     ) private {
         require(!paused, "Contract is paused");
         uint256 prevValue = burnerPoints[burner];
@@ -176,19 +206,43 @@ contract KudzuBurn is Ownable, Leaderboard {
             }
         }
 
-        // if key exists, remove it
+        // bool maxNotReached = getSize() < trackingTopGroupOf;
+        // bool addToTree = false;
+        // address previousPlayer;
+        // uint256 previousPoints;
+        // if (maxNotReached) {
+        //     addToTree = true;
+        // } else {
+        //     (previousPlayer, previousPoints) = findByIndex(
+        //         getSize() - trackingTopGroupOf
+        //     );
+        //     if (previousPoints < newValue) {
+        //         addToTree = true;
+        //     }
+        // }
+        // if (addToTree) {
+        //     console.log("addToTree", addToTree);
+        //     console.logAddress(burner);
+        //     // if key exists, remove it
+        //     // TODO: need better way to check whether player is in tree or not
         if (prevValue != 0) {
+            console.log("remove");
+            console.logAddress(burner);
+            console.log(prevValue);
             remove(prevValue, burner);
         }
         if (newValue != 0) {
+            console.log("insert");
+            console.logAddress(burner);
+            console.log(newValue);
             // add key with new value
             insert(newValue, burner);
         }
-        // console.log("burner", burner);
-        // console.log('updatePoints', newValue);
-        // console.log("tokenId/rewardId", tokenId);
+        // }
         burnerPoints[burner] = newValue;
-        emit PointsRewarded(burner, tokenId, pointsChange);
+        if (emitEvents) {
+            emit PointsRewarded(burner, tokenId, pointsChange);
+        }
     }
 
     function getPoints(address burner) public view returns (uint256) {
@@ -200,7 +254,7 @@ contract KudzuBurn is Ownable, Leaderboard {
         uint256 quantity,
         uint256 rewardId
     ) public onlyOwner {
-        updateTree(burner, quantity, true, rewardId);
+        updateTree(burner, quantity, true, rewardId, true);
     }
 
     function adminPunish(
@@ -208,7 +262,7 @@ contract KudzuBurn is Ownable, Leaderboard {
         uint256 quantity,
         uint256 rewardId
     ) public onlyOwner {
-        updateTree(burner, quantity, false, rewardId);
+        updateTree(burner, quantity, false, rewardId, true);
     }
 
     function adminMassRewardSingleQuantity(
@@ -301,14 +355,16 @@ contract KudzuBurn is Ownable, Leaderboard {
     }
 
     function rewardWinner() public {
-        require(isOver(), "Current round is not over");
+        if (!isOver()) return;
         require(!paused, "Contract is paused");
         address winner = getWinningAddress();
         uint256 points = burnerPoints[winner];
         // NOTE: remove winner's points with rewardId 1
-        updateTree(winner, points, false, 1);
+        updateTree(winner, points, false, 1, true);
         uint256 payout = rounds[currentRound].payoutToRecipient;
         currentRound += 1;
+        // TODO: make sure this doesn't go below 0
+        trackingTopGroupOf -= 1;
         (bool success, bytes memory data) = winner.call{value: payout}("");
         emit EthMoved(winner, success, data, payout);
     }
