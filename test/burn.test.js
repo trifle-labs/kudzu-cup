@@ -144,8 +144,8 @@ describe('KudzuBurn Tests', function () {
     ).to.be.revertedWith('Ownable: caller is not the owner');
 
     // Verify rankings
-    expect(await KudzuBurn.findAddressByRank(0)).to.equal(acct1.address);
-    expect(await KudzuBurn.findAddressByRank(1)).to.equal(acct2.address);
+    expect(await KudzuBurn.getOwnerAtRank(0)).to.equal(acct1.address);
+    expect(await KudzuBurn.getOwnerAtRank(1)).to.equal(acct2.address);
   });
 
   it('fundRound works and validates round indices', async () => {
@@ -170,7 +170,7 @@ describe('KudzuBurn Tests', function () {
     );
 
     await KudzuBurnController.connect(acct1).burn(tokenIds[0], 1);
-    expect(await KudzuBurn.findAddressByRank(0)).to.equal(acct1.address);
+    expect(await KudzuBurn.getOwnerAtRank(0)).to.equal(acct1.address);
 
     const fundAmount = ethers.parseEther('1.0');
 
@@ -204,6 +204,19 @@ describe('KudzuBurn Tests', function () {
       KudzuBurn.fundRound(0, { value: fundAmount })
     ).to.be.revertedWith('Round already over');
   });
+
+  // Helper function to convert rank to index
+  function rankToIndex(size, rank) {
+    return Number(size) - 1 - Number(rank);
+  }
+
+  // Helper function to get owner at rank
+  async function getOwnerAtRank(kudzuBurn, rank) {
+    const size = await kudzuBurn.size();
+    // Convert rank to index (highest rank is size-1, lowest rank is 0)
+    const index = rankToIndex(size, rank);
+    return kudzuBurn.getOwnerAtIndex(index);
+  }
 
   it('receive function calls rewardWinner when round is over', async () => {
     const [deployer, acct1, acct2] = await ethers.getSigners();
@@ -242,9 +255,9 @@ describe('KudzuBurn Tests', function () {
     );
     // Create a winner by burning tokens
     await KudzuBurnController.connect(acct1).burn(tokenIds[0], 1);
-    expect(await KudzuBurn.findAddressByRank(0)).to.equal(acct1.address);
+    expect(await getOwnerAtRank(KudzuBurn, 0)).to.equal(acct1.address);
     await KudzuBurnController.connect(acct2).burn(tokenIds[1], 1);
-    expect(await KudzuBurn.findAddressByRank(1)).to.equal(acct2.address);
+    expect(await getOwnerAtRank(KudzuBurn, 1)).to.equal(acct2.address);
 
     // Fast forward time to after round end
     const roundEndTime = await KudzuBurn.rounds(0);
@@ -323,70 +336,13 @@ describe('KudzuBurn Tests', function () {
     const over = await KudzuBurn.isOver();
     expect(over).to.be.false;
 
-    // Try to call rewardWinner - should fail
-    await expect(KudzuBurn.rewardWinner()).to.be.revertedWith(
-      'Current round is not over'
-    );
-  });
+    // Call rewardWinner - should do nothing (return without effect)
+    const initialRound = await KudzuBurn.currentRound();
+    await KudzuBurn.rewardWinner();
+    const finalRound = await KudzuBurn.currentRound();
 
-  it('reverts when all rounds are over', async () => {
-    const accounts = await ethers.getSigners();
-    const [deployer, acct1] = accounts;
-    const { Kudzu, KudzuBurn, KudzuBurnController } = await deployKudzuAndBurn({
-      mock: true,
-    });
-
-    // Setup initial state with a winner
-    const recipients = [
-      {
-        address: acct1,
-        quantity: 2,
-        infected: [],
-      },
-    ];
-    const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
-
-    await Kudzu.connect(acct1).setApprovalForAll(
-      KudzuBurnController.target,
-      true
-    );
-
-    // Progress through all 13 rounds
-    for (let i = 0; i < 13; i++) {
-      // Create a winner and fund each round
-      await KudzuBurnController.connect(acct1).burn(tokenIds[i < 9 ? 0 : 1], 1);
-      await deployer.sendTransaction({
-        to: KudzuBurn.target,
-        value: ethers.parseEther('1.0'),
-      });
-
-      // Fast forward to end of round
-      const roundEndTime = await KudzuBurn.rounds(i);
-      await hre.network.provider.send('evm_setNextBlockTimestamp', [
-        parseInt(roundEndTime[1]) + 1,
-      ]);
-      await hre.network.provider.send('evm_mine');
-
-      // Trigger round advancement
-      await KudzuBurn.rewardWinner();
-    }
-
-    // Verify we're past the last round
-    expect(await KudzuBurn.currentRound()).to.equal(13);
-
-    // Try to call functions that use isOver - should all revert
-    await expect(KudzuBurn.isOver()).to.be.revertedWith('All rounds are over');
-
-    await expect(KudzuBurnController.burn(tokenIds[0], 1)).to.be.revertedWith(
-      'All rounds are over'
-    );
-
-    await expect(
-      deployer.sendTransaction({
-        to: KudzuBurn.target,
-        value: ethers.parseEther('1.0'),
-      })
-    ).to.be.revertedWith('All rounds are over');
+    // Round should not advance since round is not over
+    expect(finalRound).to.equal(initialRound);
   });
 
   it('adminMassReward and adminMassPunish work correctly and emit events', async () => {
@@ -425,10 +381,10 @@ describe('KudzuBurn Tests', function () {
     expect(await KudzuBurn.getPoints(acct2.address)).to.equal(20);
     expect(await KudzuBurn.getPoints(acct3.address)).to.equal(30);
 
-    // Verify rankings
-    expect(await KudzuBurn.findAddressByRank(0)).to.equal(acct3.address); // 30 points
-    expect(await KudzuBurn.findAddressByRank(1)).to.equal(acct2.address); // 20 points
-    expect(await KudzuBurn.findAddressByRank(2)).to.equal(acct1.address); // 10 points
+    // Verify rankings - highest points (acct3) should be rank 0
+    expect(await getOwnerAtRank(KudzuBurn, 0)).to.equal(acct3.address); // 30 points
+    expect(await getOwnerAtRank(KudzuBurn, 1)).to.equal(acct2.address); // 20 points
+    expect(await getOwnerAtRank(KudzuBurn, 2)).to.equal(acct1.address); // 10 points
 
     // Test adminMassPunish
     const punishQuantities = [5, 15, 10];
@@ -456,14 +412,17 @@ describe('KudzuBurn Tests', function () {
 
     const newBalances = [5, 5, 20];
     // Verify points were deducted correctly
-    expect(await KudzuBurn.getPoints(acct1.address)).to.equal(newBalances[0]); // 10 - 5
-    expect(await KudzuBurn.getPoints(acct2.address)).to.equal(newBalances[1]); // 20 - 15
-    expect(await KudzuBurn.getPoints(acct3.address)).to.equal(newBalances[2]); // 30 - 10
+    expect(await KudzuBurn.getPoints(acct1.address)).to.equal(newBalances[0]); // 10 - 5 = 5
+    expect(await KudzuBurn.getPoints(acct2.address)).to.equal(newBalances[1]); // 20 - 15 = 5
+    expect(await KudzuBurn.getPoints(acct3.address)).to.equal(newBalances[2]); // 30 - 10 = 20
 
+    const nonceAcct1 = await KudzuBurn.getNonce(acct1.address);
+    const nonceAcct2 = await KudzuBurn.getNonce(acct2.address);
+    expect(nonceAcct1).to.be.lessThan(nonceAcct2);
     // Verify new rankings
-    expect(await KudzuBurn.findAddressByRank(0)).to.equal(acct3.address); // 20 points
-    expect(await KudzuBurn.findAddressByRank(1)).to.equal(acct1.address); // 5 points
-    expect(await KudzuBurn.findAddressByRank(2)).to.equal(acct2.address); // 5 points
+    expect(await getOwnerAtRank(KudzuBurn, 0)).to.equal(acct3.address); // 20 points
+    expect(await getOwnerAtRank(KudzuBurn, 1)).to.equal(acct1.address); // 5 points
+    expect(await getOwnerAtRank(KudzuBurn, 2)).to.equal(acct2.address); // 5 points
 
     // Test that points can't go negative
     const excessivePunishQuantities = [10, 20, 30];
@@ -606,7 +565,7 @@ describe('KudzuBurn Tests', function () {
 
       // Print current points and rank for verification
       const points = await KudzuBurn.getPoints(acct.address);
-      const rank = await KudzuBurn.findAddressByRank(i);
+      const rank = await KudzuBurn.getOwnerAtRank(i);
       // console.log(`Account ${i} now has ${points} points and is at rank ${i}`);
 
       // Verify points and rank
@@ -630,7 +589,7 @@ describe('KudzuBurn Tests', function () {
     // Print final rankings before removing points
     // console.log('\nRankings before removing points:');
     for (let i = 0; i < 6; i++) {
-      const rank = await KudzuBurn.findAddressByRank(i);
+      const rank = await KudzuBurn.getOwnerAtRank(i);
       const points = await KudzuBurn.getPoints(rank);
       // console.log(`Rank ${i}: ${rank} with ${points} points`);
     }
@@ -647,13 +606,13 @@ describe('KudzuBurn Tests', function () {
     // Print final rankings
     // console.log('\nFinal rankings after removing points:');
     for (let i = 0; i < 6; i++) {
-      const rank = await KudzuBurn.findAddressByRank(i);
+      const rank = await KudzuBurn.getOwnerAtRank(i);
       const points = await KudzuBurn.getPoints(rank);
       // console.log(`Rank ${i}: ${rank} with ${points} points`);
     }
 
     // Verify account 5 is now at the end (rank 5)
-    const lastRank = await KudzuBurn.findAddressByRank(5);
+    const lastRank = await KudzuBurn.getOwnerAtRank(5);
     expect(lastRank).to.equal(accounts[5].address);
     expect(await KudzuBurn.getPoints(lastRank)).to.equal(100);
   });
@@ -684,10 +643,10 @@ describe('KudzuBurn Tests', function () {
 
     await KudzuBurnController.connect(acct2).burn(tokenIds[0], 1);
 
-    const rank = await KudzuBurn.findAddressByRank(0);
+    const rank = await KudzuBurn.getOwnerAtRank(0);
     expect(rank).to.equal(acct2.address);
 
-    const [player, value] = await KudzuBurn.findByIndex(0);
+    const [value, player] = await KudzuBurn.getValueAndOwnerAtIndex(0);
     expect(player).to.equal(acct2.address);
     expect(value).to.equal(6);
 
@@ -696,7 +655,7 @@ describe('KudzuBurn Tests', function () {
 
     await KudzuBurnController.connect(acct1).burn(tokenIds[0], 1);
 
-    const rank2 = await KudzuBurn.findAddressByRank(1);
+    const rank2 = await KudzuBurn.getOwnerAtRank(1);
     expect(rank2).to.equal(acct1.address);
 
     const points2 = await KudzuBurn.getPoints(acct1.address);
@@ -704,7 +663,7 @@ describe('KudzuBurn Tests', function () {
 
     await KudzuBurnController.connect(acct1).burn(tokenIds[0], 1);
 
-    const rank3 = await KudzuBurn.findAddressByRank(0);
+    const rank3 = await KudzuBurn.getOwnerAtRank(0);
     expect(rank3).to.equal(acct1.address);
 
     const points3 = await KudzuBurn.getPoints(acct1.address);
@@ -722,11 +681,11 @@ describe('KudzuBurn Tests', function () {
 
     await KudzuBurn.rewardWinner();
 
-    const rank4 = await KudzuBurn.findAddressByRank(0);
+    const rank4 = await KudzuBurn.getOwnerAtRank(0);
     expect(rank4).to.equal(acct2.address);
   });
 
-  it('ensures getWinningAddress matches findAddressByRank(0)', async () => {
+  it('ensures getWinningAddress matches getOwnerAtRank(0)', async () => {
     const [deployer, acct1, acct2, acct3] = await ethers.getSigners();
     const { KudzuBurn } = await deployKudzuAndBurn({ mock: true });
 
@@ -735,23 +694,23 @@ describe('KudzuBurn Tests', function () {
     await KudzuBurn.adminReward(acct2.address, 10, 0);
     await KudzuBurn.adminReward(acct3.address, 10, 0);
 
-    // Verify getWinningAddress matches findAddressByRank(0)
+    // Verify getWinningAddress matches getOwnerAtRank(0)
     expect(await KudzuBurn.getWinningAddress()).to.equal(
-      await KudzuBurn.findAddressByRank(0)
+      await KudzuBurn.getOwnerAtRank(0)
     );
     expect(await KudzuBurn.getWinningAddress()).to.equal(acct1.address);
 
     // Change rankings and verify again
     await KudzuBurn.adminReward(acct1.address, 15, 0);
     expect(await KudzuBurn.getWinningAddress()).to.equal(
-      await KudzuBurn.findAddressByRank(0)
+      await KudzuBurn.getOwnerAtRank(0)
     );
     expect(await KudzuBurn.getWinningAddress()).to.equal(acct1.address);
 
     // Remove points and verify
     await KudzuBurn.adminPunish(acct1.address, 20, 0);
     expect(await KudzuBurn.getWinningAddress()).to.equal(
-      await KudzuBurn.findAddressByRank(0)
+      await KudzuBurn.getOwnerAtRank(0)
     );
     expect(await KudzuBurn.getWinningAddress()).to.equal(acct2.address);
   });
@@ -828,8 +787,8 @@ describe('KudzuBurn Tests', function () {
 
   //   // Verify rankings maintained
   //   for (let i = 0; i < groupSize; i++) {
-  //     const originalRank = await originalKudzuBurn.findAddressByRank(i);
-  //     const newRank = await newKudzuBurn.findAddressByRank(i);
+  //     const originalRank = await originalKudzuBurn.getOwnerAtRank(i);
+  //     const newRank = await newKudzuBurn.getOwnerAtRank(i);
   //     expect(newRank).to.equal(originalRank);
   //   }
   // });

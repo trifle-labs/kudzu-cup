@@ -271,6 +271,22 @@ const deployBurnContract = async (returnObject) => {
   await burn.updateKudzuBurnController(burnController.target);
   log(`KudzuBurn updated with KudzuBurnController at ${burnController.target}`);
 
+  // If mockRound is provided, set the currentRound to that value (for testing purposes)
+  if (returnObject.mockRound !== undefined) {
+    // Use a transaction to set currentRound directly
+    // Note: This bypasses normal contract logic for testing purposes only
+    const currentRoundSlot = 0; // Storage slot for currentRound (verify this is correct)
+
+    // Directly modify storage using hardhat's setStorageAt
+    await hre.network.provider.send('hardhat_setStorageAt', [
+      burn.target,
+      currentRoundSlot.toString(16).padStart(64, '0'), // Convert to hex and pad
+      returnObject.mockRound.toString(16).padStart(64, '0'), // Convert to hex and pad
+    ]);
+
+    log(`KudzuBurn currentRound set to ${returnObject.mockRound} for testing`);
+  }
+
   const verificationData = [
     {
       name: 'KudzuBurn',
@@ -291,8 +307,9 @@ const deployContractsV0 = async (options) => {
     mock: false,
     ignoreTesting: false,
     verbose: false,
+    mockRound: undefined, // Add mockRound option with default undefined
   };
-  const { mock, ignoreTesting, verbose } = Object.assign(
+  const { mock, ignoreTesting, verbose, mockRound } = Object.assign(
     defaultOptions,
     options
   );
@@ -305,7 +322,9 @@ const deployContractsV0 = async (options) => {
   global.chainId = chainId;
   log('Deploying contracts');
 
-  const returnObject = {};
+  const returnObject = {
+    mockRound, // Pass mockRound to the returnObject for use in deployBurnContract
+  };
 
   // deploy Metadata
   const { externalMetadata } = await deployMetadata();

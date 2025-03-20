@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./Leaderboard.sol";
+import "./AugmentedLLRBTree.sol";
 import "./Kudzu.sol";
 import "hardhat/console.sol";
 
@@ -13,7 +13,7 @@ KUDZU BURN
 
 */
 
-contract KudzuBurn is Ownable, Leaderboard {
+contract KudzuBurn is Ownable, AugmentedLLRBTree {
     bool public paused = false;
     Kudzu public kudzu;
     address payable public prevKudzuBurn;
@@ -21,7 +21,6 @@ contract KudzuBurn is Ownable, Leaderboard {
     uint256 public currentRound = 0;
 
     mapping(address => uint256) public burnerPoints;
-    uint256 trackingTopGroupOf = 10;
 
     struct Round {
         uint256 order;
@@ -138,17 +137,18 @@ contract KudzuBurn is Ownable, Leaderboard {
     }
 
     function getWinningAddress() public view returns (address firstPlace) {
-        (firstPlace, ) = findByIndex(getSize() - 1);
+        firstPlace = getOwnerAtIndex(size() - 1);
     }
 
     function batchUpdateTreeOnlyController(
         address burner,
-        uint256[3] memory quantities,
+        uint256[] memory quantities,
         bool add,
-        uint256[3] memory rewardIds
+        uint256[] memory rewardIds
     ) public onlyController {
         uint256 total = 0;
-        for (uint256 i = 0; i < 3; i++) {
+        for (uint256 i = 0; i < quantities.length; i++) {
+            if (quantities[i] == 0) continue;
             total += quantities[i];
             emit PointsRewarded(burner, rewardIds[i], int256(quantities[i]));
         }
@@ -206,39 +206,11 @@ contract KudzuBurn is Ownable, Leaderboard {
             }
         }
 
-        // bool maxNotReached = getSize() < trackingTopGroupOf;
-        // bool addToTree = false;
-        // address previousPlayer;
-        // uint256 previousPoints;
-        // if (maxNotReached) {
-        //     addToTree = true;
-        // } else {
-        //     (previousPlayer, previousPoints) = findByIndex(
-        //         getSize() - trackingTopGroupOf
-        //     );
-        //     if (previousPoints < newValue) {
-        //         addToTree = true;
-        //     }
-        // }
-        // if (addToTree) {
-        //     console.log("addToTree", addToTree);
-        //     console.logAddress(burner);
-        //     // if key exists, remove it
-        //     // TODO: need better way to check whether player is in tree or not
-        if (prevValue != 0) {
-            console.log("remove");
-            console.logAddress(burner);
-            console.log(prevValue);
-            remove(prevValue, burner);
-        }
-        if (newValue != 0) {
-            console.log("insert");
-            console.logAddress(burner);
-            console.log(newValue);
-            // add key with new value
+        if (prevValue != 0 && newValue == 0) {
+            remove(burner);
+        } else if (newValue != 0) {
             insert(newValue, burner);
         }
-        // }
         burnerPoints[burner] = newValue;
         if (emitEvents) {
             emit PointsRewarded(burner, tokenId, pointsChange);
@@ -363,8 +335,6 @@ contract KudzuBurn is Ownable, Leaderboard {
         updateTree(winner, points, false, 1, true);
         uint256 payout = rounds[currentRound].payoutToRecipient;
         currentRound += 1;
-        // TODO: make sure this doesn't go below 0
-        trackingTopGroupOf -= 1;
         (bool success, bytes memory data) = winner.call{value: payout}("");
         emit EthMoved(winner, success, data, payout);
     }

@@ -9,7 +9,7 @@ pragma solidity ^0.8.0;
  * - Each address can only have one entry at a time
  * - Nodes can be queried by sorted index
  * - When two nodes have the same value, the older node is given the higher index
- * - Age of nodes is tracked and cleaned up on removal
+ * - Age of nodes is tracked using an insertion nonce and cleaned up on removal
  */
 contract AugmentedLLRBTree {
     enum Color {
@@ -20,7 +20,7 @@ contract AugmentedLLRBTree {
     struct Node {
         uint256 value; // The value to be sorted
         address owner; // The address associated with this value
-        uint256 timestamp; // When the node was inserted (for breaking ties)
+        uint256 nonce; // Insertion nonce (for breaking ties)
         uint256 size; // Size of the subtree (augmentation for index queries)
         Color color; // Color of the node
         uint256 left; // Index of left child
@@ -33,9 +33,10 @@ contract AugmentedLLRBTree {
     uint256 private root; // Root node ID
     uint256 private NIL; // Sentinel NIL node ID
     uint256 private nodeCount; // Total number of nodes in the tree
+    uint256 private insertionNonce; // Monotonically increasing nonce for insertion order
 
     // Events
-    event NodeInserted(address indexed owner, uint256 value, uint256 timestamp);
+    event NodeInserted(address indexed owner, uint256 value, uint256 nonce);
     event NodeRemoved(address indexed owner, uint256 value);
 
     /**
@@ -47,7 +48,7 @@ contract AugmentedLLRBTree {
         nodes[NIL] = Node({
             value: 0,
             owner: address(0),
-            timestamp: 0,
+            nonce: 0,
             size: 0,
             color: Color.BLACK,
             left: 0,
@@ -55,6 +56,7 @@ contract AugmentedLLRBTree {
         });
         root = NIL;
         nodeCount = 0;
+        insertionNonce = 0;
     }
 
     /**
@@ -98,9 +100,9 @@ contract AugmentedLLRBTree {
             remove(owner);
         }
 
-        // Create a new node
-        uint256 timestamp = block.timestamp;
-        uint256 nodeId = _createNode(value, owner, timestamp);
+        // Create a new node with increasing nonce
+        uint256 nonce = insertionNonce++;
+        uint256 nodeId = _createNode(value, owner, nonce);
 
         // Insert the node into the tree
         root = _insert(root, nodeId);
@@ -110,7 +112,7 @@ contract AugmentedLLRBTree {
         ownerToNode[owner] = nodeId;
         nodeCount++;
 
-        emit NodeInserted(owner, value, timestamp);
+        emit NodeInserted(owner, value, nonce);
     }
 
     /**
@@ -226,14 +228,14 @@ contract AugmentedLLRBTree {
     }
 
     /**
-     * @dev Get the timestamp of a node for a given owner
+     * @dev Get the nonce of a node for a given owner
      * @param owner The address to find
-     * @return The timestamp of when the owner's node was inserted
+     * @return The nonce of when the owner's node was inserted
      */
-    function getTimestamp(address owner) public view returns (uint256) {
+    function getNonce(address owner) public view returns (uint256) {
         uint256 nodeId = ownerToNode[owner];
         require(nodeId != 0, "Owner does not exist in the tree");
-        return nodes[nodeId].timestamp;
+        return nodes[nodeId].nonce;
     }
 
     // INTERNAL FUNCTIONS
@@ -244,18 +246,18 @@ contract AugmentedLLRBTree {
     function _createNode(
         uint256 value,
         address owner,
-        uint256 timestamp
+        uint256 nonce
     ) private returns (uint256) {
         // Use keccak256 to generate a unique ID for the node
         uint256 nodeId = uint256(
-            keccak256(abi.encodePacked(value, owner, timestamp, nodeCount))
+            keccak256(abi.encodePacked(value, owner, nonce, nodeCount))
         );
 
         // Create the node
         nodes[nodeId] = Node({
             value: value,
             owner: owner,
-            timestamp: timestamp,
+            nonce: nonce,
             size: 1,
             color: Color.RED, // New nodes are always red
             left: NIL,
@@ -273,15 +275,15 @@ contract AugmentedLLRBTree {
             return nodeId;
         }
 
-        // Compare value and timestamp for insertion order:
+        // Compare value and nonce for insertion order:
         // - First by value (ascending)
-        // - Then by timestamp (descending, older entries higher in tree for same value)
+        // - Then by nonce (descending, lower nonce is older and should be higher in tree for same value)
         Node storage node = nodes[nodeId];
         Node storage hNode = nodes[h];
 
         if (
             node.value < hNode.value ||
-            (node.value == hNode.value && node.timestamp > hNode.timestamp)
+            (node.value == hNode.value && node.nonce > hNode.nonce)
         ) {
             // Insert to the left
             hNode.left = _insert(hNode.left, nodeId);
@@ -322,7 +324,7 @@ contract AugmentedLLRBTree {
 
         if (
             target.value < hNode.value ||
-            (target.value == hNode.value && target.timestamp > hNode.timestamp)
+            (target.value == hNode.value && target.nonce > hNode.nonce)
         ) {
             // Target is to the left
             if (!_isRed(hNode.left) && !_isRed(nodes[hNode.left].left)) {
@@ -355,7 +357,7 @@ contract AugmentedLLRBTree {
                 // Copy data from successor
                 hNode.value = minRight.value;
                 hNode.owner = minRight.owner;
-                hNode.timestamp = minRight.timestamp;
+                hNode.nonce = minRight.nonce;
 
                 // Update the reference in ownerToNode
                 ownerToNode[hNode.owner] = h;

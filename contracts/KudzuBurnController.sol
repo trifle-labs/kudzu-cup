@@ -37,7 +37,7 @@ contract KudzuBurnController is Ownable {
         prevControllerIndex++;
     }
 
-    function checkHasBurned(
+    function hasAlreadyBurned(
         address burner,
         uint256 tokenId
     ) public returns (bool) {
@@ -62,42 +62,41 @@ contract KudzuBurnController is Ownable {
     function burn(uint256 tokenId, uint256 quantity) public {
         kudzuBurn.rewardWinner();
         kudzu.safeTransferFrom(msg.sender, burnAddress, tokenId, quantity, "");
-        uint256[3] memory quantities;
-        uint256[3] memory rewardIds;
+
+        // Prepare arrays for batch update
+        uint256[] memory quantities = new uint256[](3);
+        uint256[] memory rewardIds = new uint256[](3);
         uint256 index = 0;
+
+        // Base burn points
         quantities[index] = quantity * burnPoint;
         rewardIds[index] = tokenId;
         index++;
-        // kudzuBurn.updateTreeOnlyController(
-        //     msg.sender,
-        //     quantity * burnPoint,
-        //     true,
-        //     tokenId
-        // );
-        if (!checkHasBurned(msg.sender, tokenId)) {
+
+        // New strain bonus if applicable
+        if (!hasAlreadyBurned(msg.sender, tokenId)) {
             hasBurned[msg.sender][tokenId] = true;
             quantities[index] = newStrainBonus;
-            rewardIds[index] = 7;
+            rewardIds[index] = 7; // new strain bonus rewardId
             index++;
-            // kudzuBurn.updateTreeOnlyController(
-            //     msg.sender,
-            //     newStrainBonus,
-            //     true,
-            //     7 // new strain bonus rewardId
-            // ); // bonus
         }
+
+        // Bonfire bonus if active
         if (isBonfireActive(block.timestamp)) {
             uint256 remainder = bonfireCounts[msg.sender];
             uint256 divider = getQuotient(block.timestamp);
             uint256 bonus = (quantity + remainder) / divider;
             uint256 newRemainder = (quantity + remainder) % divider;
             bonfireCounts[msg.sender] = newRemainder;
+
             if (bonus > 0) {
                 quantities[index] = bonus;
                 rewardIds[index] = 5; // bonfire rewardId
+                index++;
             }
-            // kudzuBurn.updateTreeOnlyController(msg.sender, bonus, true, 5); // bonusId 5 for bonfire
         }
+
+        // Send batch update
         kudzuBurn.batchUpdateTreeOnlyController(
             msg.sender,
             quantities,
@@ -114,10 +113,14 @@ contract KudzuBurnController is Ownable {
             tokenIds.length == quantities.length,
             "tokenIds and quantities must have the same length"
         );
-        if (kudzuBurn.isOver()) {
-            kudzuBurn.rewardWinner();
-        }
-        uint256 totalQuantity = 0;
+        kudzuBurn.rewardWinner();
+
+        // Calculate the maximum possible size needed (base points + potential new strain bonus + potential bonfire bonus)
+        uint256 maxArraySize = tokenIds.length * 2 + 1; // +1 for potential bonfire bonus
+        uint256[] memory pointQuantities = new uint256[](maxArraySize);
+        uint256[] memory rewardIds = new uint256[](maxArraySize);
+
+        // Transfer all tokens at once
         kudzu.safeBatchTransferFrom(
             msg.sender,
             burnAddress,
@@ -125,33 +128,47 @@ contract KudzuBurnController is Ownable {
             quantities,
             ""
         );
+
+        // Process each token individually for base points and new strain bonus
+        uint256 totalQuantity = 0;
+        uint256 index = 0;
         for (uint256 i = 0; i < tokenIds.length; i++) {
             totalQuantity += quantities[i];
-            kudzuBurn.updateTreeOnlyController(
-                msg.sender,
-                quantities[i] * burnPoint,
-                true,
-                tokenIds[i]
-            );
-            if (!hasBurned[msg.sender][tokenIds[i]]) {
+
+            // Regular burn points
+            pointQuantities[index] = quantities[i] * burnPoint;
+            rewardIds[index] = tokenIds[i];
+            index++;
+
+            // New strain bonus if applicable
+            if (!hasAlreadyBurned(msg.sender, tokenIds[i])) {
                 hasBurned[msg.sender][tokenIds[i]] = true;
-                kudzuBurn.updateTreeOnlyController(
-                    msg.sender,
-                    newStrainBonus,
-                    true,
-                    tokenIds[i]
-                ); // bonus
+                pointQuantities[index] = newStrainBonus;
+                rewardIds[index] = 7; // new strain bonus rewardId
+                index++;
             }
         }
 
+        // Then handle bonfire bonus separately as one update
         if (isBonfireActive(block.timestamp)) {
             uint256 remainder = bonfireCounts[msg.sender];
             uint256 divider = getQuotient(block.timestamp);
             uint256 bonus = (totalQuantity + remainder) / divider;
             uint256 newRemainder = (totalQuantity + remainder) % divider;
             bonfireCounts[msg.sender] = newRemainder;
-            kudzuBurn.updateTreeOnlyController(msg.sender, bonus, true, 5); // bonusId 5 for bonfire
+
+            if (bonus > 0) {
+                pointQuantities[index] = bonus;
+                rewardIds[index] = 5; // bonfire rewardId
+            }
         }
+        // Send batch update for this token's points
+        kudzuBurn.batchUpdateTreeOnlyController(
+            msg.sender,
+            pointQuantities,
+            true,
+            rewardIds
+        );
     }
 
     function isSpecialBurn(uint256 timestamp) public view returns (bool) {
@@ -159,6 +176,10 @@ contract KudzuBurnController is Ownable {
         return
             timestamp >= specialBurnStart &&
             timestamp < specialBurnStart + bonfireDuration;
+    }
+
+    function isBonfireActiveNow() public view returns (bool) {
+        return isBonfireActive(block.timestamp);
     }
 
     function isBonfireActive(uint256 timestamp) public view returns (bool) {
