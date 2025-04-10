@@ -15,7 +15,6 @@ contract KudzuBurnController is Ownable {
 
     uint256 public burnPoint = 1;
     uint256 public newStrainBonus = 5;
-    // mapping(address => mapping(uint256 => bool)) public hasBurned;
     address[] public prevControllers;
     uint256 public prevControllerIndex = 0;
 
