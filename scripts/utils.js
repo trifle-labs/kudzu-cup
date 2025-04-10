@@ -243,33 +243,77 @@ const deployBurnContract = async (returnObject) => {
   if (!returnObject.Kudzu) {
     throw new Error('Kudzu contract is required to deploy KudzuBurn contract');
   }
+  const unpause = returnObject.unpause || true;
 
   log('Deploying KudzuBurn contract');
 
   const zeroAddress = '0x0000000000000000000000000000000000000000';
 
-  const KudzuBurn = await hre.ethers.getContractFactory('KudzuBurn');
-  const burn = await KudzuBurn.deploy(returnObject.Kudzu.target, zeroAddress);
-  await burn.deploymentTransaction().wait();
-  returnObject['KudzuBurn'] = burn;
-  log(`KudzuBurn Deployed at ${burn.target} `);
+  // --- Determine Modularium Address ---+
+  let modulariumAddress;
+  let modulariumInstance; // To hold the deployed mock instance if needed
+  const { mock } = returnObject; // Assuming mock flag is passed in the object
+  const modulariumAddresses = {
+    formatest: '0x83c62Cc36B792eE22ba14e74E07Ab05eC2630d1b', // formatest (assuming this is the testnet name in hardhat config)
+    forma: '0x98DF8F54ac374B5F9d814f09978E5287C27e3Ef6', // forma mainnet
+    hardhat: zeroAddress,
+    // Add other networks and their Modularium addresses here if needed
+  };
 
-  const KudzuBurnController = await hre.ethers.getContractFactory(
+  if (mock) {
+    log('   Deploying ModulariumMock...');
+    const ModulariumMockFactory =
+      await hre.ethers.getContractFactory('ModulariumMock');
+    modulariumInstance = await ModulariumMockFactory.deploy();
+    await modulariumInstance.deploymentTransaction().wait();
+    modulariumAddress = modulariumInstance.target;
+    log(`   ModulariumMock deployed at: ${modulariumAddress}`);
+    // Optionally add the mock instance to the return object if needed elsewhere
+    returnObject['ModulariumMock'] = modulariumInstance;
+  } else {
+    const networkName = hre.network.name;
+    log(`   Getting Modularium address for network: ${networkName}`);
+    modulariumAddress = modulariumAddresses[networkName];
+    if (!modulariumAddress) {
+      throw new Error(
+        `Modularium address not configured for network '${networkName}' in utils.js. Cannot deploy KudzuBurnController without a valid Modularium address or running in mock mode.`
+      );
+    }
+    log(`   Using Modularium address: ${modulariumAddress}`);
+    // We don't have the instance here, just the address
+  }
+
+  // deploy KudzuBurn
+  const KudzuBurn = await hre.ethers.getContractFactory('KudzuBurn');
+  const kudzuBurn = await KudzuBurn.deploy(
+    returnObject.Kudzu.target,
+    zeroAddress
+  );
+  await kudzuBurn.deploymentTransaction().wait();
+  returnObject['KudzuBurn'] = kudzuBurn;
+  log(`KudzuBurn Deployed at ${kudzuBurn.target} `);
+
+  // Deploy KudzuBurnController with the determined Modularium address
+  log('Deploying KudzuBurnController...');
+  const KudzuBurnControllerFactory = await hre.ethers.getContractFactory(
     'KudzuBurnController'
   );
-  const burnController = await KudzuBurnController.deploy(
-    returnObject.Kudzu.target,
-    burn.target
+  const kudzuBurnController = await KudzuBurnControllerFactory.deploy(
+    returnObject.Kudzu.target, // Kudzu address
+    kudzuBurn.target, // KudzuBurn address
+    modulariumAddress // Determined Modularium address (real or mock)
   );
-  await burnController.deploymentTransaction().wait();
-  returnObject['KudzuBurnController'] = burnController;
+  await kudzuBurnController.deploymentTransaction().wait();
+  returnObject['KudzuBurnController'] = kudzuBurnController;
   log(
-    `KudzuBurnController Deployed at ${burnController.target} with Kudzu at ${returnObject.Kudzu.target} and KudzuBurn at ${burn.target} `
+    `KudzuBurnController Deployed at ${kudzuBurnController.target} with Kudzu at ${returnObject.Kudzu.target} and KudzuBurn at ${kudzuBurn.target} and modularium address at ${modulariumAddress}`
   );
 
   // update KudzuBurn with KudzuController address
-  await burn.updateKudzuBurnController(burnController.target);
-  log(`KudzuBurn updated with KudzuBurnController at ${burnController.target}`);
+  await kudzuBurn.updateKudzuBurnController(kudzuBurnController.target);
+  log(
+    `KudzuBurn updated with KudzuBurnController at ${kudzuBurnController.target}`
+  );
 
   // If mockRound is provided, set the currentRound to that value (for testing purposes)
   if (returnObject.mockRound !== undefined) {
@@ -279,12 +323,16 @@ const deployBurnContract = async (returnObject) => {
 
     // Directly modify storage using hardhat's setStorageAt
     await hre.network.provider.send('hardhat_setStorageAt', [
-      burn.target,
+      kudzuBurn.target,
       currentRoundSlot.toString(16).padStart(64, '0'), // Convert to hex and pad
       returnObject.mockRound.toString(16).padStart(64, '0'), // Convert to hex and pad
     ]);
 
     log(`KudzuBurn currentRound set to ${returnObject.mockRound} for testing`);
+  }
+
+  if (unpause) {
+    await kudzuBurn.updatePaused(false);
   }
 
   const verificationData = [
@@ -294,7 +342,11 @@ const deployBurnContract = async (returnObject) => {
     },
     {
       name: 'KudzuBurnController',
-      constructorArguments: [returnObject.Kudzu.target, burn.target],
+      constructorArguments: [
+        returnObject.Kudzu.target,
+        kudzuBurn.target,
+        modulariumAddress,
+      ],
     },
   ];
   returnObject.verificationData = verificationData;
@@ -324,6 +376,10 @@ const deployContractsV0 = async (options) => {
 
   const returnObject = {
     mockRound, // Pass mockRound to the returnObject for use in deployBurnContract
+    mock,
+    ignoreTesting,
+    verbose,
+    mockRound,
   };
 
   // deploy Metadata
@@ -522,17 +578,29 @@ async function writedata(path, data) {
   }
 }
 
+// fifoSort for increasing values but decreasing nonces
+// smaller nonces are considered "greater" when values are equal
 export const fifoSort = (ar) => {
   const withNewIndexes = ar.map((a, i) => {
     return { ...a, i };
   });
-  return withNewIndexes.sort((a, b) => {
-    if (a.value === b.value) {
-      return a.i - b.i;
-    } else {
-      return a.value - b.value;
-    }
-  });
+  return withNewIndexes
+    .sort((a, b) => {
+      if (a.value === b.value) {
+        if (Object.keys(a).includes('playerNonce')) {
+          return b.playerNonce - a.playerNonce;
+        } else {
+          return b.i - a.i;
+        }
+      } else {
+        return a.value - b.value;
+      }
+    })
+    .map((a, rank) => {
+      a.rank = withNewIndexes.length - 1 - rank;
+      delete a.i;
+      return a;
+    });
 };
 
 const prepareKudzuForTests = async (Kudzu, recipients = []) => {
@@ -552,21 +620,38 @@ const prepareKudzuForTests = async (Kudzu, recipients = []) => {
   tx = await Kudzu.updateForfeitClaim(0);
   await tx.wait();
   const allTokenIds = [];
-
   // Create tokens and handle airdrops
   for (let i = 0; i < recipients.length; i++) {
     const address = recipients[i].address;
     const quantity = recipients[i].quantity;
     const infected = recipients[i].infected;
-    const tx = await Kudzu.connect(address).mint(address.address, 0, quantity);
-    const receipt = await tx.wait();
-    const tokenIds = (
-      await getParsedEventLogs(receipt, Kudzu, 'TransferSingle')
-    ).map((e) => e.pretty.id);
+    const quantityChunkSize = 100;
+    const quantityChunks = Math.ceil(quantity / quantityChunkSize);
+    const quantityChunkLast =
+      quantity % quantityChunkSize == 0
+        ? quantityChunkSize
+        : quantity % quantityChunkSize;
+
+    let tokenIds = [];
+    for (let j = 0; j < quantityChunks; j++) {
+      const quantityChunk =
+        j == quantityChunks - 1 ? quantityChunkLast : quantityChunkSize;
+      const tx = await Kudzu.connect(address).mint(
+        address.address,
+        0,
+        quantityChunk
+      );
+      const receipt = await tx.wait();
+      tokenIds.push(
+        ...(await getParsedEventLogs(receipt, Kudzu, 'TransferSingle')).map(
+          (e) => e.pretty.id
+        )
+      );
+    }
     allTokenIds.push(...tokenIds);
-    for (let j = 0; j < infected.length; j++) {
-      const infectedAddress = infected[j].address;
-      const strainIndex = infected[j].strainIndex;
+    for (let k = 0; k < infected.length; k++) {
+      const infectedAddress = infected[k].address;
+      const strainIndex = infected[k].strainIndex;
       await Kudzu.connect(address).airdrop(
         infectedAddress,
         tokenIds[strainIndex],

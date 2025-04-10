@@ -2,6 +2,8 @@
 
 <!-- Table with the rewardIds and the corresponding rewards and description -->
 
+Contract expects at most 10,000 rewardIds in the `PointsRewarded(address indexed to, uint256 indexed tokenId, int256 points)` event.
+
 | Reward ID | Reward  | Description                                                                                                                                                                                                           |
 | --------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1         | -?      | This is the rewardID used for when a winner has all of their points removed at the end of a round                                                                                                                     |

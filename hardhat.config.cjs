@@ -6,7 +6,7 @@ require('dotenv').config();
 require('@nomicfoundation/hardhat-verify');
 require('solidity-coverage');
 require('@nomicfoundation/hardhat-ethers');
-
+require('./scripts/bulkBuyModularium.cjs');
 // const { subtask } = require('hardhat/config')
 // const {
 //   TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS

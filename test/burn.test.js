@@ -32,20 +32,36 @@ describe('KudzuBurn Tests', function () {
     const functions = [
       { name: 'updateKudzuBurnController', params: [notdeployer.address] },
       { name: 'updateEndDate', params: [0, 0] },
-      { name: 'recoverFunds', params: [0, 0] },
+      { name: 'recoverFunds', params: [notdeployer.address, 0, 0] },
       { name: 'updatePaused', params: [false] },
-      { name: 'adminReward', params: [notdeployer.address, 0, 0] },
-      { name: 'adminPunish', params: [notdeployer.address, 0, 0] },
+      { name: 'adminReward', params: [notdeployer.address, 1, 1] },
+      { name: 'adminPunish', params: [notdeployer.address, 1, 1] },
     ];
 
     for (let i = 0; i < functions.length; i++) {
       const { name, params } = functions[i];
       await expect(
-        KudzuBurn.connect(notdeployer)[name](...params)
+        KudzuBurn.connect(notdeployer)[name](...params),
+        name
       ).to.be.revertedWith('Ownable: caller is not the owner');
-      await expect(KudzuBurn.connect(deployer)[name](...params)).to.not.be
+      await expect(KudzuBurn.connect(deployer)[name](...params), name).to.not.be
         .reverted;
     }
+  });
+
+  it('can recover funds', async () => {
+    const value = ethers.parseEther('1.0');
+    const { KudzuBurn } = await deployKudzuAndBurn({ mock: true });
+    for (let i = 0; i < 13; i++) {
+      await KudzuBurn.fundRound(i, { value });
+    }
+
+    const zeroAddress = ethers.ZeroAddress;
+    for (let i = 0; i < 13; i++) {
+      await KudzuBurn.recoverFunds(zeroAddress, i, value);
+    }
+    const zeroBalance = await ethers.provider.getBalance(zeroAddress);
+    expect(zeroBalance).to.equal(13n * value);
   });
 
   it('has the correct dates', async () => {
@@ -767,7 +783,7 @@ describe('KudzuBurn Tests', function () {
   //     expect(receipt.gasUsed).to.be.lt(25000000);
   //   }
   //   console.log(`Total gas used: ${totalGasUsed}`);
-  //   const gasPrice = 18n * 10n ** 6n;
+  //   const gasPrice = 18n * 10n ** 9n;
   //   const totalTiaUsed = BigInt(totalGasUsed) * gasPrice;
   //   const totalTiaUsedFormatted = totalTiaUsed / 10n ** 18n;
   //   console.log(

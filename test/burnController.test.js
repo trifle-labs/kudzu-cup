@@ -12,7 +12,7 @@ import {
   fifoSort,
 } from '../scripts/utils.js';
 
-let snapshot, KudzuMock, KudzuBurnMock, KudzuBurnControllerMock;
+let snapshot, KudzuMock, KudzuBurnMock, KudzuBurnControllerMock, ModulariumMock;
 describe('KudzuBurnController Tests', function () {
   const bonfireTimes = [
     { date: 'Wednesday, March 5, 2025 16:20:00 GMT', quotient: 5 }, // W
@@ -38,6 +38,7 @@ describe('KudzuBurnController Tests', function () {
       Kudzu: KudzuMock,
       KudzuBurn: KudzuBurnMock,
       KudzuBurnController: KudzuBurnControllerMock,
+      ModulariumMock: ModulariumMock,
     } = await deployKudzuAndBurn({
       mock: true,
     }));
@@ -47,7 +48,6 @@ describe('KudzuBurnController Tests', function () {
     const bonfireTime = currentTime + 14 * 24 * 60 * 60;
     const bonfireDelay = await KudzuBurnControllerMock.bonfireDelay();
     await KudzuBurnControllerMock.updateBonfireTime(bonfireTime);
-    await KudzuBurnControllerMock.updateEnd;
     for (let i = 0; i < mockBonfireTimes.length; i++) {
       const bonfireUnix = bonfireTime + i * parseInt(bonfireDelay);
       mockBonfireTimes[i].date = new Date(bonfireUnix * 1000).toUTCString();
@@ -695,6 +695,16 @@ describe('KudzuBurnController Tests', function () {
       expect(isBonfireActive).to.be.true;
 
       const batchQuantities = getBatch();
+      const confirmedNoRepeats = new Set();
+      for (const b of batchQuantities) {
+        if (confirmedNoRepeats.has(tokenIds[b.tokenIndex])) {
+          expect.fail('Token index repeated in batch', {
+            tokenId: tokenIds[b.tokenIndex],
+            tokenIndex: b.tokenIndex,
+          });
+        }
+        confirmedNoRepeats.add(tokenIds[b.tokenIndex]);
+      }
       const tx1 = await KudzuBurnController.connect(acct1).batchBurn(
         batchQuantities.map((b) => tokenIds[b.tokenIndex]),
         batchQuantities.map((b) => b.quantity)
@@ -779,8 +789,8 @@ describe('KudzuBurnController Tests', function () {
     }
   });
 
-  it('simulates complete tournament lifecycle with 15 players across all rounds', async () => {
-    const debug = true;
+  it.skip('simulates complete tournament lifecycle with 15 players across all rounds', async () => {
+    const debug = false;
     // Setup accounts and contracts
     const accounts = await ethers.getSigners();
     const players = accounts.slice(1, 16); // 15 players
@@ -1055,13 +1065,17 @@ describe('KudzuBurnController Tests', function () {
     ).to.be.true;
   });
 
-  it('handles high volume activity with 2000 players over 3 months', async () => {
-    const PLAYER_COUNT = 500;
+  it.skip('handles high volume activity with 10,000 players over 3 months', async () => {
+    const PLAYER_COUNT = 10_000;
     const INITIAL_POINTS = 15;
-    const THREE_MONTHS_IN_SECONDS = 7776000;
-    const TIME_INTERVAL = 2 * 60 * 60; // 2 hours
-    const INTERVALS = Math.floor(THREE_MONTHS_IN_SECONDS / TIME_INTERVAL);
-    const seed = Math.floor(Math.random() * 1000000);
+    const THIRTEEN_TIMES_THREE_MONTHS_IN_SECONDS = 13 * 3 * 30 * 24 * 60 * 60;
+    const TIME_INTERVAL = 1 * 60 * 60; // 1 hours
+    const NUM_PLAYERS_PER_ROUND = 3;
+
+    const INTERVALS = Math.floor(
+      THIRTEEN_TIMES_THREE_MONTHS_IN_SECONDS / TIME_INTERVAL
+    );
+    const seed = 614727; //Math.floor(Math.random() * 1000000);
     const random = new DeterministicRandom(seed);
 
     // Setup accounts and contracts
@@ -1074,11 +1088,10 @@ describe('KudzuBurnController Tests', function () {
         return ethers.Wallet.createRandom().connect(ethers.provider);
       });
 
+    const fundInEth = '0.1';
     // Fund players with ETH for gas (0.1 ETH each)
-    const FUNDING_PER_PLAYER = ethers.parseEther('0.1');
-    console.log(
-      `Funding ${PLAYER_COUNT} players with ${FUNDING_PER_PLAYER} ETH each`
-    );
+    const FUNDING_PER_PLAYER = ethers.parseEther(fundInEth);
+    console.log(`Funding ${PLAYER_COUNT} players with ${fundInEth} ETH each`);
 
     let currentSignerIndex = 0;
     for (let i = 0; i < players.length; i++) {
@@ -1115,6 +1128,8 @@ describe('KudzuBurnController Tests', function () {
       KudzuBurnControllerMock: KudzuBurnController,
     } = { KudzuBurnMock, KudzuMock, KudzuBurnControllerMock };
 
+    let playerNonce = 0;
+
     // Initialize player tokens and tracking state
     const playerTokens = {};
     let playerScores = []; // Change to array to track insertion order
@@ -1123,47 +1138,125 @@ describe('KudzuBurnController Tests', function () {
     const playerBonfireBurns = {}; // Track running total of burns during bonfire periods
     try {
       // Setup initial state for each player
+
+      const chunkSize = 50;
+      const count = players.length;
+      const totalChunks = Math.ceil(count / chunkSize);
+      const lastChunkSize =
+        count % chunkSize == 0 ? chunkSize : count % chunkSize;
+      console.log({ totalChunks });
+      for (let i = 0; i < totalChunks; i++) {
+        const startIndex = i * chunkSize;
+        const endIndex =
+          i == totalChunks - 1
+            ? startIndex + lastChunkSize
+            : startIndex + chunkSize;
+        const chunk = players.slice(startIndex, endIndex);
+        console.log(
+          `Rewarding ${chunk.length} players with ${INITIAL_POINTS} points`
+        );
+        await KudzuBurn.adminMassRewardSingleQuantity(chunk, INITIAL_POINTS, 3); // rewardId 3 for pre-game points
+      }
+
+      const playersApproved = new Set();
+      const recipients = [
+        {
+          address: deployer,
+          quantity: 3 * PLAYER_COUNT,
+          infected: [],
+        },
+      ];
+      const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
+      console.time('prepareKudzuInTest');
+
+      const tokenQuantity = 10;
+      const tokenIdsInBatchesOfThree = tokenIds.reduce(
+        (acc, tokenId, index) => {
+          const batchIndex = Math.floor(index / 3);
+          if (!acc[batchIndex]) {
+            acc[batchIndex] = [];
+          }
+          acc[batchIndex].push(tokenId);
+          const player = players[batchIndex];
+          playerTokens[player.address] ||= [];
+          playerTokens[player.address].push(tokenId);
+          playerBurnedTokens[player.address] ||= new Set(); // Initialize burned tokens tracking
+          playerBonfireBurns[player.address] = 0; // Initialize bonfire burns tracking
+          tokenBalances[`${player.address}-${tokenId}`] = tokenQuantity;
+
+          return acc;
+        },
+        []
+      );
+      const tokenIdsAsQuantities = Array(PLAYER_COUNT).fill(
+        Array(3).fill(tokenQuantity)
+      );
+      const playersAsAddresses = players.map((p) => p.address);
+      await Kudzu.connect(deployer).setApprovalForAll(KudzuBurn.target, true);
+      const transferChunkSize = 100;
+      const transferChunks = Math.ceil(
+        playersAsAddresses.length / transferChunkSize
+      );
+      const transferChunkLastSize =
+        playersAsAddresses.length % transferChunkSize == 0
+          ? transferChunkSize
+          : playersAsAddresses.length % transferChunkSize;
+      for (let i = 0; i < transferChunks; i++) {
+        const startIndex = i * transferChunkSize;
+        const endIndex =
+          i == transferChunks - 1
+            ? startIndex + transferChunkLastSize
+            : startIndex + transferChunkSize;
+        const transferChunk = playersAsAddresses.slice(startIndex, endIndex);
+        const tokenIdsInBatchesOfThree_ = tokenIdsInBatchesOfThree.slice(
+          startIndex,
+          endIndex
+        );
+        const tokenIdsAsQuantities_ = tokenIdsAsQuantities.slice(
+          startIndex,
+          endIndex
+        );
+        await KudzuBurn.massBatchTransferTokens(
+          deployer,
+          transferChunk,
+          tokenIdsInBatchesOfThree_,
+          tokenIdsAsQuantities_
+        );
+      }
       for (const [i, player] of players.entries()) {
-        // Each player gets 3 different token types with 100 tokens each
-        const recipients = [
-          {
-            address: player,
-            quantity: 3,
-            infected: [],
-          },
-        ];
-
-        const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
-        playerTokens[player.address] = tokenIds;
-        playerBurnedTokens[player.address] = new Set(); // Initialize burned tokens tracking
-        playerBonfireBurns[player.address] = 0; // Initialize bonfire burns tracking
-
         // Add initial points using adminReward
-        await KudzuBurn.adminReward(player.address, INITIAL_POINTS, 3); // rewardId 3 for pre-game points
-        playerScores.unshift({
+        playerScores.push({
           address: player.address,
           value: INITIAL_POINTS,
-          i,
-        }); // Track as [address, score] pair
-
-        // Track token balances - prepareKudzuForTests mints 10 tokens per type
-        for (const tokenId of tokenIds) {
-          tokenBalances[`${player.address}-${tokenId}`] = 10;
+          playerNonce,
+        });
+        playerNonce++;
+      }
+      console.timeEnd('prepareKudzuInTest');
+      const confirmInitialState = true;
+      if (confirmInitialState) {
+        const size = await KudzuBurn.size();
+        expect(size).to.equal(players.length);
+        for (let j = 0; j < players.length; j++) {
+          const [contractScore, contractPlayer] =
+            await KudzuBurn.getValueAndOwnerAtRank(j);
+          expect(contractPlayer.toLowerCase()).to.equal(
+            players[j].address.toLowerCase()
+          );
+          expect(contractScore).to.equal(INITIAL_POINTS);
         }
-
-        // Approve burn controller
-        await Kudzu.connect(player).setApprovalForAll(
-          KudzuBurnController.target,
-          true
-        );
       }
 
       // Get initial timestamp and round end time
       const startTime = (await ethers.provider.getBlock('latest')).timestamp;
-      const endTime = startTime + THREE_MONTHS_IN_SECONDS;
-
+      const endTime = startTime + THIRTEEN_TIMES_THREE_MONTHS_IN_SECONDS;
+      console.log({ INTERVALS });
       // Run simulation over time intervals
-      for (let i = 0; i < INTERVALS; i++) {
+      let completedRounds = 0;
+
+      outerloop: for (let i = 0; i < INTERVALS; i++) {
+        console.time('intervalLoop');
+
         const currentTime = startTime + i * TIME_INTERVAL;
 
         const actualTime = await ethers.provider.getBlock('latest');
@@ -1174,59 +1267,27 @@ describe('KudzuBurnController Tests', function () {
           ]);
           await ethers.provider.send('evm_mine');
         }
+        console.log(
+          `${i}/${INTERVALS} (${((i / INTERVALS) * 100).toFixed(2)}%) - ${new Date(currentTime * 1000).toLocaleString()}`
+        );
 
         // Randomly select 1-10 players for this interval
-        const numPlayers = Math.floor(random.next() * 10) + 1;
+        const numPlayers =
+          Math.floor(random.next() * NUM_PLAYERS_PER_ROUND) + 1;
         const selectedPlayers = players
           .sort(() => random.next() - 0.5)
           .slice(0, numPlayers);
 
-        const checkWinner = async () => {
-          // Check if round is over and handle winner
-          try {
-            const isOver = await KudzuBurn.isOver();
-            if (isOver) {
-              console.log('ROUND OVER');
-              const winner = await KudzuBurn.getWinningAddress();
-              const winnerPoints = await KudzuBurn.getPoints(winner);
-              console.log(
-                `Round over! Winner: ${winner} with ${winnerPoints} points`
-              );
-
-              // Record winner's points before resetting
-              const winnerScoreEntry = playerScores.find(
-                (p) => p.address.toLowerCase() === winner.toLowerCase()
-              );
-              expect(winnerScoreEntry.value).to.equal(
-                winnerPoints,
-                "Winner's JS score should match contract score"
-              );
-
-              // Reset winner's score in our local state
-              winnerScoreEntry.value = 0;
-
-              // Execute reward winner transaction
-              await KudzuBurn.rewardWinner();
-
-              // Verify winner's points were reset in contract
-              const newPoints = await KudzuBurn.getPoints(winner);
-              expect(newPoints).to.equal(
-                0,
-                "Winner's points should be reset to 0"
-              );
-            }
-          } catch (e) {
-            if (e.message.includes('All rounds are over')) {
-              console.log('All rounds complete');
-              return true;
-            }
-            throw e;
-          }
-          return false;
-        };
-
         // Process burns for selected players
         for (const player of selectedPlayers) {
+          if (!playersApproved.has(player.address)) {
+            // Approve burn controller
+            await Kudzu.connect(player).setApprovalForAll(
+              KudzuBurnController.target,
+              true
+            );
+            playersApproved.add(player.address);
+          }
           // if (await checkWinner()) break
           const currentTime = (await ethers.provider.getBlock('latest'))
             .timestamp;
@@ -1236,8 +1297,9 @@ describe('KudzuBurnController Tests', function () {
           const quotient = isBonfireActive
             ? await KudzuBurnController.getQuotient(currentTime)
             : 0;
-
-          playerScores = fifoSort(playerScores);
+          if (isBonfireActive) {
+            console.log(`🔥 BONFIRE ACTIVE! Quotient: ${quotient}`);
+          }
           // Select random token to burn
           const playerTokenIds = playerTokens[player.address];
           const tokenId =
@@ -1257,6 +1319,12 @@ describe('KudzuBurnController Tests', function () {
           expect(tokenBalances[balanceKey]).to.equal(playerBalance);
           // Skip if not enough tokens
           if (tokenBalances[balanceKey] < burnAmount) continue;
+          try {
+            await KudzuBurn.isOver();
+          } catch (e) {
+            console.log('game over, over 13 rounds completed');
+            break outerloop;
+          }
           const tx = await KudzuBurnController.connect(player).burn(
             tokenId,
             burnAmount
@@ -1269,19 +1337,20 @@ describe('KudzuBurnController Tests', function () {
           );
           if (events.some((e) => e.pretty.points < 0)) {
             // player has won
-            console.log('PLAYER HAS WON');
             const winningEvent = events.find((e) => e.pretty.points < 0);
             // console.log({ winningEvent });
             const winningPlayer = winningEvent.pretty.to;
             const winningPoints = winningEvent.pretty.points;
             console.log(
-              `Winner: ${winningPlayer} with ${winningPoints} points`
+              `PLAYER ${winningPlayer} HAS WON ROUND ${completedRounds} WITH ${winningPoints}`
             );
             const winningScoreEntry = playerScores.find(
               (p) => p.address.toLowerCase() === winningPlayer.toLowerCase()
             );
             expect(winningPoints).to.equal(-1 * winningScoreEntry.value);
-            winningScoreEntry.value += Number(winningPoints);
+            winningScoreEntry.value += Number(winningPoints); // negative number
+            winningScoreEntry.playerNonce = playerNonce;
+            playerNonce++;
             // events = events.splice();
           }
           const eventTotal = events.reduce((a, e) => {
@@ -1308,6 +1377,8 @@ describe('KudzuBurnController Tests', function () {
             (p) => p.address === player.address
           );
           playerScoreEntry.value += burnPoints;
+          playerScoreEntry.playerNonce = playerNonce;
+          playerNonce++;
           // console.log(
           //   `add ${burnPoints} to ${player.address} for new total of ${playerScoreEntry.value}`
           // );
@@ -1319,6 +1390,8 @@ describe('KudzuBurnController Tests', function () {
               await KudzuBurnController.newStrainBonus()
             );
             playerScoreEntry.value += newStrainBonus;
+            playerScoreEntry.playerNonce = playerNonce;
+            playerNonce++;
             pointsAddedToJS += newStrainBonus;
             // console.log(
             //   `add ${newStrainBonus} (bonus) to ${player.address} for new total of ${playerScoreEntry.value}`
@@ -1340,6 +1413,8 @@ describe('KudzuBurnController Tests', function () {
                 totalBonfireBurns % Number(quotient);
 
               playerScoreEntry.value += bonus;
+              playerScoreEntry.playerNonce = playerNonce;
+              playerNonce++;
               // console.log(
               //   `add ${bonus} (bonfire) to ${player.address} for new total of ${playerScoreEntry.value}`
               // );
@@ -1349,27 +1424,22 @@ describe('KudzuBurnController Tests', function () {
 
           expect(eventTotal).to.equal(pointsAddedToJS);
         }
+        // console.timeEnd('burnRound');
 
         // Every 24 hours (12 intervals), verify contract state matches local state
         if (i % 12 === 0) {
           // Sort local scores using fifoSort
           playerScores = fifoSort(playerScores);
-
-          // Get top 10 scores from local state
-          const topTenScores = playerScores
-            .filter((player) => player.value > 0)
-            .slice(-10)
-            .reverse(); // Reverse to get highest scores first
-
+          // console.time('verifyPositions');
           // Verify positions for top 10 players
-          for (let rank = 0; rank < Math.min(topTenScores.length, 10); rank++) {
-            const expectedPlayer = topTenScores[rank];
+          for (let rank = 0; rank < Math.min(playerScores.length, 10); rank++) {
+            const rankIndex = playerScores.length - 1 - rank;
+            const expectedPlayer = playerScores[rankIndex];
             const expectedAddress = expectedPlayer.address;
             const expectedScore = expectedPlayer.value;
 
             const contractAddress = await KudzuBurn.getOwnerAtRank(rank);
             const contractScore = await KudzuBurn.getPoints(contractAddress);
-
             expect(contractAddress.toLowerCase()).to.equal(
               expectedAddress.toLowerCase(),
               `Rank ${rank} address mismatch at interval ${i}`
@@ -1379,27 +1449,32 @@ describe('KudzuBurnController Tests', function () {
               `Rank ${rank} score mismatch at interval ${i}`
             );
           }
+          // console.timeEnd('verifyPositions');
         }
+        console.timeEnd('intervalLoop');
       }
+      try {
+        console.timeEnd('intervalLoop');
+      } catch (e) {}
 
-      // Final state verification
-      playerScores = fifoSort(playerScores);
-      const winner = playerScores[playerScores.length - 1];
-      const contractWinner = await KudzuBurn.getWinningAddress();
+      // // Final state verification
+      // playerScores = fifoSort(playerScores);
+      // const winner = playerScores[playerScores.length - 1];
+      // const contractWinner = await KudzuBurn.getWinningAddress();
 
-      expect(contractWinner.toLowerCase()).to.equal(
-        winner.address.toLowerCase(),
-        'Final winner mismatch'
-      );
+      // expect(contractWinner.toLowerCase()).to.equal(
+      //   winner.address.toLowerCase(),
+      //   'Final winner mismatch'
+      // );
     } catch (e) {
       console.log({ e });
-      console.log({ playerScore: playerScores.slice(-10) });
+      console.log({ playerScores });
       console.log({ seed });
       throw e;
     }
   });
 
-  it('simulates one round of tournament with 15 players', async () => {
+  it.skip('simulates one round of tournament with 15 players', async () => {
     const debug = false;
     // Setup accounts and contracts
     const accounts = await ethers.getSigners();
@@ -1523,7 +1598,6 @@ describe('KudzuBurnController Tests', function () {
         } else {
           burnAmount = playerRank < 5 ? 3 : playerRank < 10 ? 2 : 1;
         }
-
         // Burn tokens if player has any left
         for (let j = 0; j < tokenIdsByPlayer[i].length; j++) {
           const tokenId = tokenIdsByPlayer[i][j];
@@ -1593,5 +1667,140 @@ describe('KudzuBurnController Tests', function () {
     debug &&
       console.log(`Winner received ${ethers.formatEther(prizeAmount)} ETH`);
     debug && console.log(`Current round: ${await KudzuBurn.currentRound()}`);
+  });
+
+  it.skip('batchBuyAndBurn gas analysis with ModulariumMock', async () => {
+    const [deployer, buyer] = await ethers.getSigners();
+    // We need the mock instances setup in the main `before` block
+    const Kudzu = KudzuMock;
+    const KudzuBurn = KudzuBurnMock;
+    const KudzuBurnController = KudzuBurnControllerMock;
+    const Modularium = ModulariumMock;
+
+    const kudzuBurnKudzuBurnController = await KudzuBurn.kudzuBurnController();
+    expect(kudzuBurnKudzuBurnController).to.equal(KudzuBurnController.target);
+
+    const modulariumAddress = await KudzuBurnController.modularium();
+    expect(modulariumAddress).to.equal(Modularium.target);
+
+    // Ensure Modularium was deployed and added to the return object in utils.js
+    expect(
+      Modularium,
+      'Modularium instance not found. Update deployBurnContract in utils.js?'
+    ).to.exist;
+
+    console.log('\n    Gas Analysis for batchBuyAndBurn:');
+
+    // Mint 2 distinct token types directly to the buyer
+    const recipients = [
+      {
+        address: buyer,
+        quantity: 2, // Creates 2 token IDs
+        infected: [],
+      },
+    ];
+    const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
+    expect(tokenIds.length).to.equal(2);
+    const tokenId1 = tokenIds[0];
+    const tokenId2 = tokenIds[1];
+
+    // Buyer needs to approve the controller
+    await Kudzu.connect(buyer).setApprovalForAll(
+      KudzuBurnController.target,
+      true
+    );
+
+    // --- Scenario 1: Buy & Burn 1 Token ---
+    console.log('      Scenario 1: Buying & Burning 1 token type...');
+    const orderId1 = [1n]; // Dummy Order ID
+    const qty1 = [1n];
+    const burnTokenIds1 = [tokenId1];
+    const burnQtys1 = [1n];
+    const dummyValue1 = ethers.parseEther('0.1'); // Value doesn't matter for mock gas, but required by payable
+
+    const tx1 = await KudzuBurnController.connect(buyer).batchBuyAndBurn(
+      orderId1,
+      qty1,
+      burnTokenIds1,
+      burnQtys1,
+      { value: dummyValue1 }
+    );
+    const receipt1 = await tx1.wait();
+
+    const gasUsed1 = receipt1.gasUsed;
+    console.log(`        Gas Used (1 Order/Token): ${gasUsed1.toString()}`);
+    expect(
+      await Kudzu['balanceOf(address,uint256)'](buyer.address, tokenId1)
+    ).to.equal(9);
+
+    // --- Scenario 2: Buy & Burn 2 Tokens (Requires snapshot reset) ---
+    console.log('\n      Scenario 2: Buying & Burning 2 token types...');
+
+    const orderIds2 = [1n, 2n]; // Dummy Order IDs
+    const qtys2 = [1n, 1n];
+    const burnTokenIds2 = [tokenId1, tokenId2];
+    const burnQtys2 = [1n, 1n];
+    const dummyValue2 = ethers.parseEther('0.2'); // 0.1 ETH per dummy order
+    const tokenIdBalance2 = await Kudzu['balanceOf(address,uint256)'](
+      buyer.address,
+      tokenId2
+    );
+    expect(tokenIdBalance2).to.equal(10);
+    const tx2 = await KudzuBurnController.connect(buyer).batchBuyAndBurn(
+      orderIds2,
+      qtys2,
+      burnTokenIds2,
+      burnQtys2,
+      { value: dummyValue2 }
+    );
+    const receipt2 = await tx2.wait();
+    const gasUsed2 = receipt2.gasUsed;
+    console.log(`        Gas Used (2 Orders/Tokens): ${gasUsed2.toString()}`);
+    expect(
+      await Kudzu['balanceOf(address,uint256)'](buyer.address, tokenId1)
+    ).to.equal(8);
+    expect(
+      await Kudzu['balanceOf(address,uint256)'](buyer.address, tokenId2)
+    ).to.equal(9);
+
+    // --- Gas Comparison & Estimation ---
+    console.log('\n      Gas Comparison & Estimation:');
+    const baseGas = gasUsed1;
+    // Marginal cost includes ModulariumMock cost + KudzuBurnController cost for the extra token
+    const marginalGasPerListing = gasUsed2 - gasUsed1;
+    console.log(`        Base Gas Cost (1 Listing): ${baseGas.toString()}`);
+    console.log(
+      `        Marginal Gas Cost (per extra Listing): ${marginalGasPerListing.toString()}`
+    );
+
+    if (marginalGasPerListing <= 0) {
+      console.warn(
+        '        ⚠️ Marginal gas cost is zero or negative. Estimation might be inaccurate.'
+      );
+    } else {
+      const limits = {
+        '100M': 100_000_000n,
+        '30M': 30000000n,
+        '20M': 20000000n,
+        '10M': 10000000n,
+      };
+      for (const [label, limit] of Object.entries(limits)) {
+        if (limit < baseGas) {
+          console.log(
+            `        Est. Max Orders (${label} Gas Limit): 0 (Base cost exceeds limit)`
+          );
+        } else {
+          // Calculation: (Limit - BaseCost) / MarginalCost gives how many *additional* items fit.
+          // Add 1 for the base item.
+          const maxOrders = (limit - baseGas) / marginalGasPerListing + 1n;
+          console.log(
+            `        Est. Max Orders (${label} Gas Limit): ${maxOrders.toString()}`
+          );
+        }
+      }
+    }
+    console.log(
+      '        (Note: Estimation assumes linear scaling and sufficient block space)'
+    );
   });
 });

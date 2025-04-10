@@ -5,21 +5,24 @@ pragma solidity ^0.8.0;
 import "./KudzuBurn.sol";
 import "./Kudzu.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./IModularium.sol";
 
 contract KudzuBurnController is Ownable {
     Kudzu public kudzu;
     KudzuBurn public kudzuBurn;
+    IModularium public modularium;
     address public burnAddress = 0x000000000000000000000000000000000000dEaD;
 
     uint256 public burnPoint = 1;
     uint256 public newStrainBonus = 5;
-    mapping(address => mapping(uint256 => bool)) public hasBurned;
+    // mapping(address => mapping(uint256 => bool)) public hasBurned;
     address[] public prevControllers;
     uint256 public prevControllerIndex = 0;
 
-    constructor(Kudzu _kudzu, KudzuBurn _kudzuBurn) {
+    constructor(Kudzu _kudzu, KudzuBurn _kudzuBurn, IModularium _modularium) {
         kudzu = _kudzu;
         kudzuBurn = _kudzuBurn;
+        modularium = _modularium;
     }
 
     uint256 public bonfireDelay = 200 * 60 * 60;
@@ -40,22 +43,8 @@ contract KudzuBurnController is Ownable {
     function hasAlreadyBurned(
         address burner,
         uint256 tokenId
-    ) public returns (bool) {
-        if (hasBurned[burner][tokenId]) return true;
-        for (uint256 i = 0; i < prevControllerIndex; i++) {
-            (bool success, bytes memory data) = prevControllers[i].call(
-                abi.encodeWithSignature(
-                    "hasBurned(address,uint256)",
-                    burner,
-                    tokenId
-                )
-            );
-            if (success && data.length >= 32) {
-                bool burned = abi.decode(data, (bool));
-                if (burned) return true;
-            }
-        }
-        return false;
+    ) public view returns (bool) {
+        return kudzuBurn.alreadyBurned(burner, tokenId);
     }
 
     // assumes that setApprovalForAll has already been called
@@ -75,7 +64,6 @@ contract KudzuBurnController is Ownable {
 
         // New strain bonus if applicable
         if (!hasAlreadyBurned(msg.sender, tokenId)) {
-            hasBurned[msg.sender][tokenId] = true;
             quantities[index] = newStrainBonus;
             rewardIds[index] = 7; // new strain bonus rewardId
             index++;
@@ -105,6 +93,24 @@ contract KudzuBurnController is Ownable {
         );
     }
 
+    function batchBuyAndBurn(
+        uint256[] memory orderIds,
+        uint256[] memory qtys,
+        uint256[] memory tokenIds,
+        uint256[] memory tokenQtys
+    ) public payable {
+        modularium.bulkTakeSellOrders{value: msg.value}(
+            IModularium.BulkTakeOrderParams({
+                orderIds: orderIds,
+                qty: qtys,
+                recipient: msg.sender
+            })
+        );
+        batchBurn(tokenIds, tokenQtys);
+    }
+
+    mapping(bytes32 => mapping(uint256 => bool)) usedTokenIdsPerBatch;
+
     function batchBurn(
         uint256[] memory tokenIds,
         uint256[] memory quantities
@@ -112,6 +118,9 @@ contract KudzuBurnController is Ownable {
         require(
             tokenIds.length == quantities.length,
             "tokenIds and quantities must have the same length"
+        );
+        bytes32 burnId = keccak256(
+            abi.encodePacked(block.timestamp, msg.sender, tokenIds, quantities)
         );
         kudzuBurn.rewardWinner();
 
@@ -133,6 +142,14 @@ contract KudzuBurnController is Ownable {
         uint256 totalQuantity = 0;
         uint256 index = 0;
         for (uint256 i = 0; i < tokenIds.length; i++) {
+            // hasAlreadyBurned is not updated until batch is submitted
+            // so batch can't contain the same tokenId, otherwise each will receive the new strain bonus
+            require(
+                !usedTokenIdsPerBatch[burnId][tokenIds[i]],
+                "DO NOT BATCH BURN THE SAME TOKEN ID"
+            );
+
+            usedTokenIdsPerBatch[burnId][tokenIds[i]] = true;
             totalQuantity += quantities[i];
 
             // Regular burn points
@@ -142,7 +159,6 @@ contract KudzuBurnController is Ownable {
 
             // New strain bonus if applicable
             if (!hasAlreadyBurned(msg.sender, tokenIds[i])) {
-                hasBurned[msg.sender][tokenIds[i]] = true;
                 pointQuantities[index] = newStrainBonus;
                 rewardIds[index] = 7; // new strain bonus rewardId
                 index++;

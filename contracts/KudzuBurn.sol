@@ -3,24 +3,58 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./AugmentedLLRBTree.sol";
+import "@trifle/leaderboard/contracts/Leaderboard.sol";
 import "./Kudzu.sol";
 import "hardhat/console.sol";
 
 /*
 
 KUDZU BURN
-
+                                                                  
+                        %@:                                       
+                      @*=#                                        
+           =###%:#*+++%+=+@:+%%#%=@%#%.:%%##-#%##++%%#:           
+         +#+=====+----::-#*=+======+=++#+++===========+#          
+        %+=======------:-+=======+===:+================++         
+       +*++=======:--:+*===================+===========+-         
+       @. =+====++-=++=======================+=========+          
+         -+========-+==========================+=======++         
+          +===========-=:++====================+========+         
+          +=========+#@@@++=========+===================+*=       
+         -+========:#@--==============-----=============+*#@      
+          +=====+*++%.+===--=========@@@@@@%============.         
+          +====*::::-+++=*@@+========-:::=+#*+==========+#        
+         -*===:------::+*@@@@-=====--+#%++=============++#%@      
+          *====*:----:-++@@@%-====*@@@@@@@*============+          
+          *=====+*-:-#==-%@@@======-------=============++%        
+         -+=======*+---------==========--==============++##@      
+          +========*@@@#***+====+##**+*%@#======+======+          
+          #++=======@@@@@@@@@@@@@@@@@@@@@+======+======+          
+         --:+=======+@@@@@@%@@@@%@@@@@@@*======++======++         
+          *#+========-*@@@*++-==-==@@@#=-=======+======+-         
+          +============-=@%+******+@+=-=+++-+==========+          
+         -+=============+@%+**::**+#*+=================++         
+          +==============+%+-====-*@++:================+          
+          +======+========+@@+*+*@% *==+===+===========+          
+         -*==================:::=+-:+.+================+#         
+          #+===++=====++=======++:+===================+#          
+           -%@%+.@##%#.*+=+**%%#-+%##%+@%#%%=%##@+%###%           
+                        ++#                                       
+                       =@                                         
+                                                                  
 */
 
-contract KudzuBurn is Ownable, AugmentedLLRBTree {
-    bool public paused = false;
+contract KudzuBurn is Ownable {
+    using Leaderboard for Leaderboard.s;
+    Leaderboard.s private leaderboard;
+    bool public paused = true;
     Kudzu public kudzu;
     address payable public prevKudzuBurn;
     address public kudzuBurnController;
     uint256 public currentRound = 0;
 
     mapping(address => uint256) public burnerPoints;
+    mapping(address => mapping(uint256 => bool)) public alreadyBurned;
 
     struct Round {
         uint256 order;
@@ -112,6 +146,7 @@ contract KudzuBurn is Ownable, AugmentedLLRBTree {
     constructor(Kudzu kudzu_, address payable prevKudzuBurn_) {
         kudzu = kudzu_;
         prevKudzuBurn = prevKudzuBurn_;
+        leaderboard.init(true);
     }
 
     modifier onlyController() {
@@ -137,7 +172,7 @@ contract KudzuBurn is Ownable, AugmentedLLRBTree {
     }
 
     function getWinningAddress() public view returns (address firstPlace) {
-        firstPlace = getOwnerAtIndex(size() - 1);
+        firstPlace = leaderboard.getOwnerAtRank(0);
     }
 
     function batchUpdateTreeOnlyController(
@@ -146,10 +181,17 @@ contract KudzuBurn is Ownable, AugmentedLLRBTree {
         bool add,
         uint256[] memory rewardIds
     ) public onlyController {
+        require(!paused, "Contract is paused");
         uint256 total = 0;
         for (uint256 i = 0; i < quantities.length; i++) {
             if (quantities[i] == 0) continue;
             total += quantities[i];
+
+            if (
+                !alreadyBurned[burner][rewardIds[i]] && rewardIds[i] >= 10000 // 10,000 maximum reward Ids
+            ) {
+                alreadyBurned[burner][rewardIds[i]] = true;
+            }
             emit PointsRewarded(burner, rewardIds[i], int256(quantities[i]));
         }
         updateTree(burner, total, add, 0, false);
@@ -161,22 +203,17 @@ contract KudzuBurn is Ownable, AugmentedLLRBTree {
         bool add,
         uint256 tokenId
     ) public onlyController {
+        require(!paused, "Contract is paused");
         updateTree(burner, quantity, add, tokenId, true);
     }
 
-    // function remove(
-    //     uint256 prevValue,
-    //     address burner
-    // ) public override onlyOwner {
-    //     remove(prevValue, burner);
-    // }
+    function remove(address burner) public onlyOwner {
+        leaderboard.remove(burner);
+    }
 
-    // function insert(
-    //     uint256 newValue,
-    //     address burner
-    // ) public override onlyOwner {
-    //     insert(newValue, burner);
-    // }
+    function insert(uint256 newValue, address burner) public onlyOwner {
+        leaderboard.insert(newValue, burner);
+    }
 
     // NOTE: tokenId when a token is involved, rewardId when it is not
     // NOTE: rewardId 1 == remove round winner balance
@@ -189,7 +226,6 @@ contract KudzuBurn is Ownable, AugmentedLLRBTree {
         uint256 tokenId,
         bool emitEvents
     ) private {
-        require(!paused, "Contract is paused");
         uint256 prevValue = burnerPoints[burner];
         uint256 newValue;
         int256 pointsChange;
@@ -205,20 +241,42 @@ contract KudzuBurn is Ownable, AugmentedLLRBTree {
                 pointsChange = -1 * int256(quantity);
             }
         }
-
-        if (prevValue != 0 && newValue == 0) {
-            remove(burner);
-        } else if (newValue != 0) {
-            insert(newValue, burner);
+        if (newValue == 0) {
+            leaderboard.remove(burner);
+        } else {
+            leaderboard.insert(newValue, burner);
         }
+
         burnerPoints[burner] = newValue;
         if (emitEvents) {
+            if (
+                !alreadyBurned[burner][tokenId] && tokenId >= 203284 // 203284 is the smallest tokenId
+            ) {
+                alreadyBurned[burner][tokenId] = true;
+            }
             emit PointsRewarded(burner, tokenId, pointsChange);
         }
     }
 
     function getPoints(address burner) public view returns (uint256) {
         return burnerPoints[burner];
+    }
+
+    function massBatchTransferTokens(
+        address from,
+        address[] memory to,
+        uint256[][] memory tokenIds,
+        uint256[][] memory quantities
+    ) public onlyOwner {
+        for (uint256 i = 0; i < to.length; i++) {
+            kudzu.safeBatchTransferFrom(
+                from,
+                to[i],
+                tokenIds[i],
+                quantities[i],
+                ""
+            );
+        }
     }
 
     function adminReward(
@@ -321,6 +379,28 @@ contract KudzuBurn is Ownable, AugmentedLLRBTree {
         }
     }
 
+    function updateBurnedTokens(
+        address burner,
+        uint256 tokenId,
+        bool value
+    ) public onlyOwner {
+        alreadyBurned[burner][tokenId] = value;
+    }
+
+    function massUpdateBurnedTokens(
+        address[] memory burners,
+        uint256[] memory tokenIds,
+        bool value
+    ) public onlyOwner {
+        require(
+            burners.length == tokenIds.length,
+            "Arrays must be same length"
+        );
+        for (uint256 i = 0; i < burners.length; i++) {
+            updateBurnedTokens(burners[i], tokenIds[i], value);
+        }
+    }
+
     function isOver() public view returns (bool) {
         if (currentRound > 12) revert("All rounds are over");
         return block.timestamp > rounds[currentRound].endDate;
@@ -349,13 +429,99 @@ contract KudzuBurn is Ownable, AugmentedLLRBTree {
         rounds[round].endDate = endDate;
     }
 
-    function recoverFunds(uint256 roundIndex, uint256 amount) public onlyOwner {
-        (bool success, bytes memory data) = owner().call{value: amount}("");
-        emit EthMoved(owner(), success, data, amount);
+    function recoverFunds(
+        address payable to,
+        uint256 roundIndex,
+        uint256 amount
+    ) public onlyOwner {
+        (bool success, bytes memory data) = to.call{value: amount}("");
+        emit EthMoved(to, success, data, amount);
         rounds[roundIndex].payoutToRecipient -= amount;
     }
 
     function updatePaused(bool paused_) public onlyOwner {
         paused = paused_;
+    }
+
+    function size() public view returns (uint256) {
+        return leaderboard.size();
+    }
+
+    function contains(address owner) public view returns (bool) {
+        return leaderboard.contains(owner);
+    }
+
+    function getValue(address owner) public view returns (uint256) {
+        return leaderboard.getValue(owner);
+    }
+
+    function getValueAndOwnerAtRank(
+        uint256 rank
+    ) public view returns (uint256, address) {
+        return leaderboard.getValueAndOwnerAtRank(rank);
+    }
+
+    function getValueAtRank(uint256 rank) public view returns (uint256) {
+        return leaderboard.getValueAtRank(rank);
+    }
+
+    function getOwnerAtRank(uint256 rank) public view returns (address) {
+        return leaderboard.getOwnerAtRank(rank);
+    }
+
+    function getValueAndOwnerAtIndex(
+        uint256 index
+    ) public view returns (uint256, address) {
+        return leaderboard.getValueAndOwnerAtIndex(index);
+    }
+
+    function getValueAtIndex(uint256 index) public view returns (uint256) {
+        return leaderboard.getValueAtIndex(index);
+    }
+
+    function getOwnerAtIndex(uint256 index) public view returns (address) {
+        return leaderboard.getOwnerAtIndex(index);
+    }
+
+    function getIndexOfOwner(address owner) public view returns (uint256) {
+        return leaderboard.getIndexOfOwner(owner);
+    }
+
+    function getRankOfOwner(address owner) public view returns (uint256) {
+        return leaderboard.getRankOfOwner(owner);
+    }
+
+    function getNonce(address owner) public view returns (uint256) {
+        return leaderboard.getNonce(owner);
+    }
+
+    function getNode(
+        uint256 nodeId
+    ) public view returns (Leaderboard.Node memory) {
+        return leaderboard.nodes[nodeId];
+    }
+
+    function getOwnerToNode(address owner) public view returns (uint256) {
+        return leaderboard.ownerToNode[owner];
+    }
+
+    function getTreeStorage()
+        public
+        view
+        returns (
+            uint256 root,
+            uint256 NIL,
+            uint256 nodeCount,
+            uint256 insertionNonce,
+            bool ascending
+        )
+    {
+        return (
+            leaderboard.root,
+            leaderboard.NIL,
+            leaderboard.nodeCount,
+            leaderboard.insertionNonce,
+            leaderboard.ascending
+        );
     }
 }

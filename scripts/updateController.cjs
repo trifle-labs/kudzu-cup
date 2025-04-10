@@ -20,6 +20,7 @@ async function main() {
     '0xE30cef8e99A6eEbE3CBF2862641337f57830FbeE',
     '0x23dEf29FAF850A7C5F18C610c34945e65ff334C0',
     '0xA62a48D61bF012F70c8C865Dc17e59F6E6761106',
+    '0x5286f3be5EDaf30Fd71597f15226fac5f9654E2D',
   ];
 
   const KudzuBurnController = await hre.ethers.getContractFactory(
