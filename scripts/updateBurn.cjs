@@ -169,7 +169,7 @@ ORDER BY "sum" DESC
           burners.push(burner);
           quantities.push(quantity);
         }
-        return KudzuBurn.adminMassRewardSingleID(burners, quantities, 6);
+        return KudzuBurn.adminMassRewardSingleID(burners, quantities, 6); // admin mass reward ID
       }
       const gasUsed = await queryAndProcessRecords(
         query,
