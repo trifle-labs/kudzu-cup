@@ -98,13 +98,15 @@ contract KudzuBurnController is Ownable {
         uint256[] memory tokenIds,
         uint256[] memory tokenQtys
     ) public payable {
-        modularium.bulkTakeSellOrders{value: msg.value}(
-            IModularium.BulkTakeOrderParams({
-                orderIds: orderIds,
-                qty: qtys,
-                recipient: msg.sender
-            })
-        );
+        if (orderIds.length > 0) {
+            modularium.bulkTakeSellOrders{value: msg.value}(
+                IModularium.BulkTakeOrderParams({
+                    orderIds: orderIds,
+                    qty: qtys,
+                    recipient: msg.sender
+                })
+            );
+        }
         batchBurn(tokenIds, tokenQtys);
     }
 
