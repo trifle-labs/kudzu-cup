@@ -3,32 +3,64 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./HitchensOrderStatisticsTreeLib.sol";
+import "@trifle/leaderboard/contracts/Leaderboard.sol";
 import "./Kudzu.sol";
+import "hardhat/console.sol";
 
 /*
 
 KUDZU BURN
-
+                                                                  
+                        %@:                                       
+                      @*=#                                        
+           =###%:#*+++%+=+@:+%%#%=@%#%.:%%##-#%##++%%#:           
+         +#+=====+----::-#*=+======+=++#+++===========+#          
+        %+=======------:-+=======+===:+================++         
+       +*++=======:--:+*===================+===========+-         
+       @. =+====++-=++=======================+=========+          
+         -+========-+==========================+=======++         
+          +===========-=:++====================+========+         
+          +=========+#@@@++=========+===================+*=       
+         -+========:#@--==============-----=============+*#@      
+          +=====+*++%.+===--=========@@@@@@%============.         
+          +====*::::-+++=*@@+========-:::=+#*+==========+#        
+         -*===:------::+*@@@@-=====--+#%++=============++#%@      
+          *====*:----:-++@@@%-====*@@@@@@@*============+          
+          *=====+*-:-#==-%@@@======-------=============++%        
+         -+=======*+---------==========--==============++##@      
+          +========*@@@#***+====+##**+*%@#======+======+          
+          #++=======@@@@@@@@@@@@@@@@@@@@@+======+======+          
+         --:+=======+@@@@@@%@@@@%@@@@@@@*======++======++         
+          *#+========-*@@@*++-==-==@@@#=-=======+======+-         
+          +============-=@%+******+@+=-=+++-+==========+          
+         -+=============+@%+**::**+#*+=================++         
+          +==============+%+-====-*@++:================+          
+          +======+========+@@+*+*@% *==+===+===========+          
+         -*==================:::=+-:+.+================+#         
+          #+===++=====++=======++:+===================+#          
+           -%@%+.@##%#.*+=+**%%#-+%##%+@%#%%=%##@+%###%           
+                        ++#                                       
+                       =@                                         
+                                                                  
 */
 
 contract KudzuBurn is Ownable {
-    using HitchensOrderStatisticsTreeLib for HitchensOrderStatisticsTreeLib.Tree;
-    HitchensOrderStatisticsTreeLib.Tree public tree;
-
-    bool public paused = false;
+    using Leaderboard for Leaderboard.s;
+    Leaderboard.s private leaderboard;
+    bool public paused = true;
     Kudzu public kudzu;
+    address payable public prevKudzuBurn;
     address public kudzuBurnController;
     uint256 public currentRound = 0;
 
     mapping(address => uint256) public burnerPoints;
+    mapping(address => mapping(uint256 => bool)) public alreadyBurned;
 
     struct Round {
         uint256 order;
         uint256 endDate;
         uint256 payoutToRecipient;
     }
-
 
     Round[13] public rounds = [
         Round({
@@ -111,12 +143,17 @@ contract KudzuBurn is Ownable {
         int256 points
     );
 
-    constructor(Kudzu kudzu_) {
+    constructor(Kudzu kudzu_, address payable prevKudzuBurn_) {
         kudzu = kudzu_;
+        prevKudzuBurn = prevKudzuBurn_;
+        leaderboard.init(true);
     }
 
     modifier onlyController() {
-        require(msg.sender == kudzuBurnController, "Only KudzuBurnController can call this function");
+        require(
+            msg.sender == kudzuBurnController,
+            "Only KudzuBurnController can call this function"
+        );
         _;
     }
 
@@ -135,21 +172,60 @@ contract KudzuBurn is Ownable {
     }
 
     function getWinningAddress() public view returns (address firstPlace) {
-        uint256 value = tree.last();
-        bytes32 key = tree.valueKeyAtIndex(value, 0);
-        return address(uint160(uint256(key)));
+        firstPlace = leaderboard.getOwnerAtRank(0);
     }
 
-    function updateTreeOnlyController(address burner, uint256 quantity, bool add, uint256 tokenId) public onlyController {
-        updateTree(burner, quantity, add, tokenId);
+    function batchUpdateTreeOnlyController(
+        address burner,
+        uint256[] memory quantities,
+        bool add,
+        uint256[] memory rewardIds
+    ) public onlyController {
+        require(!paused, "Contract is paused");
+        uint256 total = 0;
+        for (uint256 i = 0; i < quantities.length; i++) {
+            if (quantities[i] == 0) continue;
+            total += quantities[i];
+
+            if (
+                !alreadyBurned[burner][rewardIds[i]] && rewardIds[i] >= 10000 // 10,000 maximum reward Ids
+            ) {
+                alreadyBurned[burner][rewardIds[i]] = true;
+            }
+            emit PointsRewarded(burner, rewardIds[i], int256(quantities[i]));
+        }
+        updateTree(burner, total, add, 0, false);
+    }
+
+    function updateTreeOnlyController(
+        address burner,
+        uint256 quantity,
+        bool add,
+        uint256 tokenId
+    ) public onlyController {
+        require(!paused, "Contract is paused");
+        updateTree(burner, quantity, add, tokenId, true);
+    }
+
+    function remove(address burner) public onlyOwner {
+        leaderboard.remove(burner);
+    }
+
+    function insert(uint256 newValue, address burner) public onlyOwner {
+        leaderboard.insert(newValue, burner);
     }
 
     // NOTE: tokenId when a token is involved, rewardId when it is not
     // NOTE: rewardId 1 == remove round winner balance
     // NOTE: rewardId 2 == mamo bonus
     // NOTE: rewardId 3 == pre-game retweet bonus
-    function updateTree(address burner, uint256 quantity, bool add, uint256 tokenId) private {
-        require(!paused, "Contract is paused");
+    function updateTree(
+        address burner,
+        uint256 quantity,
+        bool add,
+        uint256 tokenId,
+        bool emitEvents
+    ) private {
         uint256 prevValue = burnerPoints[burner];
         uint256 newValue;
         int256 pointsChange;
@@ -165,41 +241,82 @@ contract KudzuBurn is Ownable {
                 pointsChange = -1 * int256(quantity);
             }
         }
+        if (newValue == 0) {
+            leaderboard.remove(burner);
+        } else {
+            leaderboard.insert(newValue, burner);
+        }
 
-        // if key exists, remove it
-        bytes32 addressAsKey = bytes32(uint256(uint160(burner)));
-        if (prevValue != 0) {
-            tree.remove(addressAsKey, prevValue);
-        }
-        if (newValue != 0) {
-            // add key with new value
-            tree.insert(addressAsKey, newValue);
-        }
         burnerPoints[burner] = newValue;
-        emit PointsRewarded(burner, tokenId, pointsChange);
+        if (emitEvents) {
+            if (
+                !alreadyBurned[burner][tokenId] && tokenId >= 203284 // 203284 is the smallest tokenId
+            ) {
+                alreadyBurned[burner][tokenId] = true;
+            }
+            emit PointsRewarded(burner, tokenId, pointsChange);
+        }
     }
 
     function getPoints(address burner) public view returns (uint256) {
         return burnerPoints[burner];
     }
 
-    function getRank(uint targetRank) public view returns (address) {
-        (bytes32 key, ,) = tree.keyAtGlobalIndex(targetRank);
-        return address(uint160(uint256(key)));
+    function massBatchTransferTokens(
+        address from,
+        address[] memory to,
+        uint256[][] memory tokenIds,
+        uint256[][] memory quantities
+    ) public onlyOwner {
+        for (uint256 i = 0; i < to.length; i++) {
+            kudzu.safeBatchTransferFrom(
+                from,
+                to[i],
+                tokenIds[i],
+                quantities[i],
+                ""
+            );
+        }
     }
 
-    function kvAtGlobalIndex(uint targetIndex) public view returns (address player, uint val, uint nonce) {
-        bytes32 key;
-        (key, val, nonce) = tree.keyAtGlobalIndex(targetIndex);
-        return (address(uint160(uint256(key))), val, nonce);
+    function adminReward(
+        address burner,
+        uint256 quantity,
+        uint256 rewardId
+    ) public onlyOwner {
+        updateTree(burner, quantity, true, rewardId, true);
     }
 
-    function adminReward(address burner, uint256 quantity, uint256 rewardId) public onlyOwner {
-        updateTree(burner, quantity, true, rewardId);
+    function adminPunish(
+        address burner,
+        uint256 quantity,
+        uint256 rewardId
+    ) public onlyOwner {
+        updateTree(burner, quantity, false, rewardId, true);
     }
 
-    function adminPunish(address burner, uint256 quantity, uint256 rewardId) public onlyOwner {
-        updateTree(burner, quantity, false, rewardId);
+    function adminMassRewardSingleQuantity(
+        address[] memory burners,
+        uint256 quantity,
+        uint256 rewardId
+    ) public onlyOwner {
+        for (uint256 i = 0; i < burners.length; i++) {
+            adminReward(burners[i], quantity, rewardId);
+        }
+    }
+
+    function adminMassRewardSingleID(
+        address[] memory burners,
+        uint256[] memory quantities,
+        uint256 rewardId
+    ) public onlyOwner {
+        require(
+            burners.length == quantities.length,
+            "Arrays must be same length"
+        );
+        for (uint256 i = 0; i < burners.length; i++) {
+            adminReward(burners[i], quantities[i], rewardId);
+        }
     }
 
     function adminMassReward(
@@ -217,6 +334,30 @@ contract KudzuBurn is Ownable {
         );
         for (uint256 i = 0; i < burners.length; i++) {
             adminReward(burners[i], quantities[i], rewardIds[i]);
+        }
+    }
+
+    function adminMassPunishSingleQuantity(
+        address[] memory burners,
+        uint256 quantity,
+        uint256 rewardId
+    ) public onlyOwner {
+        for (uint256 i = 0; i < burners.length; i++) {
+            adminPunish(burners[i], quantity, rewardId);
+        }
+    }
+
+    function adminMassPunishSingleID(
+        address[] memory burners,
+        uint256[] memory quantities,
+        uint256 rewardId
+    ) public onlyOwner {
+        require(
+            burners.length == quantities.length,
+            "Arrays must be same length"
+        );
+        for (uint256 i = 0; i < burners.length; i++) {
+            adminPunish(burners[i], quantities[i], rewardId);
         }
     }
 
@@ -238,26 +379,49 @@ contract KudzuBurn is Ownable {
         }
     }
 
+    function updateBurnedTokens(
+        address burner,
+        uint256 tokenId,
+        bool value
+    ) public onlyOwner {
+        alreadyBurned[burner][tokenId] = value;
+    }
+
+    function massUpdateBurnedTokens(
+        address[] memory burners,
+        uint256[] memory tokenIds,
+        bool value
+    ) public onlyOwner {
+        require(
+            burners.length == tokenIds.length,
+            "Arrays must be same length"
+        );
+        for (uint256 i = 0; i < burners.length; i++) {
+            updateBurnedTokens(burners[i], tokenIds[i], value);
+        }
+    }
+
     function isOver() public view returns (bool) {
         if (currentRound > 12) revert("All rounds are over");
         return block.timestamp > rounds[currentRound].endDate;
     }
 
     function rewardWinner() public {
-        require(isOver(), "Current round is not over");
+        if (!isOver()) return;
         require(!paused, "Contract is paused");
         address winner = getWinningAddress();
         uint256 points = burnerPoints[winner];
         // NOTE: remove winner's points with rewardId 1
-        updateTree(winner, points, false, 1);
+        updateTree(winner, points, false, 1, true);
         uint256 payout = rounds[currentRound].payoutToRecipient;
         currentRound += 1;
         (bool success, bytes memory data) = winner.call{value: payout}("");
         emit EthMoved(winner, success, data, payout);
     }
 
-
-    function updateKudzuBurnController(address kudzuBurnController_) public onlyOwner {
+    function updateKudzuBurnController(
+        address kudzuBurnController_
+    ) public onlyOwner {
         kudzuBurnController = kudzuBurnController_;
     }
 
@@ -265,13 +429,99 @@ contract KudzuBurn is Ownable {
         rounds[round].endDate = endDate;
     }
 
-    function recoverFunds(uint256 roundIndex, uint256 amount) public onlyOwner {
-        (bool success, bytes memory data) = owner().call{value: amount}("");
-        emit EthMoved(owner(), success, data, amount);
+    function recoverFunds(
+        address payable to,
+        uint256 roundIndex,
+        uint256 amount
+    ) public onlyOwner {
+        (bool success, bytes memory data) = to.call{value: amount}("");
+        emit EthMoved(to, success, data, amount);
         rounds[roundIndex].payoutToRecipient -= amount;
     }
 
     function updatePaused(bool paused_) public onlyOwner {
         paused = paused_;
+    }
+
+    function size() public view returns (uint256) {
+        return leaderboard.size();
+    }
+
+    function contains(address owner) public view returns (bool) {
+        return leaderboard.contains(owner);
+    }
+
+    function getValue(address owner) public view returns (uint256) {
+        return leaderboard.getValue(owner);
+    }
+
+    function getValueAndOwnerAtRank(
+        uint256 rank
+    ) public view returns (uint256, address) {
+        return leaderboard.getValueAndOwnerAtRank(rank);
+    }
+
+    function getValueAtRank(uint256 rank) public view returns (uint256) {
+        return leaderboard.getValueAtRank(rank);
+    }
+
+    function getOwnerAtRank(uint256 rank) public view returns (address) {
+        return leaderboard.getOwnerAtRank(rank);
+    }
+
+    function getValueAndOwnerAtIndex(
+        uint256 index
+    ) public view returns (uint256, address) {
+        return leaderboard.getValueAndOwnerAtIndex(index);
+    }
+
+    function getValueAtIndex(uint256 index) public view returns (uint256) {
+        return leaderboard.getValueAtIndex(index);
+    }
+
+    function getOwnerAtIndex(uint256 index) public view returns (address) {
+        return leaderboard.getOwnerAtIndex(index);
+    }
+
+    function getIndexOfOwner(address owner) public view returns (uint256) {
+        return leaderboard.getIndexOfOwner(owner);
+    }
+
+    function getRankOfOwner(address owner) public view returns (uint256) {
+        return leaderboard.getRankOfOwner(owner);
+    }
+
+    function getNonce(address owner) public view returns (uint256) {
+        return leaderboard.getNonce(owner);
+    }
+
+    function getNode(
+        uint256 nodeId
+    ) public view returns (Leaderboard.Node memory) {
+        return leaderboard.nodes[nodeId];
+    }
+
+    function getOwnerToNode(address owner) public view returns (uint256) {
+        return leaderboard.ownerToNode[owner];
+    }
+
+    function getTreeStorage()
+        public
+        view
+        returns (
+            uint256 root,
+            uint256 NIL,
+            uint256 nodeCount,
+            uint256 insertionNonce,
+            bool ascending
+        )
+    {
+        return (
+            leaderboard.root,
+            leaderboard.NIL,
+            leaderboard.nodeCount,
+            leaderboard.insertionNonce,
+            leaderboard.ascending
+        );
     }
 }

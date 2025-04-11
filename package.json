@@ -9,9 +9,9 @@
   "scripts": {
     "chain": "hardhat node",
     "deploy": "hardhat run scripts/deploy.cjs",
-    "coverage": "rm -rf docs && rm coverage.json && hardhat coverage --solcoverjs .solcover.cjs  && node fix-coverage-links.cjs",
+    "coverage": "rm -rf docs && rm -f coverage.json && NODE_OPTIONS=\"--max-old-space-size=16384\"  hardhat coverage --solcoverjs .solcover.cjs  && node fix-coverage-links.cjs",
     "serve-coverage": "npx serve docs",
-    "test": "hardhat test"
+    "test": "NODE_OPTIONS=\"--max-old-space-size=16384\" hardhat test"
   },
   "lint-staged": {
     "*.{js,jsx}": [
@@ -56,18 +56,17 @@
     }
   },
   "resolutions": {},
-  "dependencies": {
-    "ethers": "^6.0.0",
-    "solidity-rlp": "^2.0.8"
-  },
+  "dependencies": {},
   "devDependencies": {
+    "@trifle/leaderboard": "^1.0.8",
+    "ethers": "^6.0.0",
+    "solidity-rlp": "^2.0.8",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@nomicfoundation/hardhat-ethers": "^3.0.0",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.9",
     "@nomicfoundation/hardhat-verify": "^2.0.8",
     "@nomiclabs/hardhat-ganache": "*",
     "@openzeppelin/contracts": "^4.6.0",
-    "OrderStatisticsTree": "https://github.com/rob-Hitchens/OrderStatisticsTree.git",
     "base64-sol": "^1.1.0",
     "chai": "^4.2.0",
     "dotenv": "^16.0.1",

@@ -6,7 +6,7 @@ require('dotenv').config();
 require('@nomicfoundation/hardhat-verify');
 require('solidity-coverage');
 require('@nomicfoundation/hardhat-ethers');
-
+require('./scripts/bulkBuyModularium.cjs');
 // const { subtask } = require('hardhat/config')
 // const {
 //   TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS
@@ -56,7 +56,7 @@ const config = {
     localhost: {
       accounts: { mnemonic: process.env.localKey, count: 121 },
       gasPrice: 18_000_000_000, // 18 GWEI
-      blockGasLimit: 30_000_000,
+      blockGasLimit: 100_000_000, // 100 M
       chainId: 12345,
       // loggingEnabled: false
     },
