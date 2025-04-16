@@ -14,6 +14,8 @@ Contract expects at most 10,000 rewardIds in the `PointsRewarded(address indexed
 | 6         | migrate | This is the rewardID used for migrating the points from the previous [KudzuBurn contract](https://explorer.forma.art/address/0x0000000000000000000000000000000000000000) (should be ignored in frontend points graph) |
 | 7         | 5       | This is the rewardID for new strain bonuses going forward after upgrade on March 14                                                                                                                                   |
 | 8         | 5       | Bug Bounty, Medium Severity                                                                                                                                                                                           |
+| 9         | -783    | Used to correct BurnItAll Bug for player 0x918316cc8b00d2602336eac8b080a63afb6970fa                                                                                                                                   |
+| 10        | 50      | Bug Bounty, Critical Severity                                                                                                                                                                                         |
 
 <!-- Table with bonfire start times and burn quantity multipliers -->
 

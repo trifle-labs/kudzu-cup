@@ -471,6 +471,37 @@ describe('KudzuBurnController Tests', function () {
     }
   });
 
+  it.only('handles bonfires after first phase correctly', async () => {
+    const firstBonfireStart = await KudzuBurnControllerMock.firstBonfireStart();
+    console.log({
+      firstBonfireStart,
+      date: new Date(parseInt(firstBonfireStart) * 1000).toISOString(),
+    });
+    const lastBonfire = mockBonfireTimes[mockBonfireTimes.length - 1];
+    expect(firstBonfireStart).to.be.lt(lastBonfire.timestamp);
+    console.log({ lastBonfire });
+    const multiplier = await KudzuBurnControllerMock.getQuotient(
+      lastBonfire.timestamp
+    );
+    console.log({ multiplier });
+    expect(multiplier).to.equal(lastBonfire.quotient);
+
+    const firstBonfire = mockBonfireTimes[0];
+    const firstBonfireMultiplier = await KudzuBurnControllerMock.getQuotient(
+      firstBonfire.timestamp
+    );
+    expect(firstBonfireMultiplier).to.equal(firstBonfire.quotient);
+
+    const bonfireDelay = await KudzuBurnControllerMock.bonfireDelay();
+    console.log({ bonfireDelay });
+    const nextBonfireStart =
+      lastBonfire.timestamp + parseInt(5n * bonfireDelay);
+    const nextMultiplier =
+      await KudzuBurnControllerMock.getQuotient(nextBonfireStart);
+    console.log({ nextMultiplier });
+    expect(nextMultiplier).to.equal(firstBonfireMultiplier);
+  });
+
   it('batchBurn works correctly', async () => {
     const [, acct1, acct2] = await ethers.getSigners();
     const {

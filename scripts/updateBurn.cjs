@@ -8,7 +8,7 @@ async function main() {
   } = await import('./utils.js');
 
   const test = false;
-  const testNetworkWithMainnetData = true;
+  const testNetworkWithMainnetData = false;
   const redo = false;
   const migrate = true;
 
