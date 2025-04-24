@@ -15,12 +15,46 @@ import {
 let snapshot, KudzuMock, KudzuBurnMock, KudzuBurnControllerMock, ModulariumMock;
 describe('KudzuBurnController Tests', function () {
   const bonfireTimes = [
-    { date: 'Wednesday, March 5, 2025 16:20:00 GMT', quotient: 5 }, // W
-    { date: 'Friday, March 14, 2025 00:20:00 GMT', quotient: 6 }, // F
-    { date: 'Saturday, March 22, 2025 08:20:00 GMT', quotient: 7 }, // S
-    { date: 'Sunday, March 30, 2025 16:20:00 GMT', quotient: 8 }, // S
-    { date: 'Tuesday, April 8, 2025 00:20:00 GMT', quotient: 9 }, // T
-    { date: 'Wednesday, April 16, 2025 08:20:00 GMT', quotient: 10 }, //W
+    { date: 'Wednesday, March 5, 2025 16:20:00 GMT', quotient: 5 }, // 0
+    { date: 'Friday, March 14, 2025 00:20:00 GMT', quotient: 6 }, // 1
+    { date: 'Saturday, March 22, 2025 08:20:00 GMT', quotient: 7 }, // 2
+    { date: 'Sunday, March 30, 2025 16:20:00 GMT', quotient: 8 }, // 3
+    { date: 'Tuesday, April 8, 2025 00:20:00 GMT', quotient: 9 }, // 4
+    { date: 'Wednesday, April 16, 2025 08:20:00 GMT', quotient: 10 }, // 5
+    { date: 'Thursday, April 24, 2025 16:20:00 GMT', quotient: 2 }, // 6
+    { date: 'Saturday, May 3, 2025 00:20:00 GMT', quotient: 3 }, // 7
+    { date: 'Sunday, May 11, 2025 08:20:00 GMT', quotient: 4 }, // 8
+    { date: 'Monday, May 19, 2025 16:20:00 GMT', quotient: 5 }, // 9
+    { date: 'Wednesday, May 28, 2025 00:20:00 GMT', quotient: 6 }, // 10
+    { date: 'Thursday, June 5, 2025 08:20:00 GMT', quotient: 7 }, // 11
+    { date: 'Saturday, June 13, 2025 16:20:00 GMT', quotient: 8 }, // 12
+    { date: 'Sunday, June 22, 2025 00:20:00 GMT', quotient: 9 }, // 13
+    { date: 'Monday, June 30, 2025 08:20:00 GMT', quotient: 10 }, // 14
+    { date: 'Tuesday, July 8, 2025 16:20:00 GMT', quotient: 11 }, // 15
+    { date: 'Thursday, July 17, 2025 00:20:00 GMT', quotient: 12 }, // 16
+    { date: 'Friday, July 25, 2025 08:20:00 GMT', quotient: 2 }, // 17
+    { date: 'Saturday, August 2, 2025 16:20:00 GMT', quotient: 3 },
+
+    // { date: 'Wednesday, March 5, 2025 16:20:00 GMT', quotient: 5 }, // 0
+    // { date: 'Friday, March 14, 2025 00:20:00 GMT', quotient: 6 }, // 1
+    // { date: 'Saturday, March 22, 2025 08:20:00 GMT', quotient: 7 }, // 2
+    // { date: 'Sunday, March 30, 2025 16:20:00 GMT', quotient: 8 }, // 3
+    // { date: 'Tuesday, April 8, 2025 00:20:00 GMT', quotient: 9 }, // 4
+    // { date: 'Wednesday, April 16, 2025 08:20:00 GMT', quotient: 10 }, // 5
+    // { date: 'Sunday, April 20, 2025 16:20:00 GMT', quotient: 2 }, // 6
+    // { date: 'Tuesday, April 29, 2025 00:20:00 GMT', quotient: 3 }, // 7
+    // { date: 'Wednesday, May 7, 2025 08:20:00 GMT', quotient: 4 }, // 8
+    // { date: 'Thursday, May 15, 2025 16:20:00 GMT', quotient: 5 }, // 9
+    // { date: 'Saturday, May 24, 2025 00:20:00 GMT', quotient: 6 }, // 10
+    // { date: 'Sunday, June 1, 2025 08:20:00 GMT', quotient: 7 }, // 11
+    // { date: 'Monday, June 9, 2025 16:20:00 GMT', quotient: 8 }, // 12
+    // { date: 'Wednesday, June 18, 2025 00:20:00 GMT', quotient: 9 }, // 13
+    // { date: 'Thursday, June 26, 2025 08:20:00 GMT', quotient: 10 }, // 14
+    // { date: 'Friday, July 4, 2025 16:20:00 GMT', quotient: 11 }, // 15
+    // { date: 'Sunday, July 13, 2025 00:20:00 GMT', quotient: 12 }, // 16
+    // { date: 'Sunday, July 20, 2025 16:20:00 GMT', quotient: 2 }, // 17
+    // { date: 'Tuesday, July 29, 2025 00:20:00 GMT', quotient: 3 },
+
     // { date: 'April 20, 2025 16:20:00 GMT', quotient: 999999999 },
   ].map((bonfire) => {
     const dateObj = new Date(bonfire.date);
@@ -46,10 +80,10 @@ describe('KudzuBurnController Tests', function () {
     const currentTime = (await hre.ethers.provider.getBlock('latest'))
       .timestamp;
     const bonfireTime = currentTime + 14 * 24 * 60 * 60;
-    const bonfireDelay = await KudzuBurnControllerMock.bonfireDelay();
+    const bonfireInterval = await KudzuBurnControllerMock.bonfireInterval();
     await KudzuBurnControllerMock.updateBonfireTime(bonfireTime);
     for (let i = 0; i < mockBonfireTimes.length; i++) {
-      const bonfireUnix = bonfireTime + i * parseInt(bonfireDelay);
+      const bonfireUnix = bonfireTime + i * parseInt(bonfireInterval);
       mockBonfireTimes[i].date = new Date(bonfireUnix * 1000).toUTCString();
       mockBonfireTimes[i].timestamp = bonfireUnix;
     }
@@ -57,7 +91,7 @@ describe('KudzuBurnController Tests', function () {
     const threeMonths = 7776000;
     const lastBonfireTime =
       mockBonfireTimes[mockBonfireTimes.length - 1].timestamp;
-    const firstEndDate = lastBonfireTime + parseInt(bonfireDelay);
+    const firstEndDate = lastBonfireTime + parseInt(bonfireInterval);
     for (let i = 0; i < totalRounds; i++) {
       await KudzuBurnMock.updateEndDate(i, firstEndDate + i * threeMonths);
     }
@@ -101,9 +135,14 @@ describe('KudzuBurnController Tests', function () {
 
   it('burn works', async () => {
     const [, acct1, acct2] = await ethers.getSigners();
-    const { Kudzu, KudzuBurn, KudzuBurnController } = await deployKudzuAndBurn({
-      mock: true,
-    });
+    // const { Kudzu, KudzuBurn, KudzuBurnController } = await deployKudzuAndBurn({
+    //   mock: true,
+    // });
+    const { Kudzu, KudzuBurn, KudzuBurnController } = {
+      Kudzu: KudzuMock,
+      KudzuBurn: KudzuBurnMock,
+      KudzuBurnController: KudzuBurnControllerMock,
+    };
 
     const burnPoint = await KudzuBurnController.burnPoint();
     const newStrainBonus = await KudzuBurnController.newStrainBonus();
@@ -218,10 +257,14 @@ describe('KudzuBurnController Tests', function () {
 
   it('burn fails under various invalid conditions', async () => {
     const [deployer, acct1, randomAccount] = await ethers.getSigners();
-    const { Kudzu, KudzuBurnController } = await deployKudzuAndBurn({
-      mock: true,
-    });
-
+    // const { Kudzu, KudzuBurnController } = await deployKudzuAndBurn({
+    //   mock: true,
+    // });
+    const { Kudzu, KudzuBurn, KudzuBurnController } = {
+      Kudzu: KudzuMock,
+      KudzuBurn: KudzuBurnMock,
+      KudzuBurnController: KudzuBurnControllerMock,
+    };
     const recipients = [
       {
         address: acct1,
@@ -263,9 +306,14 @@ describe('KudzuBurnController Tests', function () {
 
   it('burn calls rewardWinner when round is over', async () => {
     const [deployer, acct1, acct2] = await ethers.getSigners();
-    const { Kudzu, KudzuBurn, KudzuBurnController } = await deployKudzuAndBurn({
-      mock: true,
-    });
+    // const { Kudzu, KudzuBurn, KudzuBurnController } = await deployKudzuAndBurn({
+    //   mock: true,
+    // });
+    const { Kudzu, KudzuBurn, KudzuBurnController } = {
+      Kudzu: KudzuMock,
+      KudzuBurn: KudzuBurnMock,
+      KudzuBurnController: KudzuBurnControllerMock,
+    };
 
     // Setup initial state
     const recipients = [
@@ -390,11 +438,11 @@ describe('KudzuBurnController Tests', function () {
     // For extra clarity:
     expect(oneHour).to.equal(60 * 60, 'One hour should be 3600 seconds');
 
-    const bonfireDelay = await KudzuBurnController.bonfireDelay();
+    const bonfireInterval = await KudzuBurnController.bonfireInterval();
     epochStart = new Date(0); // 1970-01-01T00:00:00.000Z
     epochStart.setHours(epochStart.getHours() + 200);
     const twoHundredHours = epochStart.getTime() / 1000;
-    expect(bonfireDelay).to.equal(twoHundredHours);
+    expect(bonfireInterval).to.equal(twoHundredHours);
     expect(twoHundredHours).to.equal(
       200 * 60 * 60,
       'Two hundred hours should be 720000 seconds'
@@ -404,15 +452,15 @@ describe('KudzuBurnController Tests', function () {
   it('correctly calculates bonfire phases', async () => {
     const { KudzuBurnController } = await deployKudzuAndBurn();
     const firstBonfireStart = await KudzuBurnController.firstBonfireStart();
-    const bonfireDelay = await KudzuBurnController.bonfireDelay();
+    const bonfireInterval = await KudzuBurnController.bonfireInterval();
     for (let i = 0; i < bonfireTimes.length; i++) {
-      const phase = await KudzuBurnController.getBonfirePhase(i);
-      const expectedPhase = firstBonfireStart + BigInt(i) * bonfireDelay;
-      expect(phase).to.equal(expectedPhase);
+      const start = await KudzuBurnController.getBonfireStartByPhase(i);
+      // const expectedStart = firstBonfireStart + BigInt(i) * bonfireInterval;
+      // expect(start).to.equal(expectedStart);
 
       expect(
-        phase,
-        `Phase ${i} should be ${bonfireTimes[i].date} but instead it is ${new Date(parseInt(phase) * 1000).toISOString()}`
+        start,
+        `Phase ${i} should be ${bonfireTimes[i].date} but instead it is ${new Date(parseInt(start) * 1000).toISOString()}`
       ).to.equal(bonfireTimes[i].timestamp);
     }
   });
@@ -471,19 +519,13 @@ describe('KudzuBurnController Tests', function () {
     }
   });
 
-  it.only('handles bonfires after first phase correctly', async () => {
+  it('handles bonfires after first phase correctly', async () => {
     const firstBonfireStart = await KudzuBurnControllerMock.firstBonfireStart();
-    console.log({
-      firstBonfireStart,
-      date: new Date(parseInt(firstBonfireStart) * 1000).toISOString(),
-    });
     const lastBonfire = mockBonfireTimes[mockBonfireTimes.length - 1];
     expect(firstBonfireStart).to.be.lt(lastBonfire.timestamp);
-    console.log({ lastBonfire });
     const multiplier = await KudzuBurnControllerMock.getQuotient(
       lastBonfire.timestamp
     );
-    console.log({ multiplier });
     expect(multiplier).to.equal(lastBonfire.quotient);
 
     const firstBonfire = mockBonfireTimes[0];
@@ -492,14 +534,14 @@ describe('KudzuBurnController Tests', function () {
     );
     expect(firstBonfireMultiplier).to.equal(firstBonfire.quotient);
 
-    const bonfireDelay = await KudzuBurnControllerMock.bonfireDelay();
-    console.log({ bonfireDelay });
-    const nextBonfireStart =
-      lastBonfire.timestamp + parseInt(5n * bonfireDelay);
-    const nextMultiplier =
-      await KudzuBurnControllerMock.getQuotient(nextBonfireStart);
-    console.log({ nextMultiplier });
-    expect(nextMultiplier).to.equal(firstBonfireMultiplier);
+    // const bonfireInterval = await KudzuBurnControllerMock.bonfireInterval();
+    // console.log({ bonfireInterval });
+    // const nextBonfireStart =
+    //   lastBonfire.timestamp + parseInt(5n * bonfireInterval);
+    // const nextMultiplier =
+    //   await KudzuBurnControllerMock.getQuotient(nextBonfireStart);
+    // console.log({ nextMultiplier });
+    // expect(nextMultiplier).to.equal(firstBonfireMultiplier);
   });
 
   it('batchBurn works correctly', async () => {
@@ -714,6 +756,7 @@ describe('KudzuBurnController Tests', function () {
     let runningRemainder = 0;
     // Test each bonfire phase
     for (let i = 0; i < mockBonfireTimes.length; i++) {
+      if (i > 5) continue; // enough tokens for 5
       const bonfireTime = mockBonfireTimes[i].timestamp;
       const quotient = bonfireTimes[i].quotient;
 
@@ -885,7 +928,7 @@ describe('KudzuBurnController Tests', function () {
 
       // Find the next bonfire that occurs during this round
       const firstBonfireStart = await KudzuBurnController.firstBonfireStart();
-      const bonfireDelay = await KudzuBurnController.bonfireDelay();
+      const bonfireInterval = await KudzuBurnController.bonfireInterval();
       let bonfirePhase = 0;
       let nextBonfireTime = firstBonfireStart;
 
@@ -893,7 +936,7 @@ describe('KudzuBurnController Tests', function () {
       while (Number(nextBonfireTime) < roundStart) {
         bonfirePhase++;
         nextBonfireTime =
-          firstBonfireStart + BigInt(bonfirePhase) * bonfireDelay;
+          firstBonfireStart + BigInt(bonfirePhase) * bonfireInterval;
       }
 
       const now = (await hre.ethers.provider.getBlock('latest')).timestamp;
@@ -1570,14 +1613,15 @@ describe('KudzuBurnController Tests', function () {
 
     // Find the next bonfire that occurs during this round
     const firstBonfireStart = await KudzuBurnController.firstBonfireStart();
-    const bonfireDelay = await KudzuBurnController.bonfireDelay();
+    const bonfireInterval = await KudzuBurnController.bonfireInterval();
     let bonfirePhase = 0;
     let nextBonfireTime = firstBonfireStart;
 
     // Find the first bonfire that occurs during this round
     while (Number(nextBonfireTime) < roundStart) {
       bonfirePhase++;
-      nextBonfireTime = firstBonfireStart + BigInt(bonfirePhase) * bonfireDelay;
+      nextBonfireTime =
+        firstBonfireStart + BigInt(bonfirePhase) * bonfireInterval;
     }
 
     const now = (await hre.ethers.provider.getBlock('latest')).timestamp;

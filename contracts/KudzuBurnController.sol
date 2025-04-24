@@ -6,6 +6,7 @@ import "./KudzuBurn.sol";
 import "./Kudzu.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./IModularium.sol";
+import "hardhat/console.sol";
 
 contract KudzuBurnController is Ownable {
     Kudzu public kudzu;
@@ -24,11 +25,12 @@ contract KudzuBurnController is Ownable {
         modularium = _modularium;
     }
 
-    uint256 public bonfireDelay = 200 * 60 * 60;
+    uint256 public bonfireInterval = 200 * 60 * 60;
     uint256 public bonfireDuration = 60 * 60;
     uint256 public firstBonfireStart = 1741191600; // Wednesday Mar 05 2025 16:20:00 GMT+0000
 
     uint256 public bonfireQuotient = 5;
+    uint256 public bonfireQuotientAfter = 2;
 
     mapping(address => uint256) public bonfireCounts;
 
@@ -202,27 +204,75 @@ contract KudzuBurnController is Ownable {
     function isBonfireActive(uint256 timestamp) public view returns (bool) {
         if (timestamp < firstBonfireStart) return true;
         uint256 timeSinceFirstBonfire = timestamp - firstBonfireStart;
-        uint256 moduloBonfireDelay = timeSinceFirstBonfire % bonfireDelay;
+        uint256 moduloBonfireInterval = timeSinceFirstBonfire % bonfireInterval;
         if (isSpecialBurn(timestamp)) return true;
-        return moduloBonfireDelay < bonfireDuration;
+        return moduloBonfireInterval < bonfireDuration;
     }
 
-    function getBonfirePhase(
+    function getBonfireStartByPhase(
         uint256 phase
     ) public view returns (uint256 startTime) {
-        return firstBonfireStart + phase * bonfireDelay;
+        return firstBonfireStart + phase * bonfireInterval;
     }
+
+    // function getBonfireStartByPhase(
+    //     uint256 phase
+    // ) public view returns (uint256 startTime) {
+    //     uint256 round = 0;
+    //     uint256 sinceStart = firstBonfireStart;
+    //     for (uint256 i = 0; i < phase; i++) {
+    //         sinceStart += bonfireInterval;
+    //         (, uint256 endTime, ) = kudzuBurn.rounds(round);
+    //         if (sinceStart > endTime) {
+    //             round++;
+    //             sinceStart = endTime;
+    //         }
+    //     }
+    //     return sinceStart;
+    // }
+
+    // function getQuotient(
+    //     uint256 timestamp
+    // ) public view returns (uint256 bonus) {
+    //     if (timestamp < firstBonfireStart) return bonfireQuotient;
+
+    //     uint256 currentRound = kudzuBurn.currentRound();
+    //     (, uint endDate, ) = kudzuBurn.rounds(currentRound);
+    //     uint256 startTime = currentRound == 0 ? firstBonfireStart : endDate;
+
+    //     uint256 timeSinceFirstBonfire = timestamp - startTime;
+    //     uint256 moduloBonfireInterval = timeSinceFirstBonfire % bonfireInterval;
+    //     uint256 maxPhase = 11;
+    //     uint256 bonfireIndex = ((timeSinceFirstBonfire -
+    //         moduloBonfireInterval) / bonfireInterval);
+
+    //     uint256 base = currentRound == 0
+    //         ? bonfireQuotient
+    //         : bonfireQuotientAfter;
+
+    //     console.log("bonfireIndex", bonfireIndex);
+    //     uint256 phase = bonfireIndex % maxPhase;
+    //     console.log("phase", phase);
+    //     bonus = base + phase;
+    //     console.log("bonus", bonus);
+    // }
 
     function getQuotient(
         uint256 timestamp
     ) public view returns (uint256 bonus) {
         if (timestamp < firstBonfireStart) return bonfireQuotient;
         uint256 timeSinceFirstBonfire = timestamp - firstBonfireStart;
-        uint256 moduloBonfireDelay = timeSinceFirstBonfire % bonfireDelay;
+        uint256 moduloBonfireDelay = timeSinceFirstBonfire % bonfireInterval;
         uint256 maxPhase = 11;
-        uint256 phase = ((timeSinceFirstBonfire - moduloBonfireDelay) /
-            bonfireDelay) % maxPhase;
-        bonus = bonfireQuotient + phase;
+        uint256 actualPhase = (timeSinceFirstBonfire - moduloBonfireDelay) /
+            bonfireInterval;
+        uint256 base = bonfireQuotient;
+        if (actualPhase > 5) {
+            actualPhase -= 6;
+            base = bonfireQuotientAfter;
+        }
+        uint256 phase = actualPhase % maxPhase;
+        bonus = base + phase;
     }
 
     function updateBonfireTime(uint256 timestamp) public onlyOwner {
