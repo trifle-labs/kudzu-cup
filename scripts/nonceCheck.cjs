@@ -1,7 +1,6 @@
 const { ethers } = require('ethers');
 const fs = require('fs');
-const fetch = (...args) =>
-  import('node-fetch').then(({ default: fetch }) => fetch(...args));
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 // Configuration
 const RPC_URL = 'https://rpc.forma.art';
@@ -14,16 +13,14 @@ const BATCH_SIZE = 50; // Adjust based on RPC rate limits
  */
 async function fetchAddressesFromAPI() {
   try {
-    console.log(`Fetching addresses from API endpoint...`);
+    console.log('Fetching addresses from API endpoint...');
     const response = await fetch(API_URL);
     const data = await response.json();
 
     // Extract addresses from the response
     // Based on the provided sample, addresses are in data.result[0][1:] (skipping the header)
     const addresses = data.result[0].slice(1).map((item) => item[0]);
-    console.log(
-      `Successfully extracted ${addresses.length} addresses from API`
-    );
+    console.log(`Successfully extracted ${addresses.length} addresses from API`);
 
     return addresses;
   } catch (error) {
@@ -39,7 +36,8 @@ async function fetchAddressesFromAPI() {
  * Extract addresses from sample data as fallback
  */
 function fallbackExtractAddresses() {
-  const sampleResponse = `{"block_height":10203065,"result":[[["to"],["0xb051a733027c357568eeb953cddabe851c4f2202"],["0x77cf01ceb8f5abeaaefd93eb3865aa2703b892c0"],["0xd52d86fe3369b80041d4f17b4906adec3ce4929e"],["0x3af99b245330e231ce32c2b22b4ad45bc27e18cb"],["0x216597e0b5242cf114a860ff1d72ad1a5fd8ba1a"],["0x4989e1ab5e7cd00746b3938ef0f0d064a2025ba5"],["0x90c86fa959d30efdc4e9214267b1308aab648abb"],["0x37927607f2dc04dc7f46e8d86f41c72d06078b3d"],["0x6cdf68c9f08e79ec5f8834b183308a7781ce8ef1"],["0x1014a66402ff5b51d86a527da1dbe96343bd9d95"],["0x9090f58e39f6e861eecf2d8906151679b7dbc515"],["0x3533d1bc188a5501e40b1738743e5f2eccbfd5a1"],["0xde002f99afc3a281edff5970ccb1d8df3928602d"],["0x35ac0df50efea3246c0f9b69d23be607102a1200"],["0x2ac6d841a579fba2cc6fac1c310b9a48cb042cdd"],["0x87e8bdb9eef226fb28818c4e3b6ae8f6d7245e0e"],["0xf9ce5d5ba957d6ce22c1f74ba27ab93f453d2909"],["0xfae6b1d71c483241b61e386b40bfc64aaa644602"],["0x97d82e19eb8f4dd3eb2d10a31c4618ee9dedf375"]]]}`;
+  const sampleResponse =
+    '{"block_height":10203065,"result":[[["to"],["0xb051a733027c357568eeb953cddabe851c4f2202"],["0x77cf01ceb8f5abeaaefd93eb3865aa2703b892c0"],["0xd52d86fe3369b80041d4f17b4906adec3ce4929e"],["0x3af99b245330e231ce32c2b22b4ad45bc27e18cb"],["0x216597e0b5242cf114a860ff1d72ad1a5fd8ba1a"],["0x4989e1ab5e7cd00746b3938ef0f0d064a2025ba5"],["0x90c86fa959d30efdc4e9214267b1308aab648abb"],["0x37927607f2dc04dc7f46e8d86f41c72d06078b3d"],["0x6cdf68c9f08e79ec5f8834b183308a7781ce8ef1"],["0x1014a66402ff5b51d86a527da1dbe96343bd9d95"],["0x9090f58e39f6e861eecf2d8906151679b7dbc515"],["0x3533d1bc188a5501e40b1738743e5f2eccbfd5a1"],["0xde002f99afc3a281edff5970ccb1d8df3928602d"],["0x35ac0df50efea3246c0f9b69d23be607102a1200"],["0x2ac6d841a579fba2cc6fac1c310b9a48cb042cdd"],["0x87e8bdb9eef226fb28818c4e3b6ae8f6d7245e0e"],["0xf9ce5d5ba957d6ce22c1f74ba27ab93f453d2909"],["0xfae6b1d71c483241b61e386b40bfc64aaa644602"],["0x97d82e19eb8f4dd3eb2d10a31c4618ee9dedf375"]]]}';
 
   try {
     const data = JSON.parse(sampleResponse);
@@ -113,9 +111,7 @@ async function checkAddressesWithNonce(addresses) {
   };
   const failedBatches = [];
 
-  console.log(
-    `Checking ${addresses.length} addresses in batches of ${BATCH_SIZE}...`
-  );
+  console.log(`Checking ${addresses.length} addresses in batches of ${BATCH_SIZE}...`);
 
   for (let i = 0; i < addresses.length; i += BATCH_SIZE) {
     const batch = addresses.slice(i, i + BATCH_SIZE);
@@ -131,9 +127,7 @@ async function checkAddressesWithNonce(addresses) {
 
     if (!success) {
       failedBatches.push({ batch: failedBatch, startIndex: i });
-      console.log(
-        `Batch ${Math.floor(i / BATCH_SIZE) + 1} failed, will retry later...`
-      );
+      console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} failed, will retry later...`);
       continue;
     }
 
@@ -160,22 +154,17 @@ async function checkAddressesWithNonce(addresses) {
     console.log('\nRetrying failed batches...');
     for (const { batch, startIndex } of failedBatches) {
       console.log(`Retrying batch starting at index ${startIndex}`);
-      const { success, results: batchResults } = await processBatch(
-        provider,
-        batch
-      );
+      const { success, results: batchResults } = await processBatch(provider, batch);
 
       if (!success) {
-        console.error(
-          `Permanently failed to process batch starting at index ${startIndex}`
-        );
+        console.error(`Permanently failed to process batch starting at index ${startIndex}`);
         fs.appendFileSync(
           'failed_batches.json',
-          JSON.stringify({
+          `${JSON.stringify({
             batch,
             startIndex,
             timestamp: new Date().toISOString(),
-          }) + '\n'
+          })}\n`
         );
         continue;
       }
@@ -195,22 +184,12 @@ async function checkAddressesWithNonce(addresses) {
   }
 
   // Report and save results
-  console.log(`\nResults Summary:`);
-  console.log(
-    `Found ${results.activeAddresses.length} active addresses (nonce > 0)`
-  );
-  console.log(
-    `Found ${results.inactiveAddresses.length} inactive addresses (nonce = 0)`
-  );
+  console.log('\nResults Summary:');
+  console.log(`Found ${results.activeAddresses.length} active addresses (nonce > 0)`);
+  console.log(`Found ${results.inactiveAddresses.length} inactive addresses (nonce = 0)`);
 
-  fs.writeFileSync(
-    'active_addresses.json',
-    JSON.stringify(results.activeAddresses, null, 2)
-  );
-  fs.writeFileSync(
-    'inactive_addresses.txt',
-    results.inactiveAddresses.join('\n')
-  );
+  fs.writeFileSync('active_addresses.json', JSON.stringify(results.activeAddresses, null, 2));
+  fs.writeFileSync('inactive_addresses.txt', results.inactiveAddresses.join('\n'));
 
   return results;
 }
@@ -231,9 +210,7 @@ async function checkAddressesWithDirectRPC(addresses) {
       `Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(addresses.length / BATCH_SIZE)}`
     );
 
-    const promises = batch.map((address) =>
-      checkNonceWithRPC(address, RPC_URL)
-    );
+    const promises = batch.map((address) => checkNonceWithRPC(address, RPC_URL));
     const batchResults = await Promise.all(promises);
 
     batchResults.forEach((result) => {
@@ -255,26 +232,14 @@ async function checkAddressesWithDirectRPC(addresses) {
   }
 
   // Write results to files
-  fs.writeFileSync(
-    'active_addresses.json',
-    JSON.stringify(results.activeAddresses, null, 2)
-  );
+  fs.writeFileSync('active_addresses.json', JSON.stringify(results.activeAddresses, null, 2));
 
-  fs.writeFileSync(
-    'inactive_addresses.txt',
-    results.inactiveAddresses.join('\n')
-  );
+  fs.writeFileSync('inactive_addresses.txt', results.inactiveAddresses.join('\n'));
 
-  console.log(`\nResults Summary:`);
-  console.log(
-    `Found ${results.activeAddresses.length} active addresses (nonce > 0)`
-  );
-  console.log(
-    `Found ${results.inactiveAddresses.length} inactive addresses (nonce = 0)`
-  );
-  console.log(
-    `Results saved to active_addresses.json and inactive_addresses.txt`
-  );
+  console.log('\nResults Summary:');
+  console.log(`Found ${results.activeAddresses.length} active addresses (nonce > 0)`);
+  console.log(`Found ${results.inactiveAddresses.length} inactive addresses (nonce = 0)`);
+  console.log('Results saved to active_addresses.json and inactive_addresses.txt');
 
   return results;
 }

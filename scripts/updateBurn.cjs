@@ -1,11 +1,7 @@
 async function main() {
-  const {
-    deployController,
-    verifyContracts,
-    copyABI,
-    saveAddress,
-    initContracts,
-  } = await import('./utils.js');
+  const { deployController, verifyContracts, copyABI, saveAddress, initContracts } = await import(
+    './utils.js'
+  );
 
   const test = false;
   const testNetworkWithMainnetData = false;
@@ -23,9 +19,7 @@ async function main() {
 
   let KudzuBurn;
 
-  const prevKudzuBurnContractsFormaTest = [
-    '0x0FdDDec12144205F0c1CF88Ff482caE62345c0E6',
-  ];
+  const prevKudzuBurnContractsFormaTest = ['0x0FdDDec12144205F0c1CF88Ff482caE62345c0E6'];
 
   const prevKudzuBurnContractsForma = [
     '0xF0457689De0B2b061615d47eAD81923d3a3e2140',
@@ -49,10 +43,7 @@ async function main() {
 
     // deploy the new KudzuBurn contract
     const KudzuBurnFactory = await hre.ethers.getContractFactory('KudzuBurn');
-    KudzuBurn = await KudzuBurnFactory.deploy(
-      Kudzu.target,
-      prevKudzuBurn.target
-    );
+    KudzuBurn = await KudzuBurnFactory.deploy(Kudzu.target, prevKudzuBurn.target);
     await KudzuBurn.deploymentTransaction().wait();
     console.log(`KudzuBurn deployed to ${KudzuBurn.target}`);
 
@@ -97,7 +88,7 @@ async function main() {
     // get the relevant addresses for the indexSupply query
     const whichAddressArray = testNetworkWithMainnetData
       ? prevKudzuBurnContractsForma
-      : networkInfo.chainId == 984123
+      : networkInfo.chainId === 984123
         ? prevKudzuBurnContractsFormaTest
         : prevKudzuBurnContractsForma;
     const oldKudzuBurnQuery = `WHERE (address = ${whichAddressArray.join(' OR address = ')}) `;
@@ -106,7 +97,8 @@ async function main() {
       const escapedQuery = encodeURIComponent(query);
       return `https://api.indexsupply.net/query?api-key=${API}&query=${escapedQuery}&event_signatures=${eventSig}&chain=${chainId}`;
     };
-    const rewardPointsSig = `PointsRewarded(address indexed to,uint256 indexed tokenId,int256 points)`;
+    const rewardPointsSig =
+      'PointsRewarded(address indexed to,uint256 indexed tokenId,int256 points)';
 
     const gasUsedToRewardPoints = await rewardPoints();
     const gasUsedToUpdateTokenIds = await updateTokenIds();
@@ -116,9 +108,7 @@ async function main() {
     const gasPrice = 18n * 10n ** 9n;
     const totalTiaUsed = BigInt(totalGasUsed) * gasPrice;
     const totalTiaUsedFormatted = totalTiaUsed / 10n ** 18n; // why is this 15?
-    console.log(
-      `Total TIA used: ${totalTiaUsedFormatted}.${totalTiaUsed % 10n ** 18n}`
-    );
+    console.log(`Total TIA used: ${totalTiaUsedFormatted}.${totalTiaUsed % 10n ** 18n}`);
 
     async function updateTokenIds() {
       const query = `SELECT 
@@ -143,10 +133,7 @@ ORDER BY "to" ASC`;
         }
         return KudzuBurn.massUpdateBurnedTokens(burners, tokenIds, true);
       }
-      const gasUsed = await queryAndProcessRecords(
-        query,
-        processMassBurnedTokens
-      );
+      const gasUsed = await queryAndProcessRecords(query, processMassBurnedTokens);
       return gasUsed;
     }
 
@@ -171,10 +158,7 @@ ORDER BY "sum" DESC
         }
         return KudzuBurn.adminMassRewardSingleID(burners, quantities, 6); // admin mass reward ID
       }
-      const gasUsed = await queryAndProcessRecords(
-        query,
-        processMassRewardedPoints
-      );
+      const gasUsed = await queryAndProcessRecords(query, processMassRewardedPoints);
       return gasUsed;
     }
 
@@ -190,15 +174,13 @@ ORDER BY "sum" DESC
 
       const count = records.length;
       const totalChunks = Math.ceil(count / chunksize);
-      const lastChunkSize =
-        count % chunksize == 0 ? chunksize : count % chunksize;
+      const lastChunkSize = count % chunksize === 0 ? chunksize : count % chunksize;
 
       let totalGasUsed = 0n;
       let totalExecuted = 0;
       for (let i = 0; i < totalChunks; i++) {
         const startIndex = i * chunksize;
-        const chunk =
-          i == totalChunks - 1 && lastChunkSize > 0 ? lastChunkSize : chunksize;
+        const chunk = i === totalChunks - 1 && lastChunkSize > 0 ? lastChunkSize : chunksize;
         totalExecuted += chunk;
         const actualChunk = records.slice(startIndex, startIndex + chunk);
         const tx = await process(actualChunk);
@@ -212,8 +194,9 @@ ORDER BY "sum" DESC
           `Chunk ${i + 1}/${totalChunks} gas used: ${times100 / 100n}.${String(times100 % 100n).padStart(2, '0')} TIA (${times100Total / 100n}.${String(times100Total % 100n).padStart(2, '0')} TIA)`
         );
       }
-      if (totalExecuted !== count)
+      if (totalExecuted !== count) {
         throw new Error('Total executed is not equal to count');
+      }
 
       return totalGasUsed;
     }

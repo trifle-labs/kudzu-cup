@@ -11,17 +11,27 @@
     "deploy": "hardhat run scripts/deploy.cjs",
     "coverage": "rm -rf docs && rm -f coverage.json && NODE_OPTIONS=\"--max-old-space-size=16384\"  hardhat coverage --solcoverjs .solcover.cjs  && node fix-coverage-links.cjs",
     "serve-coverage": "npx serve docs",
-    "test": "NODE_OPTIONS=\"--max-old-space-size=16384\" hardhat test"
+    "test": "NODE_OPTIONS=\"--max-old-space-size=16384\" hardhat test",
+    "lint": "npm run lint:js && npm run lint:sol",
+    "lint:js": "eslint .",
+    "lint:js:fix": "eslint . --fix",
+    "lint:sol": "solhint 'contracts/**/*.sol'",
+    "lint:sol:fix": "solhint 'contracts/**/*.sol' --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky install"
   },
   "lint-staged": {
-    "*.{js,jsx}": [
+    "*.{js,mjs,cjs}": [
       "eslint --fix",
-      "prettier --write --ignore-unknown"
+      "prettier --write"
     ],
-    "*.{ts,tsx}": [
-      "prettier --write --ignore-unknown"
+    "*.sol": [
+      "solhint --fix"
     ],
-    "**/*": "prettier --write --ignore-unknown"
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "browserslist": [
     "> 1%",
@@ -29,55 +39,36 @@
     "not dead",
     "not ie 11"
   ],
-  "eslintConfig": {
-    "env": {
-      "amd": true,
-      "browser": true,
-      "es2020": true,
-      "node": true
-    },
-    "parserOptions": {
-      "ecmaFeatures": {
-        "modules": true
-      },
-      "ecmaVersion": "latest",
-      "parser": "@babel/eslint-parser",
-      "sourceType": "module"
-    },
-    "extends": [
-      "eslint:recommended",
-      "prettier"
-    ],
-    "globals": {},
-    "ignorePatterns": [],
-    "root": true,
-    "rules": {
-      "no-unused-vars": "warn"
-    }
-  },
   "resolutions": {},
   "dependencies": {},
   "devDependencies": {
-    "@trifle/leaderboard": "^1.0.8",
-    "ethers": "^6.0.0",
-    "solidity-rlp": "^2.0.8",
+    "@babel/core": "^7.28.0",
+    "@babel/eslint-parser": "^7.28.0",
+    "@babel/preset-env": "^7.28.0",
+    "@eslint/js": "^9.31.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@nomicfoundation/hardhat-ethers": "^3.0.0",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.9",
     "@nomicfoundation/hardhat-verify": "^2.0.8",
     "@nomiclabs/hardhat-ganache": "*",
     "@openzeppelin/contracts": "^4.6.0",
+    "@trifle/leaderboard": "^1.0.8",
     "base64-sol": "^1.1.0",
     "chai": "^4.2.0",
     "dotenv": "^16.0.1",
     "eslint": "^9.20.1",
     "eslint-config-prettier": "^9.1.0",
+    "ethers": "^6.0.0",
+    "globals": "^16.3.0",
     "hardhat": "2.21.0",
     "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^2.2.0",
+    "husky": "^9.1.7",
     "lint-staged": "^15.2.2",
     "prettier": "3.2.5",
-    "solidity-coverage": "^0.8.6"
+    "solhint": "^6.0.0",
+    "solidity-coverage": "^0.8.6",
+    "solidity-rlp": "^2.0.8"
   },
   "readme": "ERROR: No README data found!",
   "_id": "kudzu-cup@1.0.0"

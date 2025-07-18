@@ -1,6 +1,6 @@
 const hre = require('hardhat');
-let skip = false;
-let reuseKudzu = false;
+const skip = false;
+const reuseKudzu = false;
 
 async function main() {
   const accounts = await hre.ethers.getSigners();
@@ -10,14 +10,12 @@ async function main() {
   const chainId = BigInt(networkinfo);
   console.log('Deploy to chain:');
   console.log({ chainId });
-  const { deployKudzuAndBurn, getParsedEventLogs, initContracts, deployBurn } =
-    await import('./utils.js');
+  const { deployKudzuAndBurn, getParsedEventLogs, initContracts, deployBurn } = await import(
+    './utils.js'
+  );
   let Kudzu, KudzuBurn, tx;
   if (skip) {
-    const { Kudzu: Kudzu_, KudzuBurn: KudzuBurn_ } = await initContracts([
-      'Kudzu',
-      'KudzuBurn',
-    ]);
+    const { Kudzu: Kudzu_, KudzuBurn: KudzuBurn_ } = await initContracts(['Kudzu', 'KudzuBurn']);
     Kudzu = Kudzu_;
     KudzuBurn = KudzuBurn_;
   } else {
@@ -32,13 +30,11 @@ async function main() {
       });
       KudzuBurn = KudzuBurn_;
     } else {
-      const { Kudzu: Kudzu_, KudzuBurn: KudzuBurn_ } = await deployKudzuAndBurn(
-        {
-          mock: true,
-          ignoreTesting: true,
-          saveAndVerify: true,
-        }
-      );
+      const { Kudzu: Kudzu_, KudzuBurn: KudzuBurn_ } = await deployKudzuAndBurn({
+        mock: true,
+        ignoreTesting: true,
+        saveAndVerify: true,
+      });
       Kudzu = Kudzu_;
       KudzuBurn = KudzuBurn_;
     }
@@ -54,9 +50,7 @@ async function main() {
     const startDate = await Kudzu.startDate();
     console.log({ startDate });
     if (parseInt(startDate) !== parseInt(currentTime)) {
-      console.error(
-        `startDate is not currentTime: ${startDate} !== ${currentTime}`
-      );
+      console.error(`startDate is not currentTime: ${startDate} !== ${currentTime}`);
       throw new Error('startDate');
     }
     tx = await Kudzu.updateEndDate(9999999999);
@@ -101,10 +95,10 @@ async function main() {
           continue;
         }
         for (let j = 0; j < 10; j++) {
-          if (i == j) continue;
-          const ethBalance = await hre.ethers.provider.getBalance(
-            accounts[j].address
-          );
+          if (i === j) {
+            continue;
+          }
+          const ethBalance = await hre.ethers.provider.getBalance(accounts[j].address);
           if (ethBalance < hre.ethers.parseEther(fundAccountsWith)) {
             try {
               tx = await accounts[0].sendTransaction({
@@ -121,12 +115,7 @@ async function main() {
 
           for (let k = 0; k < 10; k++) {
             try {
-              tx = await Kudzu.connect(account).airdrop(
-                accounts[j].address,
-                tokenIds[k],
-                '0x',
-                0
-              );
+              tx = await Kudzu.connect(account).airdrop(accounts[j].address, tokenIds[k], '0x', 0);
               await tx.wait();
             } catch (e) {
               if (e.message.includes('ALREADY INFECTED')) {
@@ -160,7 +149,7 @@ async function main() {
     // Create transaction object with the target address
     const txData = {
       to: Kudzu.target,
-      data: data,
+      data,
     };
 
     // Send the transaction

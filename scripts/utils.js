@@ -6,7 +6,7 @@ import path from 'node:path';
 const __dirname = path.resolve();
 
 BigInt.prototype.toJSON = function () {
-  return this.toString() + 'n';
+  return `${this.toString()}n`;
 };
 
 export class DeterministicRandom {
@@ -24,7 +24,7 @@ export const printTree = async (leaderboard) => {
   console.log('----printTree---');
   const depth = await leaderboard.maxDepth();
   for (let i = 0; i < depth; i++) {
-    const [level, players, scores, colors] = await leaderboard.printDepth(i);
+    const [, players, scores, colors] = await leaderboard.printDepth(i);
     let line = '';
     const totalLevels = parseInt(depth);
     const spacingFactor = 2 ** (totalLevels - i + 1); // Controls spacing
@@ -57,10 +57,10 @@ const getPathABI = async (name) => {
   const networkinfo = await hre.network.provider.send('eth_chainId');
   const chainId = BigInt(networkinfo);
 
-  var savePath = path.join(
+  const savePath = path.join(
     __dirname,
     'contractData',
-    'ABI-' + String(chainId) + '-' + String(name) + '.json'
+    `ABI-${String(chainId)}-${String(name)}.json`
   );
   return savePath;
 };
@@ -73,11 +73,7 @@ async function readData(path) {
 const getPathAddress = async (name) => {
   const networkinfo = await hre.network.provider.send('eth_chainId');
   const chainId = BigInt(networkinfo);
-  var savePath = path.join(
-    __dirname,
-    'contractData',
-    String(chainId) + '-' + String(name) + '.json'
-  );
+  const savePath = path.join(__dirname, 'contractData', `${String(chainId)}-${String(name)}.json`);
   return savePath;
 };
 
@@ -85,29 +81,21 @@ const initContracts = async (
   contractNames = ['Kudzu', 'ExternalMetadata'],
   { skipErrors = false, mock = false } = {}
 ) => {
-  let [deployer] = await hre.ethers.getSigners();
+  const [deployer] = await hre.ethers.getSigners();
 
-  let returnObject = {};
+  const returnObject = {};
 
   for (let i = 0; i < contractNames.length; i++) {
     try {
-      const address = JSON.parse(
-        await readData(await getPathAddress(contractNames[i]))
-      )['address'];
+      const address = JSON.parse(await readData(await getPathAddress(contractNames[i])))['address'];
       let abi;
       if (contractNames[i] === 'Kudzu' && mock) {
         const mockKudzu = await hre.ethers.getContractFactory('KudzuMock');
         abi = mockKudzu.interface;
       } else {
-        abi = JSON.parse(await readData(await getPathABI(contractNames[i])))[
-          'abi'
-        ];
+        abi = JSON.parse(await readData(await getPathABI(contractNames[i])))['abi'];
       }
-      returnObject[contractNames[i]] = new hre.ethers.Contract(
-        address,
-        abi,
-        deployer
-      );
+      returnObject[contractNames[i]] = new hre.ethers.Contract(address, abi, deployer);
     } catch (e) {
       if (!skipErrors) {
         console.log({ e });
@@ -119,11 +107,9 @@ const initContracts = async (
 };
 
 const decodeUri = (decodedJson) => {
-  const metaWithoutDataURL = decodedJson.substring(
-    decodedJson.indexOf(',') + 1
-  );
-  let buff = Buffer.from(metaWithoutDataURL, 'base64');
-  let text = buff.toString('ascii');
+  const metaWithoutDataURL = decodedJson.substring(decodedJson.indexOf(',') + 1);
+  const buff = Buffer.from(metaWithoutDataURL, 'base64');
+  const text = buff.toString('ascii');
   return text;
 };
 
@@ -135,8 +121,7 @@ const deployMetadata = async () => {
     global.chainId = chainId;
 
     // deploy ExternalMetadata
-    const ExternalMetadata =
-      await hre.ethers.getContractFactory('ExternalMetadata');
+    const ExternalMetadata = await hre.ethers.getContractFactory('ExternalMetadata');
     externalMetadata = await ExternalMetadata.deploy();
     await externalMetadata.deploymentTransaction().wait(); // Updated for v6
   } catch (e) {
@@ -189,7 +174,8 @@ const saveAndVerifyContracts = async (deployedContracts) => {
       contractName === 'ignoreTesting' ||
       contractName === 'verbose' ||
       contractName === 'chainId' ||
-      contractName === 'mock'
+      contractName === 'mock' ||
+      contractName === 'mockRound'
     ) {
       continue;
     }
@@ -260,16 +246,28 @@ const deployBurnContract = async (returnObject) => {
     // Add other networks and their Modularium addresses here if needed
   };
 
+  // --- Determine Chimera Address ---+
+  let chimeraAddress;
+  const chimeraAddresses = {
+    formatest: zeroAddress, // TODO: Update with actual chimera address when available
+    forma: zeroAddress, // TODO: Update with actual chimera address when available
+    hardhat: zeroAddress,
+    // Add other networks and their Chimera addresses here if needed
+  };
+
   if (mock) {
     log('   Deploying ModulariumMock...');
-    const ModulariumMockFactory =
-      await hre.ethers.getContractFactory('ModulariumMock');
+    const ModulariumMockFactory = await hre.ethers.getContractFactory('ModulariumMock');
     modulariumInstance = await ModulariumMockFactory.deploy();
     await modulariumInstance.deploymentTransaction().wait();
     modulariumAddress = modulariumInstance.target;
     log(`   ModulariumMock deployed at: ${modulariumAddress}`);
     // Optionally add the mock instance to the return object if needed elsewhere
     returnObject['ModulariumMock'] = modulariumInstance;
+
+    // For mock mode, use zero address for chimera
+    chimeraAddress = zeroAddress;
+    log(`   Using zero address for chimera in mock mode: ${chimeraAddress}`);
   } else {
     const networkName = hre.network.name;
     log(`   Getting Modularium address for network: ${networkName}`);
@@ -280,40 +278,42 @@ const deployBurnContract = async (returnObject) => {
       );
     }
     log(`   Using Modularium address: ${modulariumAddress}`);
-    // We don't have the instance here, just the address
+
+    log(`   Getting Chimera address for network: ${networkName}`);
+    chimeraAddress = chimeraAddresses[networkName];
+    if (chimeraAddress === undefined) {
+      throw new Error(
+        `Chimera address not configured for network '${networkName}' in utils.js. Cannot deploy KudzuBurnController without a valid Chimera address.`
+      );
+    }
+    log(`   Using Chimera address: ${chimeraAddress}`);
   }
 
   // deploy KudzuBurn
   const KudzuBurn = await hre.ethers.getContractFactory('KudzuBurn');
-  const kudzuBurn = await KudzuBurn.deploy(
-    returnObject.Kudzu.target,
-    zeroAddress
-  );
+  const kudzuBurn = await KudzuBurn.deploy(returnObject.Kudzu.target, zeroAddress);
   await kudzuBurn.deploymentTransaction().wait();
   returnObject['KudzuBurn'] = kudzuBurn;
   log(`KudzuBurn Deployed at ${kudzuBurn.target} `);
 
-  // Deploy KudzuBurnController with the determined Modularium address
+  // Deploy KudzuBurnController with the determined Modularium and Chimera addresses
   log('Deploying KudzuBurnController...');
-  const KudzuBurnControllerFactory = await hre.ethers.getContractFactory(
-    'KudzuBurnController'
-  );
+  const KudzuBurnControllerFactory = await hre.ethers.getContractFactory('KudzuBurnController');
   const kudzuBurnController = await KudzuBurnControllerFactory.deploy(
     returnObject.Kudzu.target, // Kudzu address
     kudzuBurn.target, // KudzuBurn address
-    modulariumAddress // Determined Modularium address (real or mock)
+    modulariumAddress, // Determined Modularium address (real or mock)
+    chimeraAddress // Determined Chimera address (real or zero address)
   );
   await kudzuBurnController.deploymentTransaction().wait();
   returnObject['KudzuBurnController'] = kudzuBurnController;
   log(
-    `KudzuBurnController Deployed at ${kudzuBurnController.target} with Kudzu at ${returnObject.Kudzu.target} and KudzuBurn at ${kudzuBurn.target} and modularium address at ${modulariumAddress}`
+    `KudzuBurnController Deployed at ${kudzuBurnController.target} with Kudzu at ${returnObject.Kudzu.target} and KudzuBurn at ${kudzuBurn.target}, modularium address at ${modulariumAddress}, and chimera address at ${chimeraAddress}`
   );
 
   // update KudzuBurn with KudzuController address
   await kudzuBurn.updateKudzuBurnController(kudzuBurnController.target);
-  log(
-    `KudzuBurn updated with KudzuBurnController at ${kudzuBurnController.target}`
-  );
+  log(`KudzuBurn updated with KudzuBurnController at ${kudzuBurnController.target}`);
 
   // If mockRound is provided, set the currentRound to that value (for testing purposes)
   if (returnObject.mockRound !== undefined) {
@@ -346,6 +346,7 @@ const deployBurnContract = async (returnObject) => {
         returnObject.Kudzu.target,
         kudzuBurn.target,
         modulariumAddress,
+        chimeraAddress,
       ],
     },
   ];
@@ -361,10 +362,7 @@ const deployContractsV0 = async (options) => {
     verbose: false,
     mockRound: undefined, // Add mockRound option with default undefined
   };
-  const { mock, ignoreTesting, verbose, mockRound } = Object.assign(
-    defaultOptions,
-    options
-  );
+  const { mock, ignoreTesting, verbose, mockRound } = Object.assign(defaultOptions, options);
   global.ignoreTesting = ignoreTesting;
   global.verbose = verbose;
   const networkinfo = await hre.network.provider.send('eth_chainId');
@@ -379,19 +377,16 @@ const deployContractsV0 = async (options) => {
     mock,
     ignoreTesting,
     verbose,
-    mockRound,
   };
 
   // deploy Metadata
   const { externalMetadata } = await deployMetadata();
-  log('ExternalMetadata Deployed at ' + String(externalMetadata.target)); // Updated from .address to .target
+  log(`ExternalMetadata Deployed at ${String(externalMetadata.target)}`); // Updated from .address to .target
 
   returnObject['ExternalMetadata'] = externalMetadata;
 
   // deploy Kudzu
-  const Kudzu = await hre.ethers.getContractFactory(
-    mock ? 'KudzuMock' : 'Kudzu'
-  );
+  const Kudzu = await hre.ethers.getContractFactory(mock ? 'KudzuMock' : 'Kudzu');
 
   if (mock) {
     log('Deploying KudzuMock contract');
@@ -439,14 +434,14 @@ const verifyContracts = async (returnObject) => {
   const [deployer] = await hre.ethers.getSigners();
   // verify contract if network ID is mainnet goerli or sepolia
   if (
-    chainId == 5n || // Updated to use bigint
-    chainId == 1n ||
-    chainId == 984123n ||
-    chainId == 984122n ||
-    chainId == 11155111n ||
-    chainId == 17069n ||
-    chainId == 84532n ||
-    chainId == 8453n
+    chainId === 5n || // Updated to use bigint
+    chainId === 1n ||
+    chainId === 984123n ||
+    chainId === 984122n ||
+    chainId === 11155111n ||
+    chainId === 17069n ||
+    chainId === 84532n ||
+    chainId === 8453n
   ) {
     const verificationData = returnObject.verificationData;
     for (let i = 0; i < verificationData.length; i++) {
@@ -463,7 +458,7 @@ const verifyContracts = async (returnObject) => {
         i--;
       }
     }
-  } else if (chainId == 12345n) {
+  } else if (chainId === 12345n) {
     // Updated to use bigint
     // This is so dev accounts have spending money on local chain
     await deployer.sendTransaction({
@@ -483,9 +478,10 @@ const log = (message) => {
   const verbose = global.verbose;
   if (
     !verbose &&
-    (!chainId || (chainId == 12345n && !ignoreTesting)) // Updated to use bigint
-  )
+    (!chainId || (chainId === 12345n && !ignoreTesting)) // Updated to use bigint
+  ) {
     return;
+  }
   console.log(message);
 };
 
@@ -507,9 +503,7 @@ const getParsedEventLogs = async (receipt, contract, eventName) => {
   let events = await contract.queryFilter(filter, receipt.blockNumber);
   // delete events[0].provider;
   // delete events[0].interface;
-  const result = eventName
-    ? events.filter((x) => x.fragment.name === eventName)
-    : events;
+  const result = eventName ? events.filter((x) => x.fragment.name === eventName) : events;
   events = events.map((e) => {
     e.pretty = [...e.args];
 
@@ -527,7 +521,7 @@ async function copyABI(name, contractName) {
   const networkinfo = await hre.network.provider.send('eth_chainId');
   const chainId = BigInt(networkinfo);
   log(`--copy ${name} ABI`);
-  var pathname = path.join(
+  const pathname = path.join(
     __dirname,
     'artifacts',
     'contracts',
@@ -541,29 +535,21 @@ async function copyABI(name, contractName) {
 
     const newContent = { contractName, abi };
 
-    var copy = path.join(
-      __dirname,
-      'contractData',
-      'ABI-' + String(chainId) + `-${name}.json`
-    );
+    const copy = path.join(__dirname, 'contractData', `ABI-${String(chainId)}-${name}.json`);
     await writedata(copy, JSON.stringify(newContent));
     log('-- OK');
   } catch (e) {
-    console.error('Failed to copy ABI' + name, { e });
+    console.error(`Failed to copy ABI${name}`, { e });
   }
 }
 
 async function saveAddress(contract, name) {
   const networkinfo = await hre.network.provider.send('eth_chainId');
   const chainId = BigInt(networkinfo);
-  log('-save json for ' + name);
-  var newAddress = await contract.target; // Updated from .address to .target
-  var savePath = path.join(
-    __dirname,
-    'contractData',
-    String(chainId) + '-' + String(name) + '.json'
-  );
-  var objToWrite = {
+  log(`-save json for ${name}`);
+  const newAddress = await contract.target; // Updated from .address to .target
+  const savePath = path.join(__dirname, 'contractData', `${String(chainId)}-${String(name)}.json`);
+  const objToWrite = {
     address: newAddress,
     chain: chainId,
   };
@@ -574,7 +560,7 @@ async function writedata(path, data) {
   try {
     await fs.writeFile(path, data);
   } catch (e) {
-    console.error('Failed to write file' + path, { e });
+    console.error(`Failed to write file${path}`, { e });
   }
 }
 
@@ -608,11 +594,11 @@ const prepareKudzuForTests = async (Kudzu, recipients = []) => {
   const currentTimePlusOneDay = currentTime + 86400;
   let tx = await Kudzu.updateStartDate(currentTime);
   await tx.wait();
-  const startDate = await Kudzu.startDate();
+  // const startDate = await Kudzu.startDate();
 
   tx = await Kudzu.updateEndDate(currentTimePlusOneDay);
   await tx.wait();
-  const endDate = await Kudzu.endDate();
+  // const endDate = await Kudzu.endDate();
   tx = await Kudzu.updatePrices(0, 0);
   await tx.wait();
   tx = await Kudzu.updateClaimDelay(0);
@@ -628,43 +614,27 @@ const prepareKudzuForTests = async (Kudzu, recipients = []) => {
     const quantityChunkSize = 100;
     const quantityChunks = Math.ceil(quantity / quantityChunkSize);
     const quantityChunkLast =
-      quantity % quantityChunkSize == 0
-        ? quantityChunkSize
-        : quantity % quantityChunkSize;
+      quantity % quantityChunkSize === 0 ? quantityChunkSize : quantity % quantityChunkSize;
 
-    let tokenIds = [];
+    const tokenIds = [];
     for (let j = 0; j < quantityChunks; j++) {
-      const quantityChunk =
-        j == quantityChunks - 1 ? quantityChunkLast : quantityChunkSize;
-      const tx = await Kudzu.connect(address).mint(
-        address.address,
-        0,
-        quantityChunk
-      );
+      const quantityChunk = j === quantityChunks - 1 ? quantityChunkLast : quantityChunkSize;
+      const tx = await Kudzu.connect(address).mint(address.address, 0, quantityChunk);
       const receipt = await tx.wait();
       tokenIds.push(
-        ...(await getParsedEventLogs(receipt, Kudzu, 'TransferSingle')).map(
-          (e) => e.pretty.id
-        )
+        ...(await getParsedEventLogs(receipt, Kudzu, 'TransferSingle')).map((e) => e.pretty.id)
       );
     }
     allTokenIds.push(...tokenIds);
     for (let k = 0; k < infected.length; k++) {
       const infectedAddress = infected[k].address;
       const strainIndex = infected[k].strainIndex;
-      await Kudzu.connect(address).airdrop(
-        infectedAddress,
-        tokenIds[strainIndex],
-        '0x',
-        0
-      );
+      await Kudzu.connect(address).airdrop(infectedAddress, tokenIds[strainIndex], '0x', 0);
     }
   }
 
   // Fast forward to end of game
-  await hre.network.provider.send('evm_setNextBlockTimestamp', [
-    parseInt(currentTimePlusOneDay),
-  ]);
+  await hre.network.provider.send('evm_setNextBlockTimestamp', [parseInt(currentTimePlusOneDay)]);
   await hre.network.provider.send('evm_mine');
 
   // Get winning tokens
@@ -682,7 +652,9 @@ const prepareKudzuForTests = async (Kudzu, recipients = []) => {
       // This address holds a winning token
       try {
         await Kudzu.connect(address).claimPrize(place);
-      } catch (e) {}
+      } catch (e) {
+        // Prize claiming can fail if this address doesn't hold a winning token
+      }
     }
   }
 

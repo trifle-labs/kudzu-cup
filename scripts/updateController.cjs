@@ -1,19 +1,21 @@
 async function main() {
-  const {
-    deployController,
-    verifyContracts,
-    copyABI,
-    saveAddress,
-    initContracts,
-  } = await import('./utils.js');
+  const { verifyContracts, copyABI, saveAddress, initContracts } = await import('./utils.js');
 
   // Get the currently deployed Kudzu contract
-  const { Kudzu, KudzuBurn } = await initContracts(['Kudzu', 'KudzuBurn']);
+  const { Kudzu, KudzuBurn } = await initContracts(['Kudzu', 'KudzuBurn'], { skipErrors: false });
+
+  // Check if contracts exist
+  if (!Kudzu || !KudzuBurn) {
+    console.error('Error: Kudzu and KudzuBurn contracts must be deployed first.');
+    console.error('Run: npx hardhat run scripts/deploy.cjs --network hardhat');
+    console.error('Or: npx hardhat run scripts/deployBurn.cjs --network hardhat');
+    process.exit(1);
+  }
 
   const paused = await KudzuBurn.paused();
   if (!paused) {
     await KudzuBurn.updatePaused(true);
-    console.log(`KudzuBurn is paused`);
+    console.log('KudzuBurn is paused');
   }
 
   // const allPrevControllers = [
@@ -29,6 +31,14 @@ async function main() {
     hardhat: ethers.zeroAddress,
     // Add other networks and their Modularium addresses here if needed
   };
+
+  const chimeraAddresses = {
+    formatest: '0x83c62Cc36B792eE22ba14e74E07Ab05eC2630d1b', // TODO: Update with actual chimera address when available
+    forma: ethers.zeroAddress, // TODO: Update with actual chimera address when available
+    hardhat: ethers.zeroAddress,
+    // Add other networks and their Chimera addresses here if needed
+  };
+
   const networkName = hre.network.name;
   console.log(`   Getting Modularium address for network: ${networkName}`);
   const modulariumAddress = modulariumAddresses[networkName];
@@ -38,18 +48,30 @@ async function main() {
     );
   }
 
-  const KudzuBurnController = await hre.ethers.getContractFactory(
-    'KudzuBurnController'
-  );
+  console.log(`   Getting Chimera address for network: ${networkName}`);
+  const chimeraAddress = chimeraAddresses[networkName];
+  if (chimeraAddress === undefined) {
+    throw new Error(
+      `Chimera address not configured for network '${networkName}' in updateController.cjs. Cannot deploy KudzuBurnController without a valid Chimera address.`
+    );
+  }
+  if (chimeraAddress === ethers.zeroAddress) {
+    console.warn('Chimera address is zero address ensure this is intentional');
+  }
+
+  const KudzuBurnController = await hre.ethers.getContractFactory('KudzuBurnController');
 
   const burnController = await KudzuBurnController.deploy(
     Kudzu.target,
     KudzuBurn.target,
-    modulariumAddress
+    modulariumAddress,
+    chimeraAddress
   );
   await burnController.deploymentTransaction().wait();
 
-  console.log(`KudzuBurnController deployed to ${burnController.target}`);
+  console.log(
+    `KudzuBurnController deployed to ${burnController.target} with chimera address ${chimeraAddress}`
+  );
 
   const returnObject = {
     KudzuBurnController: burnController,
@@ -70,7 +92,7 @@ async function main() {
   const verificationData = [
     {
       name: 'KudzuBurnController',
-      constructorArguments: [Kudzu.target, KudzuBurn.target, modulariumAddress],
+      constructorArguments: [Kudzu.target, KudzuBurn.target, modulariumAddress, chimeraAddress],
     },
   ];
   returnObject['verificationData'] = verificationData;
@@ -81,7 +103,7 @@ async function main() {
   const paused_ = await KudzuBurn.paused();
   if (paused_) {
     await KudzuBurn.updatePaused(false);
-    console.log(`KudzuBurn is unpaused`);
+    console.log('KudzuBurn is unpaused');
   }
 }
 

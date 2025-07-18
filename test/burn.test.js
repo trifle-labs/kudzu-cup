@@ -14,10 +14,10 @@ import {
 let snapshot;
 describe('KudzuBurn Tests', function () {
   this.timeout(50000000);
-  before(async function () {
+  before(async () => {
     snapshot = await hre.network.provider.send('evm_snapshot', []);
   });
-  afterEach(async function () {
+  afterEach(async () => {
     await hre.network.provider.send('evm_revert', [snapshot]);
     snapshot = await hre.network.provider.send('evm_snapshot', []);
   });
@@ -40,12 +40,10 @@ describe('KudzuBurn Tests', function () {
 
     for (let i = 0; i < functions.length; i++) {
       const { name, params } = functions[i];
-      await expect(
-        KudzuBurn.connect(notdeployer)[name](...params),
-        name
-      ).to.be.revertedWith('Ownable: caller is not the owner');
-      await expect(KudzuBurn.connect(deployer)[name](...params), name).to.not.be
-        .reverted;
+      await expect(KudzuBurn.connect(notdeployer)[name](...params), name).to.be.revertedWith(
+        'Ownable: caller is not the owner'
+      );
+      await expect(KudzuBurn.connect(deployer)[name](...params), name).to.not.be.reverted;
     }
   });
 
@@ -66,8 +64,7 @@ describe('KudzuBurn Tests', function () {
 
   it('has the correct dates', async () => {
     const startingDate = 'April 20, 2025, 16:20 GMT+0000';
-    const convertDateToUnix = (date) =>
-      Math.floor(new Date(date + ' UTC').getTime() / 1000);
+    const convertDateToUnix = (date) => Math.floor(new Date(`${date} UTC`).getTime() / 1000);
     const startingDataUnix = convertDateToUnix(startingDate);
     const { KudzuBurn } = await deployKudzuAndBurn();
     for (let i = 0; i < 13; i++) {
@@ -111,24 +108,12 @@ describe('KudzuBurn Tests', function () {
     const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
 
     // confirm quantities are correct
-    expect(
-      await Kudzu['balanceOf(address,uint256)'](acct1.address, tokenIds[0])
-    ).to.equal(10);
-    expect(
-      await Kudzu['balanceOf(address,uint256)'](acct2.address, tokenIds[0])
-    ).to.equal(1);
-    expect(
-      await Kudzu['balanceOf(address,uint256)'](acct3.address, tokenIds[1])
-    ).to.equal(10);
-    expect(
-      await Kudzu['balanceOf(address,uint256)'](acct4.address, tokenIds[1])
-    ).to.equal(1);
-    expect(
-      await Kudzu['balanceOf(address,uint256)'](acct3.address, tokenIds[2])
-    ).to.equal(10);
-    expect(
-      await Kudzu['balanceOf(address,uint256)'](acct5.address, tokenIds[2])
-    ).to.equal(1);
+    expect(await Kudzu['balanceOf(address,uint256)'](acct1.address, tokenIds[0])).to.equal(10);
+    expect(await Kudzu['balanceOf(address,uint256)'](acct2.address, tokenIds[0])).to.equal(1);
+    expect(await Kudzu['balanceOf(address,uint256)'](acct3.address, tokenIds[1])).to.equal(10);
+    expect(await Kudzu['balanceOf(address,uint256)'](acct4.address, tokenIds[1])).to.equal(1);
+    expect(await Kudzu['balanceOf(address,uint256)'](acct3.address, tokenIds[2])).to.equal(10);
+    expect(await Kudzu['balanceOf(address,uint256)'](acct5.address, tokenIds[2])).to.equal(1);
   });
 
   it('adminReward and adminPunish work correctly', async () => {
@@ -151,13 +136,13 @@ describe('KudzuBurn Tests', function () {
     expect(await KudzuBurn.getWinningAddress()).to.equal(acct1.address);
 
     // Test that non-owners cannot use these functions
-    await expect(
-      KudzuBurn.connect(acct1).adminReward(acct1.address, 10, 0)
-    ).to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(KudzuBurn.connect(acct1).adminReward(acct1.address, 10, 0)).to.be.revertedWith(
+      'Ownable: caller is not the owner'
+    );
 
-    await expect(
-      KudzuBurn.connect(acct1).adminPunish(acct2.address, 10, 0)
-    ).to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(KudzuBurn.connect(acct1).adminPunish(acct2.address, 10, 0)).to.be.revertedWith(
+      'Ownable: caller is not the owner'
+    );
 
     // Verify rankings
     expect(await KudzuBurn.getOwnerAtRank(0)).to.equal(acct1.address);
@@ -180,10 +165,7 @@ describe('KudzuBurn Tests', function () {
     ];
     const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
 
-    await Kudzu.connect(acct1).setApprovalForAll(
-      KudzuBurnController.target,
-      true
-    );
+    await Kudzu.connect(acct1).setApprovalForAll(KudzuBurnController.target, true);
 
     await KudzuBurnController.connect(acct1).burn(tokenIds[0], 1);
     expect(await KudzuBurn.getOwnerAtRank(0)).to.equal(acct1.address);
@@ -201,9 +183,9 @@ describe('KudzuBurn Tests', function () {
     expect(round12.payoutToRecipient).to.equal(fundAmount);
 
     // Test invalid round index (13)
-    await expect(
-      KudzuBurn.fundRound(13, { value: fundAmount })
-    ).to.be.revertedWith('Invalid round index');
+    await expect(KudzuBurn.fundRound(13, { value: fundAmount })).to.be.revertedWith(
+      'Invalid round index'
+    );
 
     // Fast forward past round 0
     const roundEndTime = await KudzuBurn.rounds(0);
@@ -216,9 +198,9 @@ describe('KudzuBurn Tests', function () {
     await KudzuBurn.rewardWinner();
 
     // Test funding past round (0) after advancement
-    await expect(
-      KudzuBurn.fundRound(0, { value: fundAmount })
-    ).to.be.revertedWith('Round already over');
+    await expect(KudzuBurn.fundRound(0, { value: fundAmount })).to.be.revertedWith(
+      'Round already over'
+    );
   });
 
   // Helper function to convert rank to index
@@ -261,14 +243,8 @@ describe('KudzuBurn Tests', function () {
     ];
     const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
 
-    await Kudzu.connect(acct1).setApprovalForAll(
-      KudzuBurnController.target,
-      true
-    );
-    await Kudzu.connect(acct2).setApprovalForAll(
-      KudzuBurnController.target,
-      true
-    );
+    await Kudzu.connect(acct1).setApprovalForAll(KudzuBurnController.target, true);
+    await Kudzu.connect(acct2).setApprovalForAll(KudzuBurnController.target, true);
     // Create a winner by burning tokens
     await KudzuBurnController.connect(acct1).burn(tokenIds[0], 1);
     expect(await getOwnerAtRank(KudzuBurn, 0)).to.equal(acct1.address);
@@ -277,9 +253,7 @@ describe('KudzuBurn Tests', function () {
 
     // Fast forward time to after round end
     const roundEndTime = await KudzuBurn.rounds(0);
-    await hre.network.provider.send('evm_setNextBlockTimestamp', [
-      parseInt(roundEndTime[1]) + 1,
-    ]);
+    await hre.network.provider.send('evm_setNextBlockTimestamp', [parseInt(roundEndTime[1]) + 1]);
     await hre.network.provider.send('evm_mine');
 
     const over = await KudzuBurn.isOver();
@@ -302,11 +276,7 @@ describe('KudzuBurn Tests', function () {
     // Verify round advanced
     expect(await KudzuBurn.currentRound()).to.equal(1);
 
-    const ethMovedEvents = await getParsedEventLogs(
-      receipt,
-      KudzuBurn,
-      'EthMoved'
-    );
+    const ethMovedEvents = await getParsedEventLogs(receipt, KudzuBurn, 'EthMoved');
     expect(ethMovedEvents.length).to.equal(2);
 
     // First event should be the reward distribution
@@ -336,10 +306,7 @@ describe('KudzuBurn Tests', function () {
     ];
     const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
 
-    await Kudzu.connect(acct1).setApprovalForAll(
-      KudzuBurnController.target,
-      true
-    );
+    await Kudzu.connect(acct1).setApprovalForAll(KudzuBurnController.target, true);
     await KudzuBurnController.connect(acct1).burn(tokenIds[0], 1);
 
     // Fund the round
@@ -370,19 +337,11 @@ describe('KudzuBurn Tests', function () {
     const rewardIds = [0, 0, 0];
 
     // Test adminMassReward
-    const rewardTx = await KudzuBurn.adminMassReward(
-      addresses,
-      quantities,
-      rewardIds
-    );
+    const rewardTx = await KudzuBurn.adminMassReward(addresses, quantities, rewardIds);
     const rewardReceipt = await rewardTx.wait();
 
     // Check events
-    const rewardEvents = await getParsedEventLogs(
-      rewardReceipt,
-      KudzuBurn,
-      'PointsRewarded'
-    );
+    const rewardEvents = await getParsedEventLogs(rewardReceipt, KudzuBurn, 'PointsRewarded');
     expect(rewardEvents.length).to.equal(3);
 
     // Verify each reward event
@@ -404,19 +363,11 @@ describe('KudzuBurn Tests', function () {
 
     // Test adminMassPunish
     const punishQuantities = [5, 15, 10];
-    const punishTx = await KudzuBurn.adminMassPunish(
-      addresses,
-      punishQuantities,
-      rewardIds
-    );
+    const punishTx = await KudzuBurn.adminMassPunish(addresses, punishQuantities, rewardIds);
     const punishReceipt = await punishTx.wait();
 
     // Check events
-    const punishEvents = await getParsedEventLogs(
-      punishReceipt,
-      KudzuBurn,
-      'PointsRewarded'
-    );
+    const punishEvents = await getParsedEventLogs(punishReceipt, KudzuBurn, 'PointsRewarded');
     expect(punishEvents.length).to.equal(3);
 
     // Verify each punish event
@@ -466,21 +417,21 @@ describe('KudzuBurn Tests', function () {
     expect(await KudzuBurn.getPoints(acct3.address)).to.equal(0); // 20 - 30 = 0 (not -10)
 
     // Test array length mismatch
-    await expect(
-      KudzuBurn.adminMassReward(addresses, [10, 20], rewardIds)
-    ).to.be.revertedWith('Arrays must be same length');
+    await expect(KudzuBurn.adminMassReward(addresses, [10, 20], rewardIds)).to.be.revertedWith(
+      'Arrays must be same length'
+    );
 
-    await expect(
-      KudzuBurn.adminMassPunish(addresses, [10, 20], rewardIds)
-    ).to.be.revertedWith('Arrays must be same length');
+    await expect(KudzuBurn.adminMassPunish(addresses, [10, 20], rewardIds)).to.be.revertedWith(
+      'Arrays must be same length'
+    );
 
-    await expect(
-      KudzuBurn.adminMassReward(addresses, quantities, [0, 0])
-    ).to.be.revertedWith('Arrays must be same length');
+    await expect(KudzuBurn.adminMassReward(addresses, quantities, [0, 0])).to.be.revertedWith(
+      'Arrays must be same length'
+    );
 
-    await expect(
-      KudzuBurn.adminMassPunish(addresses, quantities, [0, 0])
-    ).to.be.revertedWith('Arrays must be same length');
+    await expect(KudzuBurn.adminMassPunish(addresses, quantities, [0, 0])).to.be.revertedWith(
+      'Arrays must be same length'
+    );
 
     // Test non-owner access
     await expect(
@@ -498,12 +449,7 @@ describe('KudzuBurn Tests', function () {
 
     // Try to call updateTreeOnlyController as non-controller
     await expect(
-      KudzuBurn.connect(notController).updateTreeOnlyController(
-        notController.address,
-        1,
-        true,
-        0
-      )
+      KudzuBurn.connect(notController).updateTreeOnlyController(notController.address, 1, true, 0)
     ).to.be.revertedWith('Only KudzuBurnController can call this function');
 
     // Set notController as the controller
@@ -511,12 +457,7 @@ describe('KudzuBurn Tests', function () {
 
     // Should now work with the correct controller
     await expect(
-      KudzuBurn.connect(notController).updateTreeOnlyController(
-        notController.address,
-        1,
-        true,
-        0
-      )
+      KudzuBurn.connect(notController).updateTreeOnlyController(notController.address, 1, true, 0)
     ).to.not.be.reverted;
   });
 
@@ -541,23 +482,18 @@ describe('KudzuBurn Tests', function () {
 
     // Check that rewardWinner fails when paused
     const roundEndTime = await KudzuBurn.rounds(0);
-    await hre.network.provider.send('evm_setNextBlockTimestamp', [
-      parseInt(roundEndTime[1]) + 1,
-    ]);
+    await hre.network.provider.send('evm_setNextBlockTimestamp', [parseInt(roundEndTime[1]) + 1]);
     await hre.network.provider.send('evm_mine');
 
-    await expect(KudzuBurn.rewardWinner()).to.be.revertedWith(
-      'Contract is paused'
-    );
+    await expect(KudzuBurn.rewardWinner()).to.be.revertedWith('Contract is paused');
 
     // Unpause and verify operations work again
     await KudzuBurn.updatePaused(false);
     expect(await KudzuBurn.paused()).to.be.false;
 
     // Should now work
-    await expect(
-      KudzuBurn.connect(user).updateTreeOnlyController(user.address, 1, true, 0)
-    ).to.not.be.reverted;
+    await expect(KudzuBurn.connect(user).updateTreeOnlyController(user.address, 1, true, 0)).to.not
+      .be.reverted;
 
     // Verify only owner can update pause state
     await expect(KudzuBurn.connect(user).updatePaused(true)).to.be.revertedWith(
@@ -612,12 +548,7 @@ describe('KudzuBurn Tests', function () {
 
     // Remove 100 points from account 5
     // console.log('\nRemoving 100 points from account 5:');
-    await KudzuBurn.updateTreeOnlyController(
-      accounts[5].address,
-      100,
-      false,
-      123
-    );
+    await KudzuBurn.updateTreeOnlyController(accounts[5].address, 100, false, 123);
 
     // Print final rankings
     // console.log('\nFinal rankings after removing points:');
@@ -648,14 +579,8 @@ describe('KudzuBurn Tests', function () {
     ];
     const tokenIds = await prepareKudzuForTests(Kudzu, recipients);
 
-    await Kudzu.connect(acct1).setApprovalForAll(
-      KudzuBurnController.target,
-      true
-    );
-    await Kudzu.connect(acct2).setApprovalForAll(
-      KudzuBurnController.target,
-      true
-    );
+    await Kudzu.connect(acct1).setApprovalForAll(KudzuBurnController.target, true);
+    await Kudzu.connect(acct2).setApprovalForAll(KudzuBurnController.target, true);
 
     await KudzuBurnController.connect(acct2).burn(tokenIds[0], 1);
 
@@ -690,9 +615,7 @@ describe('KudzuBurn Tests', function () {
     const [order, endDate, payoutToRecipient] = await KudzuBurn.rounds(0);
     expect(payoutToRecipient).to.equal(ethers.parseEther('1.0'));
 
-    await hre.network.provider.send('evm_setNextBlockTimestamp', [
-      parseInt(endDate) + 1,
-    ]);
+    await hre.network.provider.send('evm_setNextBlockTimestamp', [parseInt(endDate) + 1]);
     await hre.network.provider.send('evm_mine');
 
     await KudzuBurn.rewardWinner();
@@ -711,23 +634,17 @@ describe('KudzuBurn Tests', function () {
     await KudzuBurn.adminReward(acct3.address, 10, 0);
 
     // Verify getWinningAddress matches getOwnerAtRank(0)
-    expect(await KudzuBurn.getWinningAddress()).to.equal(
-      await KudzuBurn.getOwnerAtRank(0)
-    );
+    expect(await KudzuBurn.getWinningAddress()).to.equal(await KudzuBurn.getOwnerAtRank(0));
     expect(await KudzuBurn.getWinningAddress()).to.equal(acct1.address);
 
     // Change rankings and verify again
     await KudzuBurn.adminReward(acct1.address, 15, 0);
-    expect(await KudzuBurn.getWinningAddress()).to.equal(
-      await KudzuBurn.getOwnerAtRank(0)
-    );
+    expect(await KudzuBurn.getWinningAddress()).to.equal(await KudzuBurn.getOwnerAtRank(0));
     expect(await KudzuBurn.getWinningAddress()).to.equal(acct1.address);
 
     // Remove points and verify
     await KudzuBurn.adminPunish(acct1.address, 20, 0);
-    expect(await KudzuBurn.getWinningAddress()).to.equal(
-      await KudzuBurn.getOwnerAtRank(0)
-    );
+    expect(await KudzuBurn.getWinningAddress()).to.equal(await KudzuBurn.getOwnerAtRank(0));
     expect(await KudzuBurn.getWinningAddress()).to.equal(acct2.address);
   });
 
@@ -774,7 +691,7 @@ describe('KudzuBurn Tests', function () {
   //   for (let i = 0; i < totalChunks; i++) {
   //     const startIndex = i * chunksize;
   //     const chunk =
-  //       i == totalChunks - 1 && lastChunkSize > 0 ? lastChunkSize : chunksize;
+  //       i === totalChunks - 1 && lastChunkSize > 0 ? lastChunkSize : chunksize;
   //     const tx = await newKudzuBurn.migrateTree(startIndex, chunk);
   //     const receipt = await tx.wait();
   //     console.log(`Chunk ${i + 1}/${totalChunks} gas used: ${receipt.gasUsed}`);

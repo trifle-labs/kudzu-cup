@@ -1,0 +1,12 @@
+node_modules/
+artifacts/
+cache/
+coverage/
+docs/
+dist/
+*.min.js
+yarn.lock
+package-lock.json
+.git/
+.husky/
+contractData/ 

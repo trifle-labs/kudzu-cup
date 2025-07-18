@@ -13,9 +13,7 @@ const modulariumAddresses = {
 // Check if global fetch is available (Node.js v18+)
 if (typeof fetch === 'undefined') {
   console.error('❌ Global fetch API is not available.');
-  console.error(
-    '   Please run this script using Node.js version 18 or higher.'
-  );
+  console.error('   Please run this script using Node.js version 18 or higher.');
   console.error(
     "   Alternatively, install 'node-fetch' (`npm install node-fetch` or `yarn add node-fetch`)"
   );
@@ -39,9 +37,7 @@ const getListed = async (kudzuAddress, apiEndpoint) => {
     });
 
     if (!response.ok) {
-      console.error(
-        `🚨 Failed to fetch listings: ${response.status} ${response.statusText}`
-      );
+      console.error(`🚨 Failed to fetch listings: ${response.status} ${response.statusText}`);
       try {
         const errorBody = await response.text();
         console.error(`   Response body: ${errorBody}`);
@@ -122,9 +118,7 @@ const executeOrSimulateBuy = async (
       await contract.bulkTakeSellOrders.staticCall(params, {
         value: valueWei,
       });
-      console.log(
-        '✅ Simulation Successful: The transaction would likely succeed.'
-      );
+      console.log('✅ Simulation Successful: The transaction would likely succeed.');
       return { success: true, receipt: null };
     } catch (simError) {
       console.error('❌ Simulation Failed:', simError.message);
@@ -134,20 +128,14 @@ const executeOrSimulateBuy = async (
           if (simError.data.startsWith('0x08c379a0')) {
             const reason = ethers.AbiCoder.defaultAbiCoder().decode(
               ['string'],
-              '0x' + simError.data.slice(10)
+              `0x${simError.data.slice(10)}`
             )[0];
             console.error('   Revert Reason:', reason);
           } else {
-            console.error(
-              '   Could not decode revert reason (unknown format):',
-              simError.data
-            );
+            console.error('   Could not decode revert reason (unknown format):', simError.data);
           }
         } catch (decodeError) {
-          console.error(
-            '   Error decoding revert reason:',
-            decodeError.message
-          );
+          console.error('   Error decoding revert reason:', decodeError.message);
           console.error('   Raw error data:', simError.data);
         }
       } else if (simError.reason) {
@@ -166,11 +154,9 @@ const executeOrSimulateBuy = async (
       console.log(`   Transaction Sent: ${tx.hash}`);
       console.log('   Waiting for transaction confirmation (1 block)...');
       const receipt = await tx.wait(1);
-      console.log(
-        `   ✅ Transaction Confirmed in block: ${receipt.blockNumber}`
-      );
+      console.log(`   ✅ Transaction Confirmed in block: ${receipt.blockNumber}`);
       console.log(`   Gas Used: ${receipt.gasUsed.toString()}`);
-      return { success: true, receipt: receipt };
+      return { success: true, receipt };
     } catch (error) {
       console.error('❌ Transaction Failed:', error.message);
       // Decode revert reason (reuse logic)
@@ -179,20 +165,14 @@ const executeOrSimulateBuy = async (
           if (error.data.startsWith('0x08c379a0')) {
             const reason = ethers.AbiCoder.defaultAbiCoder().decode(
               ['string'],
-              '0x' + error.data.slice(10)
+              `0x${error.data.slice(10)}`
             )[0];
             console.error('   Revert Reason:', reason);
           } else {
-            console.error(
-              '   Could not decode revert reason (unknown format):',
-              error.data
-            );
+            console.error('   Could not decode revert reason (unknown format):', error.data);
           }
         } catch (decodeError) {
-          console.error(
-            '   Error decoding revert reason:',
-            decodeError.message
-          );
+          console.error('   Error decoding revert reason:', decodeError.message);
           console.error('   Raw error data:', error.data);
         }
       } else if (error.reason) {
@@ -201,17 +181,14 @@ const executeOrSimulateBuy = async (
       if (error.transactionHash) {
         console.error('   Transaction Hash:', error.transactionHash);
       }
-      return { success: false, receipt: null, error: error };
+      return { success: false, receipt: null, error };
     }
   }
 };
 
 // --- Hardhat Task Definition ---
 
-task(
-  'bulkBuyModularium',
-  'Buys listings from Modularium and compares gas for single vs bulk'
-)
+task('bulkBuyModularium', 'Buys listings from Modularium and compares gas for single vs bulk')
   .addFlag('simulate', 'Run in simulation mode without sending a transaction')
   .setAction(async (taskArgs, hre) => {
     // Use hre.ethers provided by the task context
@@ -260,10 +237,7 @@ task(
       kudzuAddress = Kudzu.target; // .target is commonly used for the address in Hardhat deploys
       console.log(`   ✅ Kudzu contract address found: ${kudzuAddress}`);
     } catch (error) {
-      console.error(
-        `🚨 Failed to initialize Kudzu contract from utils.js:`,
-        error.message
-      );
+      console.error('🚨 Failed to initialize Kudzu contract from utils.js:', error.message);
       console.error(
         "   Ensure './utils.js' exists, exports 'initContracts', handles hre correctly, and deployment data is available."
       );
@@ -300,9 +274,7 @@ task(
     // --- Order Selection Logic ---
     // Strategy: Find two different listings to compare single vs bulk buy.
     if (listings.length < 2) {
-      console.log(
-        '\n🤷 Need at least 2 different listings to compare gas costs. Exiting.'
-      );
+      console.log('\n🤷 Need at least 2 different listings to compare gas costs. Exiting.');
       return;
     }
 
@@ -320,16 +292,10 @@ task(
     const priceWeiB = ethers.parseEther(priceEthB);
     const totalPriceWei = priceWeiA + priceWeiB;
 
-    console.log(`\n🛒 Listings Selected for Comparison:`);
-    console.log(
-      `   Listing A - Order ID: ${orderIdA}, Price: ${priceEthA} ETH`
-    );
-    console.log(
-      `   Listing B - Order ID: ${orderIdB}, Price: ${priceEthB} ETH`
-    );
-    console.log(
-      `   Total Price for A+B: ${ethers.formatEther(totalPriceWei)} ETH`
-    );
+    console.log('\n🛒 Listings Selected for Comparison:');
+    console.log(`   Listing A - Order ID: ${orderIdA}, Price: ${priceEthA} ETH`);
+    console.log(`   Listing B - Order ID: ${orderIdB}, Price: ${priceEthB} ETH`);
+    console.log(`   Total Price for A+B: ${ethers.formatEther(totalPriceWei)} ETH`);
 
     // --- Pre-Transaction Checks ---
     const balance = await ethers.provider.getBalance(signer.address);
@@ -350,11 +316,7 @@ task(
     console.log('\n⚙️ Preparing transaction...');
     // Get Modularium contract ABI (using the Interface) and instance
     const modulariumAbi = hre.artifacts.readArtifactSync('IModularium').abi;
-    const modulariumContract = new ethers.Contract(
-      modulariumAddress,
-      modulariumAbi,
-      signer
-    );
+    const modulariumContract = new ethers.Contract(modulariumAddress, modulariumAbi, signer);
 
     // Parameters for buying 1 of Listing A
     const params1 = {
@@ -390,9 +352,7 @@ task(
       // Important: If actually executing, wait a moment to avoid potential nonce issues or hitting rate limits.
       // Also, the state might have changed slightly (e.g., balance).
       if (!isSimulate) {
-        console.log(
-          '\n⏱️ Waiting a few seconds before the second transaction...'
-        );
+        console.log('\n⏱️ Waiting a few seconds before the second transaction...');
         await new Promise((resolve) => setTimeout(resolve, 5000)); // 5-second wait
       }
       result2 = await executeOrSimulateBuy(
@@ -405,9 +365,7 @@ task(
         ethers
       );
     } else {
-      console.log(
-        '\n⚠️ Skipping second transaction/simulation because the first one failed.'
-      );
+      console.log('\n⚠️ Skipping second transaction/simulation because the first one failed.');
     }
 
     // --- Compare Gas Costs (if not simulating and both succeeded) ---
@@ -427,9 +385,7 @@ task(
       console.log('\n⛽ Gas Cost Comparison ⛽');
       console.log(`   Gas Used (Buy 1 Listing): ${gasUsed1.toString()}`);
       console.log(`   Gas Used (Buy 2 Listings): ${gasUsed2.toString()}`);
-      console.log(
-        `   Marginal Gas Cost (Adding 2nd Listing): ${gasDifference.toString()}`
-      );
+      console.log(`   Marginal Gas Cost (Adding 2nd Listing): ${gasDifference.toString()}`);
       console.log(`   Cost per Listing (Buy 1): ${gasUsed1.toString()}`);
       // This difference represents the gas cost *specifically* for handling the second order item within the bulk call
       console.log(
