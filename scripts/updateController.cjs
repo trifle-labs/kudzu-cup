@@ -28,14 +28,14 @@ async function main() {
   const modulariumAddresses = {
     formatest: '0x83c62Cc36B792eE22ba14e74E07Ab05eC2630d1b', // formatest (assuming this is the testnet name in hardhat config)
     forma: '0x98DF8F54ac374B5F9d814f09978E5287C27e3Ef6', // forma mainnet
-    hardhat: ethers.zeroAddress,
+    hardhat: null,
     // Add other networks and their Modularium addresses here if needed
   };
 
   const chimeraAddresses = {
-    formatest: '0x83c62Cc36B792eE22ba14e74E07Ab05eC2630d1b', // TODO: Update with actual chimera address when available
-    forma: ethers.zeroAddress, // TODO: Update with actual chimera address when available
-    hardhat: ethers.zeroAddress,
+    formatest: `${ethers.ZeroAddress.slice(0, -1)}1`, // TODO: Update with actual chimera address when available
+    forma: `${ethers.ZeroAddress.slice(0, -1)}1`, // TODO: Update with actual chimera address when available
+    hardhat: null,
     // Add other networks and their Chimera addresses here if needed
   };
 
