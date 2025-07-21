@@ -249,9 +249,9 @@ const deployBurnContract = async (returnObject) => {
   // --- Determine Chimera Address ---+
   let chimeraAddress;
   const chimeraAddresses = {
-    formatest: zeroAddress, // TODO: Update with actual chimera address when available
-    forma: zeroAddress, // TODO: Update with actual chimera address when available
-    hardhat: zeroAddress,
+    formatest: '0x7699554E1e389233b03382d3e19B37EAf69f2d13',
+    forma: '0xB7fd11aAB7C17eCf7b494676A2FB1827730215ab',
+    hardhat: null,
     // Add other networks and their Chimera addresses here if needed
   };
 

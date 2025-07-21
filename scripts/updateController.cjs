@@ -33,8 +33,8 @@ async function main() {
   };
 
   const chimeraAddresses = {
-    formatest: `${ethers.ZeroAddress.slice(0, -1)}1`, // TODO: Update with actual chimera address when available
-    forma: `${ethers.ZeroAddress.slice(0, -1)}1`, // TODO: Update with actual chimera address when available
+    formatest: '0x7699554E1e389233b03382d3e19B37EAf69f2d13',
+    forma: '0xB7fd11aAB7C17eCf7b494676A2FB1827730215ab',
     hardhat: null,
     // Add other networks and their Chimera addresses here if needed
   };
