@@ -39,7 +39,9 @@
     "not dead",
     "not ie 11"
   ],
-  "resolutions": {},
+  "resolutions": {
+    "ethereumjs-abi": "git+https://github.com/ethereumjs/ethereumjs-abi.git"
+  },
   "dependencies": {},
   "devDependencies": {
     "@babel/core": "^7.28.0",
