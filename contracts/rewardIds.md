@@ -16,6 +16,9 @@ Contract expects at most 10,000 rewardIds in the `PointsRewarded(address indexed
 | 8         | 5       | Bug Bounty, Medium Severity                                                                                                                                                                                           |
 | 9         | -783    | Used to correct BurnItAll Bug for player 0x918316cc8b00d2602336eac8b080a63afb6970fa                                                                                                                                   |
 | 10        | 50      | Bug Bounty, Critical Severity                                                                                                                                                                                         |
+| 11        | 10      | People who burned within 7 days of end of round 2 when an error occurred that prevented play at the end.                                                                                                              |
+| 12        | 25      | People who reported in the discord that there was an error at the end of round 2.                                                                                                                                     |
+| 13        | 2       | vncnt.eth tried to manually burn when round 2 had an error at the end.                                                                                                                                                |
 
 <!-- Table with bonfire start times and burn quantity multipliers -->
 

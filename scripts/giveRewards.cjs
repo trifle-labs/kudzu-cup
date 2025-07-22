@@ -4,6 +4,7 @@ const fs = require('fs');
 async function processAddressBatch(KudzuBurn, addresses, quantities, rewardIds, retryCount = 0) {
   const maxRetries = 3;
   try {
+    console.log({ addresses, quantities, rewardIds });
     const result = await KudzuBurn.adminMassReward(addresses, quantities, rewardIds);
     await result.wait();
     return true;
@@ -47,7 +48,9 @@ async function main() {
     await tx.wait();
   }
 
-  const addresses = await getThirdGroup(updateBlockNum, Kudzu.target, chainId);
+  const addresses = await getFifthGroup(Kudzu.target, chainId);
+  // const addresses = await getFourthGroup(Kudzu.target, chainId);
+  // const addresses = await getThirdGroup(updateBlockNum, Kudzu.target, chainId);
   // const addresses = await getSecondGroup();
   // cosnt addresses = await getFirstGroup()
   // console.log({ addresses });
@@ -115,28 +118,81 @@ async function main() {
   }
 }
 
-async function getThirdGroup(updateBlockNum, kudzuContract, chainId) {
-  const url = `https://api.indexsupply.net/query?query=SELECT+%0A++t.from+as+%22burner%22%2C+SUM%28t.value%29+as+%22total%22%0AFROM+%0A++transfersingle+as+t%0AWHERE%0A++address+%3D+${kudzuContract}%0AAND%0A++t.to+%3D+0x000000000000000000000000000000000000deAd%0AAND%0A++t.from+%21%3D+0x0000000000000000000000000000000000000000%0AAND%0A++t.block_num+%3C%3D+${updateBlockNum}%0AGROUP+BY+%22burner%22%0AORDER+BY+%22total%22+DESC%0A&event_signatures=TransferSingle%28address+indexed+operator%2C+address+indexed+from%2C+address+indexed+to%2C+uint256+id%2C+uint256+value%29&event_signatures=&chain=${chainId}`;
-  console.log({ url });
+const transferSingleEventSignature = encodeURIComponent(
+  'TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)'
+);
 
-  const response = await fetch(url);
-  const data = await response.json();
-  const quotient = 5;
-  const addresses = data.result[0]
-    .slice(1) // Skip the header row
-    .map((row) => {
-      console.log(
-        `${row[0]} gets ${Math.ceil(row[1] / quotient)} points for ${row[1]} total burns`
-      );
-
-      return {
-        address: row[0],
-        points: Math.ceil(row[1] / quotient), // This means early birds are rewarded even a bit more than those in normal bonfire
-        rewardId: 5, // rewardID 5 is for bonfire points
-      };
-    });
+const getFifthGroup = async (kudzuContract, chainId) => {
+  const addresses = [
+    { address: '0x06f4db783097c632b888669032b2905f70e08105', points: 2, rewardId: 13 }, // vncnt
+    { address: '0x762934603DCA9e97cb374144124BDC7cbee48767', points: 10, rewardId: 11 }, // thegamebegins
+    { address: '0x762934603DCA9e97cb374144124BDC7cbee48767', points: 25, rewardId: 12 }, // thegamebegins
+  ];
   return addresses;
-}
+};
+
+// async function getFourthGroup(kudzuContract, chainId) {
+//   const startBlock = 15174478;
+//   const endBlock = 15416797;
+//   const discordAddresses = [
+//     { address: '0xad1591e08c5b1b03677c18e480588de78f48f1b8', points: 25, rewardId: 12 }, // swamber
+//     { address: '0x06f4db783097c632b888669032b2905f70e08105', points: 25, rewardId: 12 }, // vncnt
+//   ];
+
+//   const query = `
+//   SELECT
+//   t.from as "burner", SUM(t.value) as "total"
+// FROM
+//   transfersingle as t
+// WHERE
+//   address = ${kudzuContract}
+// AND
+//   t.to = 0x000000000000000000000000000000000000deAd
+// AND
+//   t.from != 0x0000000000000000000000000000000000000000
+// AND
+//   t.block_num <= ${endBlock}
+// AND
+//   t.block_num >= ${startBlock}
+// GROUP BY "burner"
+// ORDER BY "total" DESC`;
+
+//   const queryEncoded = encodeURIComponent(query);
+//   const url = `https://api.indexsupply.net/query?query=${queryEncoded}&event_signatures=${transferSingleEventSignature}&chain=${chainId}`;
+
+//   const response = await fetch(url);
+//   const data = await response.json();
+//   const addresses = data.result[0]
+//     .slice(1) // Skip the header row
+//     .map((row) => {
+//       console.log(`https://kudzu.rodeo/${row[0]}`);
+//       return { address: row[0], points: 10, rewardId: 11 };
+//     });
+//   return [...addresses, ...discordAddresses];
+// }
+
+// async function getThirdGroup(updateBlockNum, kudzuContract, chainId) {
+//   const url = `https://api.indexsupply.net/query?query=SELECT+%0A++t.from+as+%22burner%22%2C+SUM%28t.value%29+as+%22total%22%0AFROM+%0A++transfersingle+as+t%0AWHERE%0A++address+%3D+${kudzuContract}%0AAND%0A++t.to+%3D+0x000000000000000000000000000000000000deAd%0AAND%0A++t.from+%21%3D+0x0000000000000000000000000000000000000000%0AAND%0A++t.block_num+%3C%3D+${updateBlockNum}%0AGROUP+BY+%22burner%22%0AORDER+BY+%22total%22+DESC%0A&event_signatures=TransferSingle%28address+indexed+operator%2C+address+indexed+from%2C+address+indexed+to%2C+uint256+id%2C+uint256+value%29&event_signatures=&chain=${chainId}`;
+//   console.log({ url });
+
+//   const response = await fetch(url);
+//   const data = await response.json();
+//   const quotient = 5;
+//   const addresses = data.result[0]
+//     .slice(1) // Skip the header row
+//     .map((row) => {
+//       console.log(
+//         `${row[0]} gets ${Math.ceil(row[1] / quotient)} points for ${row[1]} total burns`
+//       );
+
+//       return {
+//         address: row[0],
+//         points: Math.ceil(row[1] / quotient), // This means early birds are rewarded even a bit more than those in normal bonfire
+//         rewardId: 5, // rewardID 5 is for bonfire points
+//       };
+//     });
+//   return addresses;
+// }
 
 // rewardID 4
 // async function getSecondGroup() {
